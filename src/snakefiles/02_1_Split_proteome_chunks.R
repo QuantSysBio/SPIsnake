@@ -1,6 +1,13 @@
-#################################################################
-# (0) Dependencies
-#################################################################
+### ---------------------------------------------- Split proteome chunks  ----------------------------------------------
+# description:  Sort input proteomes according to Linclust output. Split long proteins into overlapping chunks.
+#               
+# input:        1. Proteome .fasta
+#               2. Linclust .tsv table with protein order
+#               3. Parameters: min/max sequence length, chunk size
+# output:       
+#               - Proteome spit into chunks of fixed size, similar sequences stored together
+#               
+# author:       YH, JL
 
 library(seqinr)
 library(parallel)
