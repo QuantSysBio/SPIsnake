@@ -1,3 +1,0 @@
-# Install snakemake
-conda activate base
-conda create -c conda-forge -c bioconda -n SPIsnake snakemake
