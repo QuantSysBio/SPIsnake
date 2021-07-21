@@ -4,6 +4,8 @@
 ## Installation
 ```
 conda create -c conda-forge -c bioconda -n SPIsnake snakemake
+conda activate SPIsnake
+conda install -c conda-forge singularity 
 ```
 
 ## Execution
