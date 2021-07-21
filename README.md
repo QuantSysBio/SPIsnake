@@ -20,6 +20,8 @@ snakemake --use-conda -j 1
 - [ ] Control peptide generation rule via Master_sheet (proteome and corresponding peptide lengths) and checkpoint over chunks
 - [ ] Peptide generator
 - - [x] Paralell PCP/PSP generation
+- - [x] Protein-peptide mapping
+- - [x] Protein-peptide stats
 - - [X] PCP/PSP uniqueness inside chunks and save .csv.gz using AA index
 - - [ ] PCP/PSP control in peptide generator
 - - [ ] Gather generated peptides across chunks and save unique peptide sequences
@@ -28,3 +30,5 @@ snakemake --use-conda -j 1
 - [ ] MW filtering
 - [ ] RT prediction
 - [ ] IC50 prediction
+- [ ] Descriptive stats and plots
+- [ ] Singularity containerization
