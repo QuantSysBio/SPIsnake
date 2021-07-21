@@ -1,0 +1,11 @@
+# Paths to references
+
+Master_table: Master_table.csv
+
+DB:
+    max_intervening_length: 25
+    min_protein_length: 9
+    max_protein_length: 1000
+    maxE: 76595700
+
+...
