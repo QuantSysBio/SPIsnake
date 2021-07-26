@@ -1,3 +1,3 @@
-Proteome,Splice type,N_mers,Min_Interv_length,PTMs,mz_filter,RT_filter,IC_50_filter
-proteome_expressed_gencode,"PCP, cis-PSP",[8:10],25,none,yes,yes,yes
-fiveUTR_seq_3_frame,PCP,[8:12],25,none,yes,yes,yes
+Proteome,Splice_type,N_mers,Min_Interv_length,PTMs,mz_filter,RT_filter,IC_50_filter
+proteome_expressed_gencode,"PCP, cis-PSP",8_10,25,none,yes,yes,yes
+fiveUTR_seq_3_frame,PCP,8_12,25,none,yes,yes,yes
