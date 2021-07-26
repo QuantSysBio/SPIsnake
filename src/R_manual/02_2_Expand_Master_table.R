@@ -1,4 +1,13 @@
-# Define jobs to be executed using Master_table and generated proteome chunks
+### ---------------------------------------------- Expand Master table  ----------------------------------------------
+# description:  Create a table to control PCP/PSP generation
+#               
+# input:        1. Master_table contains parameters to be expanded into separate rows
+#               2. Assumes that "directory" contains .fasta proteome chunks
+#
+# output:       
+#               - Tidy dataframe with a single combination of proteome chunk and peptide generation parameters per line
+#               
+# author:       YH
 
 library(data.table)
 library(dplyr)
