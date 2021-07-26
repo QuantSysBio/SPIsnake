@@ -77,10 +77,31 @@ rule Split_proteome_chunks:
         "02_1_Split_proteome_chunks.R"
 
 
-# Checkpoint for rules that depend on proteome chunks"
-checkpoint check_Split_proteomes:
+rule Expand_Master_table:
     input: 
-        get_split_proteomes_input(Master_table)
+        Split_chunks = get_split_proteomes_input(Master_table),
+        Master_table = features["Master_table"]
     output:
-        touch(join(dir_DB_exhaustive, ".Split_proteomes.done"))
+        Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv")
+    benchmark: 
+        join(benchmarks, "Expand_Master_table.json")
+    log: 
+        join(logs, "Expand_Master_table.txt")
+    conda: 
+        "R_env.yaml"
+    params:
+        dir_DB_exhaustive=dir_DB_exhaustive
+    script:
+        "02_2_Expand_Master_table.R"        
+
+
+# Checkpoint for rules that depend on proteome chunks"
+# Expand_Master_table.R makes a table with single row per combination
+# of proteome chunk and peptide generation parameters as definded by Master_table.csv
+checkpoint check_Split_proteomes:
+    input:
+        join(dir_DB_exhaustive, "Master_table_expanded.csv")
+    output:
+        touch(join(dir_DB_exhaustive, ".Expand_Master_table.done"))
+
 
