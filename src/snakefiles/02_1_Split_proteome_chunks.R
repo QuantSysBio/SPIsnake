@@ -1,4 +1,3 @@
-
 ### ---------------------------------------------- Split proteome chunks  ----------------------------------------------
 # description:  Sort input proteomes according to Linclust output. Split long proteins into overlapping chunks.
 #               
@@ -33,6 +32,7 @@ prot_cluster <- read.table(snakemake@input[["prot_cluster"]])
 
 # Master table
 Master_table <- read.csv(snakemake@input[["Master_table"]])
+
 
 # max intervening sequence length
 MiSl <- as.numeric(Master_table$Min_Interv_length[Master_table$Proteome == proteome])
