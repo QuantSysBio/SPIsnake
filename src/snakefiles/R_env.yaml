@@ -10,4 +10,6 @@ dependencies:
  - r-foreach=1.5.1 
  - r-parallelly 1.26.1
  - r-seqinr=4.2_8 
+ - r-stringr=1.4.0
+ - r-tidyr=1.1.3
  - r-vroom=1.5.1
