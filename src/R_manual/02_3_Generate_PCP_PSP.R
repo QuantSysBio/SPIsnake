@@ -1,3 +1,16 @@
+### ---------------------------------------------- Generate PCP/PSP ----------------------------------------------
+# description:  Generate unique PCP/PSP sequences
+#               
+# input:        1. Proteome chunk .fasta
+#               2. Parameters: index_length, peptide length, min_intervening_sequence length, output directory
+# output:       
+#               Output files are saved in chunks that depend on first N=index_length letters of a peptide
+#               - Unique sequences .csv.gz
+#               - Protein-peptide mapping .csv.gz
+#               - Peptide generation stats .csv
+#               
+# author:       YH, JL
+
 library(data.table)
 library(dtplyr)
 library(dplyr)
@@ -22,9 +35,6 @@ dat = read.fasta(file=proteome,
 # Keep only proteome name
 proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
 proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
-
-# Input proteome filter
-min_protein_length = 9
 
 # Nmers
 Nmers = as.numeric(8)
@@ -157,5 +167,3 @@ PSP %>%
                            append = T, delim = ",", num_threads = Ncpu))
 print("Saved PSP protein-peptide mapping")
 print(Sys.time())
-
-
