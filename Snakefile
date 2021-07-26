@@ -21,9 +21,7 @@ include: snakefiles + "02_DB_wildcards.py"
 
 rule all:
     input:
-        join(dir_DB_exhaustive, ".Split_proteomes.done")
-        #Checkpoint_MakePattern(join(dir_DB_exhaustive, "{proteome}/{chunk}.fasta"))
-        #Checkpoint_MakePattern(dir_DB_exhaustive + "inputSequence_{prot_chunk}.fasta")
+        join(dir_DB_exhaustive, ".Expand_Master_table.done")
 
 
 
