@@ -1,4 +1,4 @@
-# SPI-snake
+# SPIsnake
 
 
 ## Installation
