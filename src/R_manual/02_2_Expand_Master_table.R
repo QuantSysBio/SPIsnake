@@ -11,7 +11,7 @@ library(vroom)
 Master_table <- vroom(file = "Master_table.csv")
 
 # Output dir
-directory = "/home/yhorokh/Snakemake/SPI-snake_dev/results/DB_exhaustive"
+directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
 
 ### Find chunks
 proteome_chunks <- list.files(directory, pattern = ".fasta", recursive = TRUE) %>%
@@ -19,10 +19,11 @@ proteome_chunks <- list.files(directory, pattern = ".fasta", recursive = TRUE) %
   as.data.frame() %>%
   t() %>%
   as_tibble() %>%
-  rename(Proteome=V1, chunk=V2) %>%
+  rename(Proteome=V2, chunk=V3) %>%
   mutate(MaxE = str_split_fixed(chunk, pattern = fixed("_"), n = 2)[,1]) %>%
   mutate(chunk = str_split_fixed(chunk, pattern = fixed("_"), n = 2)[,2]) %>%
-  mutate_at("MaxE", as.numeric) 
+  mutate_at("MaxE", as.numeric) %>%
+  select(-V1)
 
 # Tidy format for Master table
 {

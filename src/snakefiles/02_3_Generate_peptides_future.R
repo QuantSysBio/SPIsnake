@@ -126,73 +126,89 @@ colnames(PCP) <- c("protein", "peptide")
 Seq_stats$length <- Nmers
 print("Added length")
 
-### ---------------------------- (3) Save stats --------------------------------------
-### Export protein stats
-{
-  Seq_stats_dir <- paste0(directory, "/Seq_stats/")
-  suppressWarnings(dir.create(Seq_stats_dir))
-}
-vroom_write(Seq_stats, 
-            delim = ",", num_threads = Ncpu,
-            pipe(sprintf("pigz > %s", paste0(Seq_stats_dir, filename, ".csv.gz"))))
-print("Saved sequence stats")
-print(Sys.time())
 
+### ------------------------------------------ (3) Save Protein-peptide mapping ------------------------------------------
+library(future)
+# plan(multisession) # for Rstudio
+plan(multicore)
+
+f1 <- future({
+  PSP %>%
+    lazy_dt() %>%
+    filter(!(grepl(pattern = exclusion_pattern, peptide) | 
+               nchar(peptide) == 0)) %>%
+    mutate(index = substr(peptide, 1, index_length)) %>%
+    group_by(index) %>%
+    unique() %>%
+    group_walk(~ vroom_write(.x, 
+                             pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PSP_map_",.y$index, "_", filename, ".csv.gz"))),
+                             delim = ",", num_threads = Ncpu))
+  
+  print("Saved PSP protein-peptide mapping")
+  print(Sys.time())
+})
+
+f2 <- future({
+  PCP %>%
+    lazy_dt() %>%
+    filter(!(grepl(pattern = exclusion_pattern, peptide) | 
+               nchar(peptide) == 0)) %>%
+    mutate(index = substr(peptide, 1, index_length)) %>%
+    group_by(index) %>%
+    unique() %>%
+    group_walk(~ vroom_write(.x, 
+                             pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PCP_map_",.y$index, "_", filename, ".csv.gz"))),
+                             delim = ",", num_threads = Ncpu))
+  print("Saved PCP protein-peptide mapping")
+  print(Sys.time())
+})
 
 ### ------------------------------------------ (4) Save all unique peptides ------------------------------------------
-PCP %>%
-  lazy_dt() %>%
-  select(peptide) %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
-  mutate(index = substr(peptide, 1, index_length)) %>%
-  group_by(index) %>%
-  unique() %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PCP_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu))
-print("Saved unique PCP")
+f3 <- future({
+  PSP %>%
+    lazy_dt() %>%
+    select(peptide) %>%
+    filter(!(grepl(pattern = exclusion_pattern, peptide) | 
+               nchar(peptide) == 0)) %>%
+    mutate(index = substr(peptide, 1, index_length)) %>%
+    group_by(index) %>%
+    unique() %>%
+    group_walk(~ vroom_write(.x, 
+                             pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PSP_",.y$index, "_", filename, ".csv.gz"))),
+                             delim = ",", num_threads = Ncpu))
+  print("Saved unique PSP")
+})
 
-PSP %>%
-  lazy_dt() %>%
-  select(peptide) %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
-  mutate(index = substr(peptide, 1, index_length)) %>%
-  group_by(index) %>%
-  unique() %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PSP_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu))
-print("Saved unique PSP")
+f4 <- future({
+  PCP %>%
+    lazy_dt() %>%
+    select(peptide) %>%
+    filter(!(grepl(pattern = exclusion_pattern, peptide) | 
+               nchar(peptide) == 0)) %>%
+    mutate(index = substr(peptide, 1, index_length)) %>%
+    group_by(index) %>%
+    unique() %>%
+    group_walk(~ vroom_write(.x, 
+                             pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PCP_",.y$index, "_", filename, ".csv.gz"))),
+                             delim = ",", num_threads = Ncpu))
+  print("Saved unique PCP")
+  print(Sys.time())
+})
 
+### ---------------------------- (5) Save stats --------------------------------------
 
-### ------------------------------------------ (5) Save Protein-peptide mapping ------------------------------------------
-PCP %>%
-  lazy_dt() %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
-  mutate(index = substr(peptide, 1, index_length)) %>%
-  group_by(index) %>%
-  unique() %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PCP_map_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu))
-print("Saved PCP protein-peptide mapping")
+f5 <- future({
+  ### Export protein stats
+  {
+    Seq_stats_dir <- paste0(directory, "/Seq_stats/")
+    suppressWarnings(dir.create(Seq_stats_dir))
+  }
+  vroom_write(Seq_stats, 
+              delim = ",", num_threads = Ncpu,
+              pipe(sprintf("pigz > %s", paste0(Seq_stats_dir, filename, ".csv.gz"))))
+  print("Saved sequence stats")
+  print(Sys.time())
+})
 
-
-PSP %>%
-  lazy_dt() %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
-  mutate(index = substr(peptide, 1, index_length)) %>%
-  group_by(index) %>%
-  unique() %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PSP_map_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu))
-
-print("Saved PSP protein-peptide mapping")
-print(Sys.time())
 
 ### ------------------------------------------- Bookmark ------------------------------------------------------------------------
