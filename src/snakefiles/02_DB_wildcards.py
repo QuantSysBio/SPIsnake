@@ -13,13 +13,13 @@ Master_table = (
 
 def get_cluster_proteomes_input(Master_table) :
     prot_cluster = expand(join(dir_cluster, "{proteome}/{proteome}_cluster.tsv"), 
-            proteome = Master_table["Proteome"])
+            proteome = Master_table["Proteome"].unique())
     return(prot_cluster)
 
 
 def get_split_proteomes_input(Master_table) :
     prot_split = expand(join(dir_DB_exhaustive, ".Split_proteome_chunks_{proteome}.done"), 
-            proteome = Master_table["Proteome"])
+            proteome = Master_table["Proteome"].unique())
     return(prot_split)
 
 
@@ -90,7 +90,7 @@ rule Expand_Master_table:
     conda: 
         "R_env.yaml"
     params:
-        dir_DB_exhaustive=dir_DB_exhaustive
+        directory=dir_DB_exhaustive
     script:
         "02_2_Expand_Master_table.R"        
 
@@ -105,3 +105,54 @@ checkpoint check_Split_proteomes:
         touch(join(dir_DB_exhaustive, ".Expand_Master_table.done"))
 
 
+######################### DEV: ON #########################
+# checkpoint code to read command data.frame:
+
+class Checkpoint_MakePattern:
+    def __init__(self, pattern):
+        self.pattern = pattern
+
+    def get_filename(Master_table_expanded) :
+        Master_table_expanded = pd.read_csv(join(dir_DB_exhaustive, "Master_table_expanded.csv"), sep=",")
+        filename = Master_table_expanded["filename"]
+        return(filename)
+
+    def __call__(self, w):
+        global checkpoints
+
+        # wait for the results of 'Expand_Master_table'; this will trigger an
+        # exception until that rule has been run.
+        checkpoints.check_Split_proteomes.get(**w)
+
+        # expand pattern
+        filename = self.get_filename()
+
+        pattern = expand(self.pattern, filename=filename, **w)
+        return pattern
+
+rule make_all_files:
+    input:
+        Checkpoint_MakePattern(join(dir_DB_exhaustive, ".Generate_{filename}.done"))        
+    output:
+        join(dir_DB_exhaustive, ".Generate_peptides.done")
+
+
+
+rule Generate_peptides:
+    input: 
+        Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv")
+    output:
+        peptide_done = touch(join(dir_DB_exhaustive, ".Generate_{filename}.done"))
+    benchmark: 
+        join(benchmarks, "Generate_peptides_{filename}.json")
+    log: 
+        join(logs, "Generate_peptides_{filename}.txt")
+    conda: 
+        "R_env.yaml"
+    resources: # 1 per node
+        load = 100 
+    params:
+        directory=dir_DB_exhaustive,
+        Filename = "{filename}"
+    script:
+        "02_3_Generate_peptides.R"  

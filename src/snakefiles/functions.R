@@ -61,16 +61,18 @@ Split_list_max_length_parallel <- function(String_list, max_length=2000, overlap
 Save_prot_chunk <- function(dat, 
                             nF=nF, 
                             orderedProteomeEntries=orderedProteomeEntries, 
-                            directory=directory){
+                            directory=directory,
+                            maxE=maxE){
   for(j in 1:nF){
     start=Pi[j]+1
     end=Pi[j+1]
     
     inputSequence = dat[orderedProteomeEntries[start:end]]
     seqinr::write.fasta(sequences = inputSequence, names = names(inputSequence), 
-                        file.out = paste0(directory, "/", proteome, "_", start, "_", end, ".fasta"))
+                        file.out = paste0(directory, "/", maxE, "_", proteome, "_", start, "_", end, ".fasta"))
   }
 }
+
 
 ### ---------------------------- PCP/PSP generation ----------------------------
 

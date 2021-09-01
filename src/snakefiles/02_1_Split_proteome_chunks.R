@@ -9,6 +9,8 @@
 #               
 # author:       YH, JL
 
+
+library(dplyr)
 library(seqinr)
 library(parallel)
 library(parallelly)
@@ -31,11 +33,14 @@ proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
 prot_cluster <- read.table(snakemake@input[["prot_cluster"]])
 
 # Master table
-Master_table <- read.csv(snakemake@input[["Master_table"]])
+Master_table <- read.csv("Master_table.csv") %>%
+ as_tibble()  %>%
+ filter(Proteome == proteome) %>%
+ select(Proteome, MaxE, Min_Interv_length)
 
 
 # max intervening sequence length
-MiSl <- as.numeric(Master_table$Min_Interv_length[Master_table$Proteome == proteome])
+MiSl <- as.numeric(Master_table$Min_Interv_length)
 print(paste("max_intervening_length:", MiSl))
 
 ### Params:
@@ -49,7 +54,7 @@ max_length=as.numeric(snakemake@params[["max_protein_length"]])
 overlap_length=MiSl*2
 
 # Chunk size
-maxE = snakemake@params[["maxE"]]
+maxE = Master_table$MaxE
 print(paste("maxE:", maxE))
 
 ### CPUs
@@ -71,7 +76,6 @@ sink(log)
 
 
 ### ---------------------------- (2) Proteome pre-processing --------------------------------------
-
 # Filter by minimal length and re-order by similarity from clustering
 dat <- dat[which(lapply(dat, nchar) >= min_protein_length)]
 prot_cluster <- prot_cluster[prot_cluster$V2 %in% names(dat),]
@@ -80,40 +84,47 @@ dat <- dat[match(prot_cluster$V2, names(dat))]
 # Split long entries into overlapping chunks
 dat <- Split_list_max_length_parallel(String_list = dat, 
                                       max_length=max_length, 
-                                      overlap_length=overlap_length)
+                                      overlap_length=unique(overlap_length))
 
 
 # Estimate chunks
-{
-  orderedProteomeEntries <- names(dat)
+for (i in 1:nrow(Master_table)) {
+  maxE <- Master_table$MaxE[i]
   
-  L = unlist(lapply(dat, nchar))
-  numPSP = L*350
-  cumNum = rep(NA,length(L))
-  cumNum[1] = numPSP[1]
-  for(i in 2:length(L)){
+  {
+    orderedProteomeEntries <- names(dat)
     
-    cumNum[i] = cumNum[i-1]+numPSP[i]
+    L = unlist(lapply(dat, nchar))
+    numPSP = L*350
+    cumNum = rep(NA,length(L))
+    cumNum[1] = numPSP[1]
+    for(i in 2:length(L)){
+      
+      cumNum[i] = cumNum[i-1]+numPSP[i]
+    }
+    
+    # find intervals for this Nmer Pi
+    b = 1
+    index = 0
+    Pi = 0
+    
+    while(index<length(L)){
+      index = which(cumNum==max(cumNum[which(cumNum<=b*maxE)]))
+      Pi = c(Pi,index)
+      b = b+1
+      print(index)
+    }
+    
+    # Create fasta files for every chunk
+    nF = length(Pi)-1
   }
   
-  # find intervals for this Nmer Pi
-  b = 1
-  index = 0
-  Pi = 0
-  
-  while(index<length(L)){
-    index = which(cumNum==max(cumNum[which(cumNum<=b*maxE)]))
-    Pi = c(Pi,index)
-    b = b+1
-    print(index)
-  }
-  
-  # Create fasta files for every chunk
-  nF = length(Pi)-1
+  # Export .fasta
+  suppressWarnings(dir.create("/home/yhorokh/Snakemake/SPI-snake_dev/results/DB_exhaustive/"))
+  suppressWarnings(dir.create(directory))
+  Save_prot_chunk(dat=dat, 
+                  nF=nF, 
+                  orderedProteomeEntries=orderedProteomeEntries, 
+                  directory=directory,
+                  maxE=maxE)
 }
-
-# Export .fasta
-Save_prot_chunk(dat=dat, 
-                nF=nF, 
-                orderedProteomeEntries=orderedProteomeEntries, 
-                directory=directory)

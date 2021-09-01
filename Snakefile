@@ -21,7 +21,8 @@ include: snakefiles + "02_DB_wildcards.py"
 
 rule all:
     input:
-        join(dir_DB_exhaustive, ".Expand_Master_table.done")
+        join(dir_DB_exhaustive, ".Expand_Master_table.done"),
+        join(dir_DB_exhaustive, ".Generate_peptides.done")
 
 
 
