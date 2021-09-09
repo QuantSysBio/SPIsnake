@@ -16,18 +16,22 @@ snakefiles = "src/snakefiles/"
 include: snakefiles + "00_functions.py"
 include: snakefiles + "01_folders.py"
 include: snakefiles + "02_DB_wildcards.py"
-#include: snakefiles + "03_generate_exhaustive_DB.py"
+include: snakefiles + "03_PTM_mz_matching.py"
 #include: snakefiles + "04_filter_DB.py"
 
 rule all:
     input:
-        join(dir_DB_exhaustive, ".Expand_Master_table.done"),
-        join(dir_DB_exhaustive, ".Generate_peptides.done")
+ #       join(dir_DB_exhaustive, ".Expand_Master_table.done"),
+ #       join(dir_DB_exhaustive, ".Generate_indices.done"),
+#        join(dir_DB_exhaustive, ".Generate_peptides.done"),
+        join(dir_DB_PTM_mz, ".Aggregate_peptides.done")
 
 
 
 ### snakemake --dag > dag.dot && dot -Tsvg < dag.dot > dag.svg
 ### snakemake --filegraph > filegraph.dot && dot -Tsvg < filegraph.dot > filegraph.svg
+# rm filegraph.dot
+# rm dag.dot
 
 
 ### snakemake --use-conda --use-singularity -r --verbose
