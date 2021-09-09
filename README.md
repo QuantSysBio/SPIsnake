@@ -1,4 +1,4 @@
-# SPI-snake
+# SPIsnake
 
 
 ## Installation
@@ -11,4 +11,5 @@ conda install -c conda-forge singularity
 ## Execution
 ```
 snakemake --use-conda -j 1
+time snakemake make_all_files --use-conda -j 27 --conda-frontend conda --resources load=100
 ```

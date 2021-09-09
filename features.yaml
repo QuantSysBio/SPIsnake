@@ -1,11 +1,12 @@
-# Paths to references
+# Paths to references and global options
 
 Master_table: Master_table.csv
+Experiment_design: Experiment_design.csv
 
 DB:
-    max_intervening_length: 25
     min_protein_length: 9
     max_protein_length: 1000
-    maxE: 76595700
+    max_variable_PTM: 2
+    AA_index_length: 1
 
 ...
