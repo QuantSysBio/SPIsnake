@@ -74,6 +74,7 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
   # Tidy format for PSP indices
 {
   PSP_indices <- Master_table_expanded %>% 
+    filter(`Splice_type` == "cis-PSP") %>% 
     ungroup() %>%
 
     ### Create a future wildcard

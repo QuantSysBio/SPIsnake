@@ -100,7 +100,9 @@ max_protein_length = as.integer(snakemake@params[["max_protein_length"]])
 
 # Load pre-computed index to speed-up PSP generation
 index_list_result = paste(Nmers, MiSl, sep = "_")
-load(paste0(directory, "/PSP_indices/", index_list_result, ".rds"))
+if (grepl("cis-PSP", Splice_type)==T) {
+  load(paste0(directory, "/PSP_indices/", index_list_result, ".rds"))
+}
 
 
 ### ---------------------------- (2) Compute PCP and PSP --------------------------------------
