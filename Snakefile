@@ -1,12 +1,12 @@
 shell.executable("/bin/bash")
 
-singularity: "docker://continuumio/miniconda3:4.4.10"
+container: "docker://snakemake/snakemake:v6.8.0"
 import pandas as pd
 import os, multiprocessing
 import yaml
 from snakemake.utils import min_version
 
-min_version("5.0")
+min_version("6.0")
 shell.prefix("set -euo pipefail;")
 
 config = yaml.load(open("config.yml", "r"), Loader=yaml.FullLoader)
@@ -23,17 +23,24 @@ rule all:
     input:
  #       join(dir_DB_exhaustive, ".Expand_Master_table.done"),
  #       join(dir_DB_exhaustive, ".Generate_indices.done"),
-#        join(dir_DB_exhaustive, ".Generate_peptides.done"),
-        join(dir_DB_PTM_mz, ".Aggregate_peptides.done")
+ #       join(dir_DB_PTM_mz, ".Aggregate_peptides.done"),
+        join(dir_DB_exhaustive, ".Generate_peptides.done")
 
 
 
-### snakemake --dag > dag.dot && dot -Tsvg < dag.dot > dag.svg
-### snakemake --filegraph > filegraph.dot && dot -Tsvg < filegraph.dot > filegraph.svg
+
+### Execution
+# time snakemake --use-singularity --use-conda -j 27 --conda-frontend conda --resources load=100
+# time snakemake  --use-conda -j 27 --conda-frontend conda --resources load=100
+# snakemake --use-conda --use-singularity -r --verbose
+
+### Plots
+# snakemake --report
+# snakemake --dag > dag.dot && dot -Tsvg < dag.dot > dag.svg
+# snakemake --filegraph > filegraph.dot && dot -Tsvg < filegraph.dot > filegraph.svg
 # rm filegraph.dot
 # rm dag.dot
 
 
-### snakemake --use-conda --use-singularity -r --verbose
-### snakemake --filegraph | dot | display
-### snakemake --dag | dot | display
+
+# container: "docker://continuumio/miniconda3:4.4.10"
