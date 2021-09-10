@@ -15,16 +15,17 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
-library(Biostrings)
-library(data.table)
-library(dtplyr)
-library(dplyr)
-library(seqinr)
-library(stringr)
-library(parallel)
-library(parallelly)
-library(foreach)
-library(vroom)
+suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(dtplyr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(seqinr))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(parallelly))
+suppressPackageStartupMessages(library(foreach))
+suppressPackageStartupMessages(library(vroom))
+
 source("src/snakefiles/functions.R")
 
 # Functions
@@ -48,7 +49,7 @@ suppressWarnings(
 )
 
 # Wildcard
-# filename = "results/DB_exhaustive/.Generate_cis-PSP_8_Unimod_25_proteome_expressed_gencode_2381_4870.fasta.done"
+# filename = "results/DB_exhaustive/.Generate_8_PCP_none_25_fiveUTR_seq_3_frame_1_167778.fasta.done"
 filename = snakemake@output[[1]]
 filename <- str_remove(filename, ".done") %>%
   str_split_fixed(pattern = fixed("/."), n = 2)
@@ -160,10 +161,10 @@ print(Sys.time())
 PCP %>%
   lazy_dt() %>%
   select(peptide) %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
   mutate(index = substr(peptide, 1, index_length)) %>%
   group_by(index) %>%
+  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
+             nchar(peptide) == 0)) %>%
   unique() %>%
   group_walk(~ vroom_write(.x, 
                            pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PCP_",.y$index, "_", filename, ".csv.gz"))),
@@ -173,10 +174,10 @@ print("Saved unique PCP")
 PSP %>%
   lazy_dt() %>%
   select(peptide) %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
   mutate(index = substr(peptide, 1, index_length)) %>%
   group_by(index) %>%
+  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
+             nchar(peptide) == 0)) %>%
   unique() %>%
   group_walk(~ vroom_write(.x, 
                            pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PSP_",.y$index, "_", filename, ".csv.gz"))),
@@ -187,10 +188,10 @@ print("Saved unique PSP")
 ### ------------------------------------------ (5) Save Protein-peptide mapping ------------------------------------------
 PCP %>%
   lazy_dt() %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
   mutate(index = substr(peptide, 1, index_length)) %>%
   group_by(index) %>%
+  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
+             nchar(peptide) == 0)) %>%
   unique() %>%
   group_walk(~ vroom_write(.x, 
                            pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PCP_map_",.y$index, "_", filename, ".csv.gz"))),
@@ -200,10 +201,10 @@ print("Saved PCP protein-peptide mapping")
 
 PSP %>%
   lazy_dt() %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
   mutate(index = substr(peptide, 1, index_length)) %>%
   group_by(index) %>%
+  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
+             nchar(peptide) == 0)) %>%
   unique() %>%
   group_walk(~ vroom_write(.x, 
                            pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PSP_map_",.y$index, "_", filename, ".csv.gz"))),

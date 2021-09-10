@@ -17,16 +17,22 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 library(vroom)
+
+{
+  # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake-main")
+  # Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
+  # index_length = 1
+  # dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
+  # dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
+}
 source("src/snakefiles/functions.R")
 
 ### ---------------------------- (1) Read inputs ----------------------------
 # Master_table_expanded
 Master_table_expanded <- vroom(snakemake@input[["Master_table_expanded"]])
-# Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
 
 # AA-index
 index_length = as.integer(snakemake@params[["AA_index_length"]])
-# index_length = 1
 AA = matrix(c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y"), 
             nrow=20, ncol = index_length) %>%
   as_tibble() %>% 
@@ -35,21 +41,15 @@ AA = matrix(c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "
   unite(AA_index, sep = "")
 
 # Output dirs
+dir_DB_exhaustive = snakemake@params[["dir_DB_exhaustive"]]
+dir_DB_PTM_mz = snakemake@params[["dir_DB_PTM_mz"]]
 {
-  dir_DB_exhaustive = snakemake@params[["dir_DB_exhaustive"]]
-  # dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
-  
-  dir_DB_PTM_mz = snakemake@params[["dir_DB_PTM_mz"]]
-  # dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
-  
   suppressWarnings(
     dir.create(dir_DB_exhaustive)
   )
   suppressWarnings(
     dir.create(dir_DB_PTM_mz)
   )
-  
-  
   suppressWarnings(
     dir.create(paste0(dir_DB_exhaustive, "/unique_peptide_sequences"))
   )
@@ -62,7 +62,7 @@ AA = matrix(c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "
   # suppressWarnings(
   #   dir.create(paste0(dir_DB_PTM_mz, "/unique_peptide_MW"))
   # )
-  
+
   }
 
 

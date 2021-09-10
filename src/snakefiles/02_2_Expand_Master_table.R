@@ -44,10 +44,12 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
 {
   Master_table_expanded <- Master_table %>% 
     ### N-mers
+    mutate(tmp_group = paste(Proteome,`Splice_type`, N_mers, sep="_")) %>%
+    group_by(tmp_group) %>%
+    
     mutate(N_mers = str_replace_all(N_mers, pattern = "_", replacement = ",")) %>%
     separate_rows(N_mers, sep=",") %>% 
     mutate(N_mers=as.integer(N_mers)) %>% 
-    group_by(Proteome,`Splice_type`) %>%
     expand(Proteome, `Splice_type`, full_seq(N_mers, 1), Min_Interv_length, MaxE) %>%
     rename(N_mers = "full_seq(N_mers, 1)") %>%
     
@@ -58,11 +60,13 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     ### Attributes to keep from Master_table and peptide chunk files
     left_join(select(Master_table, Proteome, PTMs)) %>%
     left_join(proteome_chunks) %>%
-
+    
     ### Create a future wildcard
-    mutate(filename = paste(Splice_type, N_mers, PTMs, Min_Interv_length, chunk, sep = "_")) %>%
+    mutate(filename = paste(N_mers, Splice_type, PTMs, Min_Interv_length, chunk, sep = "_")) %>%
     arrange(filename) %>%
     ### Sanity check for redundancies
+    ungroup() %>%
+    select(-tmp_group) %>%
     unique() 
   }
 
