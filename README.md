@@ -10,7 +10,7 @@ conda install -c conda-forge singularity
 
 ## Execution
 ```
-snakemake --use-conda -j 1
+snakemake --use-conda -j 1 -n
 time snakemake --use-conda -j 27 --conda-frontend conda --resources load=100
 time snakemake --use-singularity --use-conda -j 27 --conda-frontend conda --resources load=100
 ```
