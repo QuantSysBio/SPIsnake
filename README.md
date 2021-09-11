@@ -7,6 +7,7 @@ conda create -c conda-forge -c bioconda -n SPIsnake snakemake
 conda activate SPIsnake
 conda install -c conda-forge singularity 
 ```
+For cluster execution, please install mamba package manager: `conda install -n base -c conda-forge mamba`.
 
 ## Execution
 ```
