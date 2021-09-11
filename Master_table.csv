@@ -1,5 +1,13 @@
 Proteome,Splice_type,N_mers,Min_Interv_length,MaxE,PTMs,mz_filter,RT_filter,IC_50_filter
-proteome_expressed_gencode,cis-PSP,8_9,25,76595700,Unimod,yes,yes,yes
-fiveUTR_seq_3_frame,PCP,10,25,7659570000,none,yes,yes,yes
-fiveUTR_seq_3_frame,PCP,8_9,25,7659570000,none,yes,yes,yes
-fiveUTR_seq_3_frame,cis-PSP,8,25,76595700,none,yes,yes,yes
+Measles_CDS_6_frame,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+Measles_CDS_6_frame,PSP,8,25,7659570000,Unimod,yes,yes,yes
+gencode.v33.pc_translations,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+K562_proteome_expressed_gencode,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+K562_CDS_expressed_6_frame_nodup_5AA,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+K562_fiveUTR_seq_expressed_3_frame,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+K562_expr_lncRNA_seq_3_frame,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+K562_threeUTR_seq_expressed_3_frame,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+Senescence_gencode.vM26.pc_translations,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+Senescence_Mus_Musculus_nORFs,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+Senescence_proteome_denovo_unique,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
+Senescence_proteome_ref_expressed,PCP,5_15,25,7659570000,Unimod,yes,yes,yes
