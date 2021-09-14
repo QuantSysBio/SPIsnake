@@ -33,14 +33,26 @@ seq_list_to_dt <- function(seq_list){
   rbindlist(lapply(seq_list, as.data.table), idcol = "id")
 }
 
+
+# Manual startup
+{
+  # setwd("/home/yhorokh/Snakemake/SPIsnake-main")
+  # directory = "results/DB_exhaustive/"
+  # dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
+  # Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
+  # filename = "results/DB_exhaustive/Seq_stats/8_PSP_Unimod_25_Measles_CDS_6_frame_1_60.fasta.csv.gz"
+  # index_length = 1
+}
+
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # Master_table_expanded
 Master_table_expanded <- read.csv(snakemake@input[["Master_table_expanded"]])
-# Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
+
+# Fasta input
+dir_DB_Fasta_chunks = snakemake@params[["dir_DB_Fasta_chunks"]]
 
 # Output dir
 directory = snakemake@params[["directory"]]
-# directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
 suppressWarnings(
   dir.create(paste0(directory, "/peptide_seqences"))
 )
@@ -49,20 +61,20 @@ suppressWarnings(
 )
 
 # Wildcard
-# filename = "results/DB_exhaustive/.Generate_8_PCP_none_25_fiveUTR_seq_3_frame_1_167778.fasta.done"
 filename = snakemake@output[[1]]
-filename <- str_remove(filename, ".done") %>%
-  str_split_fixed(pattern = fixed("/."), n = 2)
-filename <- filename[,2] %>%
-  str_remove(pattern = "Generate_")
-print(filename)
+{
+  filename <- str_remove(filename, ".csv.gz") %>%
+    str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
+  filename <- filename[,2]
+  print(filename)
+}
 
 params <- Master_table_expanded[Master_table_expanded$filename == filename,]
 print(t(params))
 
 ### Extract parameters
 # Input fasta
-proteome = list.files(directory, pattern = params$chunk, recursive = T, full.names = T)
+proteome = list.files(dir_DB_Fasta_chunks, pattern = params$chunk, recursive = T, full.names = T)
 proteome = proteome[str_ends(proteome, ".fasta")]
 dat = read.fasta(file=proteome, 
                  seqtype="AA", as.string = TRUE)
@@ -92,7 +104,6 @@ exclusion_pattern <- "(U|X|\\*)"
 
 # Save into chunks according to first N letters
 index_length = as.integer(snakemake@params[["AA_index_length"]])
-# index_length = 1
 
 # Save into chunks according to first N letters
 max_protein_length = as.integer(snakemake@params[["max_protein_length"]])
@@ -154,7 +165,7 @@ print("Added length")
 }
 vroom_write(Seq_stats, 
             delim = ",", num_threads = Ncpu,
-            pipe(sprintf("pigz > %s", paste0(Seq_stats_dir, filename, ".csv.gz"))))
+            unlist(snakemake@output[["Seq_stats"]]))
 print("Saved sequence stats")
 print(Sys.time())
 

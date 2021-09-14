@@ -187,7 +187,7 @@ class Checkpoint_Master_table_expanded:
 
 rule make_all_files:
     input:
-        Checkpoint_Master_table_expanded(join(dir_DB_exhaustive, ".Generate_{filename}.done"))
+        Checkpoint_Master_table_expanded(join(dir_DB_exhaustive, "Seq_stats/{filename}.csv.gz"))
     output:
         touch(join(dir_DB_exhaustive, ".Generate_peptides.done"))
 
@@ -197,7 +197,7 @@ rule Generate_peptides:
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
         Generate_indices = join(dir_DB_exhaustive, "PSP_indices/.Generate_indices.done")
     output:
-        peptide_done = touch(join(dir_DB_exhaustive, ".Generate_{filename}.done"))
+        Seq_stats = join(dir_DB_exhaustive, "Seq_stats/{filename}.csv.gz")
     benchmark: 
         join(benchmarks, "Generate_peptides_{filename}.json")
     log: 
@@ -208,11 +208,11 @@ rule Generate_peptides:
         load = 100 
     params:
         directory=dir_DB_exhaustive,
+        dir_DB_Fasta_chunks=dir_DB_Fasta_chunks,
         AA_index_length=features["DB"]["AA_index_length"],
         max_protein_length=features["DB"]["max_protein_length"]
     script:
         "02_4_Generate_peptides.R"  
-
 
 
 
