@@ -1,16 +1,12 @@
-# Paths to references
+# Paths to references and global options
 
-reference:
-    genome_fasta: data/reference/GRCh38.primary_assembly.genome.fa
-    transcriptome_fasta: data/reference/gencode.v38.transcripts.fa
-    reference_proteome_fasta: data/reference/uniprot_UP000005640_Homo_sapiens.fasta
-    gencode_translation_sequences_fasta: data/reference/gencode.v38.pc_translations.fa
-    reference_gtf: data/reference/gencode.v38.primary_assembly.annotation.gtf
-    reference_gff3: data/reference/gencode.v38.primary_assembly.annotation.gff3
-    gencode_metadata_TrEMBL: data/reference/gencode.v38.metadata.TrEMBL
-    gencode_metadata_SwissProt: data/reference/gencode.v38.metadata.SwissProt
+Master_table: Master_table.csv
+Experiment_design: Experiment_design.csv
 
-links:
-    RNAsamba_partial_weights: https://raw.githubusercontent.com/apcamargo/RNAsamba/master/data/partial_length_weights.hdf5
-    hhsuite_dbs_pfamA: wwwuser.gwdg.de/~compbiol/data/hhsuite/databases/hhsuite_dbs/pfamA_32.0.tar.gz
+DB:
+    min_protein_length: 9
+    max_protein_length: 1000
+    max_variable_PTM: 2
+    AA_index_length: 1
+
 ...
