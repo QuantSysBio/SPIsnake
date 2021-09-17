@@ -1,2 +1,5 @@
-max_cores:  27
-mem_mb: 28000
+max_cores:  7
+mem_mb: 30000
+min_filt_samples: 1
+min_filt_counts: 10
+phred_score: 20
