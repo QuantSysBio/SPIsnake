@@ -1,3 +1,11 @@
+### ---------------------------- Utils ---------------------------------------------
+# https://stackoverflow.com/questions/14469522/stop-an-r-program-without-error
+stop_quietly <- function() {
+  opt <- options(show.error.messages = FALSE)
+  on.exit(options(opt))
+  stop()
+}
+
 ### ---------------------------- Proteome pre-processing ----------------------------
 
 splitWithOverlap <- function(seq, max_length, overlap_length) {
