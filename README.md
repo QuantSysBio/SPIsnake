@@ -9,6 +9,15 @@ conda install -c conda-forge singularity
 ```
 For cluster execution, please install mamba package manager: `conda install -n base -c conda-forge mamba`.
 
+## Setup
+1. Define common job parameters in `config.yml` and `features.yml`
+2. Define proteomic search space in `Master_table.csv`. 
+N-mers separated by underscores will give rise to a full range of peptide sequences. Potentially redundancies are removed internally. 
+Place proteome `.fasta` files in `data/reference`
+Place PTM tables `.csv` files in `data/modifications`
+3. Specify datasets and corresponding tolerances to be used for m/z matching in `/data/Experiment_design.csv` and place the corresponding `.txt` files in `/data/MS_mass_lists`
+
+
 ## Execution
 ```
 snakemake --use-conda -j 1 -n
