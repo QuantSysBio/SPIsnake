@@ -40,7 +40,3 @@ rule all:
 # snakemake --filegraph > filegraph.dot && dot -Tsvg < filegraph.dot > filegraph.svg
 # rm filegraph.dot
 # rm dag.dot
-
-
-
-# container: "docker://continuumio/miniconda3:4.4.10"
