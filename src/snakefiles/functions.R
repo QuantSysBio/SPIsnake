@@ -119,7 +119,7 @@ translateSP_fast <- function(SP,peptide){
   ## apply SP (coordinate) to peptie using biostrings
   left <- IRanges(start = SP[,1],end = SP[,2])
   right <- IRanges(start = SP[,3],end = SP[,4])
-  rez <- paste0(extractAt(peptide,left),extractAt(peptide,right))
+  rez <- stringi::stri_join(extractAt(peptide,left),extractAt(peptide,right))
   return(rez)
   rm(rez)
 }
@@ -157,7 +157,7 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
       
       sp = sp_input
       
-      SPseq = translateSP_fast(sp,peptide)
+      SPseq = translateSP_fast2(sp,peptide)
       #print("All SPs translated")
       
       CPseqClean = unique(CPseq)
@@ -205,6 +205,7 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
   rm(results, peptide, L, cp, index, cpNmer, CPseq, sp, SPseq, CPseqClean, SPseqClean, x, prot_stats)
   
 }
+
 
 CutAndPaste_seq <- function(inputSequence,nmer,MiSl){
   # Makes PCP, cis-PSP, revcis-PCP from a given input
@@ -359,39 +360,50 @@ translateCP <- function(CP,peptide){
 
 # compute all PSP with length == nmer
 computeSPcomplete <- function(cp,maxL,minL,MiSl){
-  
+  ## aded L!=maxL
   SP <- numeric()
   N = dim(cp)[1]
   NN = 5 * (10**6)
   
   SP = matrix(NA,NN,4)
-  
+  #print(SP)
   a = 1
+  # repeat as many times as you have cp
   for(i in 1:N){
+    temp1 <- rep(cp[i,1],N)
+    temp2 <- rep(cp[i,2],N)
+    temp3 <- cp[,1]
+    temp4 <- cp[,2]
     
-    temp = cbind(rep(cp[i,1],N),
-                 rep(cp[i,2],N),
-                 cp[,1],
-                 cp[,2])
+    L = temp4-temp3+temp2-temp1+2
     
-    L = temp[,4]-temp[,3]+temp[,2]-temp[,1]+2
-    
-    ind = which(((temp[,3]-temp[,2])==1)|(L>maxL)|(L<minL)|((temp[,3]-temp[,2])>(MiSl+1))|((temp[,1]-temp[,4])>(MiSl+1))|((temp[,3]<=temp[,2])&(temp[,4]>=temp[,1])))
+    ind = which(((temp3-temp2)==1)|L!=maxL|((temp3-temp2)>(MiSl+1))|((temp1-temp4)>(MiSl+1))|((temp3<=temp2)&(temp4>=temp1)))
     
     if(length(ind)>0){
-      temp = temp[-ind,]
+      temp1 = temp1[-ind]
+      temp2 = temp2[-ind]
+      temp3 = temp3[-ind]
+      temp4 = temp4[-ind]
     }
     
-    if(!is.null(dim(temp)[1])){
-      if((a+dim(temp)[1]-1)>NN){
+    #
+    if(!is.null(length(temp1))){
+      if((a+length(temp1)-1)>NN){
+        ## this looks slow but is rarely called so it is fine
         SP = rbind(SP,matrix(NA,NN,4))
       }
       
-      if(dim(temp)[1]>0){
-        SP[c(a:(a+dim(temp)[1]-1)),] = temp
+      if(length(temp1)>0){
+        SP[c(a:(a+length(temp1)-1)),1] = temp1
+        SP[c(a:(a+length(temp1)-1)),2] = temp2
+        SP[c(a:(a+length(temp1)-1)),3] = temp3
+        SP[c(a:(a+length(temp1)-1)),4] = temp4
       }
-      a = a+dim(temp)[1]
+      a = a+length(temp1)
+      
+      #return("1")
     }
+    #
   }
   # remove all empty lines from SP
   if(a<NN){
