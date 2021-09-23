@@ -165,7 +165,7 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
       
       sp = sp_input
       
-      SPseq = translateSP_fast2(sp,peptide)
+      SPseq = translateSP_fast(sp,peptide)
       #print("All SPs translated")
       
       CPseqClean = unique(CPseq)
