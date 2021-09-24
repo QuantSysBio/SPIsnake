@@ -1,0 +1,11 @@
+# Workflow
+data/*
+results/*
+Master_table.csv
+
+# Snakemake
+.snakemake/
+.conda/
+*.dot
+*.svg
+*.html
