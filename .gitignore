@@ -1,0 +1,6 @@
+data/MS_mass_lists/*
+data/reference/*
+results/*
+.snakemake/
+.conda/
+*.dot
