@@ -17,22 +17,18 @@ include: snakefiles + "00_functions.py"
 include: snakefiles + "01_folders.py"
 include: snakefiles + "02_DB_wildcards.py"
 include: snakefiles + "03_PTM_mz_matching.py"
-#include: snakefiles + "04_filter_DB.py"
+#include: snakefiles + "04_RT_filter.py"
 
 rule all:
     input:
- #       join(dir_DB_exhaustive, ".Expand_Master_table.done"),
- #       join(dir_DB_exhaustive, ".Generate_indices.done"),
- #       join(dir_DB_PTM_mz, ".Aggregate_peptides.done"),
+        join(dir_DB_exhaustive, ".Generate_indices.done"),
+        join(dir_DB_PTM_mz, ".Aggregate_peptides.done"),
         join(dir_DB_exhaustive, ".Generate_peptides.done")
 
 
-
-
 ### Execution
+# snakemake -j 1 -n
 # time snakemake --use-singularity --use-conda -j 27 --conda-frontend conda --resources load=100
-# time snakemake  --use-conda -j 27 --conda-frontend conda --resources load=100
-# snakemake --use-conda --use-singularity -r --verbose
 
 ### Plots
 # snakemake --report

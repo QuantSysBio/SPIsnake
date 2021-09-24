@@ -33,15 +33,24 @@ seq_list_to_dt <- function(seq_list){
   rbindlist(lapply(seq_list, as.data.table), idcol = "id")
 }
 
-
 # Manual startup
 {
-  # setwd("/home/yhorokh/Snakemake/SPIsnake-main")
+  # ##setwd("/home/yhorokh/Snakemake/SPIsnake-main")
   # directory = "results/DB_exhaustive/"
   # dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
   # Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-  # filename = "results/DB_exhaustive/Seq_stats/8_PSP_Unimod_25_Measles_CDS_6_frame_1_60.fasta.csv.gz"
+  # filename = "results/DB_exhaustive/Seq_stats/8_cis-cis-PSP_Unimod_25_proteome_expressed_gencode_18568_19192.fasta.csv.gz"
   # index_length = 1
+  # max_protein_length = 100
+  # 
+  # 
+  # filename <- str_remove(filename, ".csv.gz") %>%
+  #   str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
+  # filename <- filename[,2]
+  # print(filename)
+  # 
+  # params <- Master_table_expanded[Master_table_expanded$filename == filename,]
+  # print(t(params))
 }
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
@@ -107,7 +116,6 @@ index_length = as.integer(snakemake@params[["AA_index_length"]])
 
 # Save into chunks according to first N letters
 max_protein_length = as.integer(snakemake@params[["max_protein_length"]])
-# max_protein_length = 100
 
 # Load pre-computed index to speed-up PSP generation
 index_list_result = paste(Nmers, MiSl, sep = "_")
@@ -174,7 +182,7 @@ print(Sys.time())
 PCP %>%
   lazy_dt() %>%
   select(peptide) %>%
-  mutate(index = substr(peptide, 1, index_length)) %>%
+  mutate(index = str_sub(peptide, 1, index_length)) %>%
   group_by(index) %>%
   filter(!(grepl(pattern = exclusion_pattern, peptide) | 
              nchar(peptide) == 0)) %>%
@@ -187,7 +195,7 @@ print("Saved unique PCP")
 PSP %>%
   lazy_dt() %>%
   select(peptide) %>%
-  mutate(index = substr(peptide, 1, index_length)) %>%
+  mutate(index = str_sub(peptide, 1, index_length)) %>%
   group_by(index) %>%
   filter(!(grepl(pattern = exclusion_pattern, peptide) | 
              nchar(peptide) == 0)) %>%
@@ -201,7 +209,7 @@ print("Saved unique PSP")
 ### ------------------------------------------ (5) Save Protein-peptide mapping ------------------------------------------
 PCP %>%
   lazy_dt() %>%
-  mutate(index = substr(peptide, 1, index_length)) %>%
+  mutate(index = str_sub(peptide, 1, index_length)) %>%
   group_by(index) %>%
   filter(!(grepl(pattern = exclusion_pattern, peptide) | 
              nchar(peptide) == 0)) %>%
@@ -214,7 +222,7 @@ print("Saved PCP protein-peptide mapping")
 
 PSP %>%
   lazy_dt() %>%
-  mutate(index = substr(peptide, 1, index_length)) %>%
+  mutate(index = str_sub(peptide, 1, index_length)) %>%
   group_by(index) %>%
   filter(!(grepl(pattern = exclusion_pattern, peptide) | 
              nchar(peptide) == 0)) %>%

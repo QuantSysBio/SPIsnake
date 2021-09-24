@@ -2,6 +2,7 @@
 
 dir_mass_list = "data/MS_mass_lists/"
 dir_reference = "data/reference/"
+dir_data = "data/"
 
 Output_dir = "results/"
 dir_cluster = Output_dir + "Cluster/"

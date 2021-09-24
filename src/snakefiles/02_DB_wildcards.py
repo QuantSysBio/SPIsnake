@@ -77,11 +77,15 @@ rule Split_proteome_chunks:
 
 
 rule Expand_Master_table:
+    """
+    Create a table to control PCP/PSP generation
+    """
     input: 
         Split_chunks = get_split_proteomes_input(Master_table),
         Master_table = features["Master_table"]
     output:
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
+#        PCP_indices = join(dir_DB_exhaustive, "PCP_indices.csv"),
         PSP_indices = join(dir_DB_exhaustive, "PSP_indices.csv")
     benchmark: 
         join(benchmarks, "Expand_Master_table.json")
@@ -158,7 +162,7 @@ checkpoint check_Generated_PSP_indices:
     input:
         Checkpoint_PSP_indices(join(dir_DB_exhaustive, "PSP_indices/{PSP_index}.rds"))
     output:
-        touch(join(dir_DB_exhaustive, "PSP_indices/.Generate_indices.done"))
+        touch(join(dir_DB_exhaustive, ".Generate_indices.done"))
 
 
 # checkpoint code to read command data.frame:
@@ -195,7 +199,7 @@ rule make_all_files:
 rule Generate_peptides:
     input: 
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
-        Generate_indices = join(dir_DB_exhaustive, "PSP_indices/.Generate_indices.done")
+        Generate_indices = join(dir_DB_exhaustive, ".Generate_indices.done")
     output:
         Seq_stats = join(dir_DB_exhaustive, "Seq_stats/{filename}.csv.gz")
     benchmark: 
