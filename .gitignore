@@ -1,6 +1,11 @@
-data/MS_mass_lists/*
-data/reference/*
+# Workflow
+data/*
 results/*
+Master_table.csv
+
+# Snakemake
 .snakemake/
 .conda/
 *.dot
+*.svg
+*.html
