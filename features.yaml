@@ -1,7 +1,7 @@
 # Paths to references and global options
 
 Master_table: Master_table.csv
-Experiment_design: Experiment_design.csv
+Experiment_design: data/Experiment_design.csv
 
 DB:
     min_protein_length: 9

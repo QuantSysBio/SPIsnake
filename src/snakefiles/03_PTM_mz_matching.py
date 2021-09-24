@@ -11,6 +11,7 @@ rule Define_peptide_aggregation:
     conda: 
         "R_env.yaml"
     params:
+        AA_index_length=features["DB"]["AA_index_length"],
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_DB_PTM_mz=dir_DB_PTM_mz
     script:
@@ -59,15 +60,18 @@ rule aggregate_chunks:
 rule PTM_mz_matching:
     input: 
         Peptide_aggregation_table = join(dir_DB_PTM_mz, "Peptide_aggregation_table.csv"),
-        Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv")
+        Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
+        Experiment_design = join(dir_data, "Experiment_design.csv")
     output:
-        join(dir_DB_PTM_mz, "chunk_aggregation_status/{AA_length}.csv")
+        chunk_aggregation_status = join(dir_DB_PTM_mz, "chunk_aggregation_status/{AA_length}.csv")
     benchmark: 
         join(benchmarks, "PTM_mz_matching_{AA_length}.json")
     log: 
         join(logs, "PTM_mz_matching_{AA_length}.txt")
     conda: 
         "R_env.yaml"
+    resources: # 1 per node at the time
+        load = 100 
     params:
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_DB_PTM_mz=dir_DB_PTM_mz

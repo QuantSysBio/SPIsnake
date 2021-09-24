@@ -56,6 +56,8 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     ### Splice type
     separate_rows(`Splice_type`, sep=",") %>% 
     mutate(`Splice_type`=str_squish(`Splice_type`)) %>%
+    mutate(`Splice_type`=str_replace_all(`Splice_type`, pattern = "PSP", replacement = "cis-PSP")) %>%
+    mutate(`Splice_type`=str_replace_all(`Splice_type`, pattern = "Cis-PSP", replacement = "cis-PSP")) %>%
     
     ### Attributes to keep from Master_table and peptide chunk files
     left_join(select(Master_table, Proteome, PTMs)) %>%
@@ -71,18 +73,30 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
   }
 
 
-  # Tidy format for PSP indices
+  # Tidy format for indices
 {
+  ### PSP
   PSP_indices <- Master_table_expanded %>% 
     filter(`Splice_type` == "cis-PSP") %>% 
     ungroup() %>%
-
-    ### Create a future wildcard
+    
+    # Create a future wildcard
     mutate(PSP_index = paste(N_mers, Min_Interv_length, sep = "_")) %>%
     select(PSP_index) %>%
     unique() 
-  }
+  
+  # ### PCP
+  # PCP_indices <- Master_table_expanded %>% 
+  #   ungroup() %>%
+  #   
+  #   # Create a future wildcard
+  #   mutate(PCP_index = paste(N_mers, Min_Interv_length, sep = "_")) %>%
+  #   select(PCP_index) %>%
+  #   unique() 
+}
+
 
 # Output
 fwrite(Master_table_expanded, file = unlist(snakemake@output[["Master_table_expanded"]]))
 fwrite(PSP_indices, file = unlist(snakemake@output[["PSP_indices"]]))
+# fwrite(PCP_indices, file = unlist(snakemake@output[["PCP_indices"]]))

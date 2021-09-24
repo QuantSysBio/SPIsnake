@@ -19,7 +19,6 @@ log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
 library(Biostrings)
-library(data.table)
 library(dtplyr)
 library(dplyr)
 library(seqinr)
@@ -27,29 +26,54 @@ library(stringr)
 library(parallel)
 library(parallelly)
 library(vroom)
+library(data.table)
 source("src/snakefiles/functions.R")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
+{
+  # # Manual setup
+  # Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
+  # Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
+  # Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
+  # dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
+  # dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
+  # suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
+  # 
+  # filename = "results/DB_PTM_mz/chunk_aggregation_status/G_15.csv"
+  # filename <- filename %>%
+  #  str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
+  # filename <- filename[,2] %>%
+  #  str_remove(pattern = ".csv")
+  # print(filename)
+  # MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
+  #  as_tibble() %>%
+  #  mutate(file = str_remove_all(value, ".txt"))
+  # 
+  # ### CPUs
+  # Ncpu = availableCores()
+  # cl <- parallel::makeForkCluster(Ncpu)
+  # cl <- parallelly::autoStopCluster(cl)
+  # setDTthreads(Ncpu)
+  # 
+  # # Save into chunks according to first N letters
+  # index_length = 1
+}
+
+# Experiment_design
+Experiment_design <- vroom(snakemake@input[["Experiment_design"]])
+
 # Master_table_expanded
 Master_table_expanded <- vroom(snakemake@input[["Master_table_expanded"]])
-# Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
 
 # Master_table_expanded
 Peptide_aggregation_table <- vroom(snakemake@input[["Peptide_aggregation_table"]], delim = ",")
-# Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
 
 # Output dir
-{
-  dir_DB_exhaustive = snakemake@params[["dir_DB_exhaustive"]]
-# dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
-
+dir_DB_exhaustive = snakemake@params[["dir_DB_exhaustive"]]
 dir_DB_PTM_mz = snakemake@params[["dir_DB_PTM_mz"]]
-# dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
-}
-
+suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 
 ### Wildcard
-# filename = "results/DB_PTM_mz/chunk_aggregation_status/S_8.csv"
 filename = snakemake@output[[1]]
 filename <- filename %>%
   str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
@@ -57,16 +81,17 @@ filename <- filename[,2] %>%
   str_remove(pattern = ".csv")
 print(filename)
 
+# Save into chunks according to first N letters
+index_length = as.integer(snakemake@params[["AA_index_length"]])
 
 ### Mass_lists
+# Only user defined lists will be used 
 MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
   as_tibble() %>%
-  mutate(file = str_remove_all(value, ".txt")) 
-
-PCP <- peptides[str_detect(peptides, "/PCP_")]  %>%
-  lapply(FUN = vroom, delim = ",", num_threads = Ncpu, show_col_types = FALSE) %>%
-  rbindlist(idcol = "file") %>%
-  lazy_dt()
+  mutate(mass_list = str_remove_all(value, ".txt")) %>%
+  filter(mass_list %in% Experiment_design$Filename) %>%
+  rename(mass_list_file = value) %>%
+  mutate(AA_length = filename) 
 
 ### CPUs
 Ncpu = availableCores()
@@ -74,96 +99,176 @@ cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
 
-# Save into chunks according to first N letters
-index_length = as.integer(snakemake@params[["AA_index_length"]])
-# index_length = 1
-
 ### ---------------------------- (2) Operation mode --------------------------------------
-# Check if there exist previous outputs to be updated:
-processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_status"), pattern = ".csv") %>%
-  str_remove_all(".csv.gz") %>%
-  as_tibble() 
+suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/files_mz_match/")))
+suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/")))
 
-operation_mode = ifelse(nrow(processed_files) > 0, "Update", "Generation")
+# Check if there exist previous outputs to be updated:
+processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory"), pattern = paste0(filename, ".csv"))
+
+operation_mode = ifelse(length(processed_files) > 0, "Update", "Generation")
+print(paste0("Mode: ", operation_mode))
+
+if (operation_mode == "Update") {
+  print("Updating file list to be processed")
+  processed_files <- vroom(file = paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/", processed_files), delim = ",",  show_col_types = FALSE)
+  # processed_files <- processed_files[1:60,]
+}
 
 ### ---------------------------- (3) Uniqueness --------------------------------------
-{
-  # Select all files with the same {AA-index}{length}
-  peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pattern = ".csv.gz", full.names = T) %>%
-    as_tibble() %>%
-    mutate(file = str_remove_all(value, ".csv.gz")) %>%
-    mutate(file = str_split_fixed(file, "/peptide_seqences/", n = 2)[,2]) %>%
-    mutate(Splice_type = ifelse(str_starts(file, "PCP_"), "PCP", "other")) %>%
-    mutate(Splice_type = ifelse(str_starts(file, "PSP_"), "PSP", Splice_type)) %>%
-    mutate(file = str_sub(file, start=5)) %>%
-    mutate(file = str_remove(file, "PCP_")) %>%
-    mutate(file = str_remove(file, "cis-PSP_")) %>%
-    filter(str_starts(file, filename))
+# Select all files with the same {AA-index}{length}
+peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pattern = ".csv.gz", full.names = T) %>%
+  as_tibble() %>%
+  mutate(file = str_remove_all(value, ".csv.gz")) %>%
+  mutate(file = str_split_fixed(file, "/peptide_seqences/", n = 2)[,2]) %>%
+  mutate(Splice_type = ifelse(str_starts(file, "PCP_"), "PCP", "other")) %>%
+  mutate(Splice_type = ifelse(str_starts(file, "PSP_"), "PSP", Splice_type)) %>%
+  mutate(file = str_sub(file, start=5)) %>%
+  mutate(file = str_remove(file, "PCP_")) %>%
+  mutate(file = str_remove(file, "cis-PSP_")) %>%
+  filter(str_starts(file, filename)) %>%
+  mutate(AA_length = filename) 
+
+if (operation_mode == "Update") {
+  # Don't use absolute path when checking for file completeness
+  tmp1 <- peptide_chunks %>%
+    select(-value) %>%
+    left_join(MS_mass_lists)
+  tmp2 <- select(processed_files, colnames(tmp1))
+  keep <- anti_join(tmp1, tmp2)
+  
+  # For new peptide sequences
+  peptide_chunks <- peptide_chunks %>%
+    filter(file %in% keep$file & 
+           Splice_type %in% keep$Splice_type)
+  
+  # For new mass lists
+  MS_mass_lists <- MS_mass_lists %>%
+    filter(mass_list %in% keep$mass_list)
+  
+  rm(tmp1, tmp2, keep)
+}
+
+# End the script if no files to be updated
+if (nrow(peptide_chunks) == 0) {
+  print("Looks like there are no new peptides to be processed")
+  
+  save_peptide_chunks <- peptide_chunks %>%
+    rbind(processed_files) %>%
+    mutate(Time = Sys.time()) 
+  
+  vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu,
+              unlist(snakemake@output[["chunk_aggregation_status"]]))
+} else {
   
   peptides <- as.list(peptide_chunks$value)
   names(peptides) <- peptide_chunks$file
+  head(peptides)
+  # peptides <- peptides[1:10]
   
   # PCP
-  PCP <- peptides[str_detect(peptides, "/PCP_")]  %>%
-    lapply(FUN = vroom, delim = ",", num_threads = Ncpu, show_col_types = FALSE) %>%
-    rbindlist(idcol = "file") %>%
-    lazy_dt()
-  
+  if (length(peptides[str_detect(peptides, "/PCP_")]) > 0) {
+    PCP_list <- peptides[str_detect(peptides, "/PCP_")]  %>%
+      lapply(FUN = vroom, delim = ",", num_threads = Ncpu, show_col_types = FALSE) 
+  }
   # PSP
-  PSP <- peptides[str_detect(peptides, "/PSP_")]  %>%
-    lapply(FUN = vroom, delim = ",", num_threads = Ncpu, show_col_types = FALSE) %>%
-    rbindlist(idcol = "file") %>%
-    lazy_dt()
-}
-
-### ---------------------------- (4) Compute MW --------------------------------------
-### Make a unique set of peptides
-{
-  PCP <- PCP %>%
-    select(peptide) %>%
-    unique() %>%
-    mutate(MW=computeMZ_biostrings(peptide)) %>%
-    as.data.table()
-}
-{
-  PSP <- PSP %>%
-    select(peptide) %>%
-    unique() %>%
-    mutate(MW=computeMZ_biostrings(peptide)) %>%
-    as.data.table()
-}
-
-### ---------------------------- (5) Generate PTMs --------------------------------------
-
-
-
-
-### ---------------------------- (6) m/z matching --------------------------------------
-# Select !none
-input <- PCP
-
-for (i in 1:nrow(MS_mass_lists)) {
-  print(MS_mass_lists$value[i])
+  if (length(peptides[str_detect(peptides, "/PSP_")]) > 0) {
+    PSP_list <- peptides[str_detect(peptides, "/PSP_")]  %>%
+      mclapply(FUN = vroom, delim = ",", num_threads = Ncpu, show_col_types = FALSE)
+  }
+  ### ---------------------------- (4) Compute MW --------------------------------------
+  ### And check for peptide uniqueness
+  pep_types <- c()
+  if (length(PCP_list) > 0) {
+    PCP <- PCP_list %>%
+      rbindlist() %>%
+      lazy_dt() %>%
+      unique() %>%
+      mutate(MW=computeMZ_biostrings(peptide)) %>%
+      as.data.table()
+    
+    pep_types <- c(pep_types, "PCP")
+  }
   
-  tolerance = 20
-  mzList = vroom(file = paste0("data/MS_mass_lists/", MS_mass_lists$value[i]), delim = ",", col_names = "Precursor_mass") %>%
-    lazy_dt() %>%
-    mutate(Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
-    mutate(Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
-    select(-Precursor_mass) %>%
-    as.data.table()
+  if (length(PSP_list) > 0) {
+    PSP <- PSP_list %>%
+      rbindlist() %>%
+      lazy_dt() %>%
+      select(peptide) %>%
+      unique() %>%
+      mutate(MW=computeMZ_biostrings(peptide)) %>%
+      as.data.table()
+    
+    pep_types <- c(pep_types, "PSP")
+  }
   
-  # Which peptide sequences pass the MW filter
-  index_subset <- mixANDmatch3(mzMin=mzList$Min, mzMax=mzList$Max, MW0 = PCP$MW)
-  input <- input[index_subset,]
+  ### ---------------------------- (5) m/z matching --------------------------------------
+  mz_nomod <- list()
+  for (i in pep_types) {
+    input <- get(i)
+    
+    for (j in 1:nrow(MS_mass_lists)) {
+      print(MS_mass_lists$mass_list[j])
+      MS_mass_list <- MS_mass_lists$mass_list[j]
+      
+      tolerance = as.numeric(Experiment_design$Precursor_mass_tolerance_ppm[Experiment_design$Filename == MS_mass_list])
+      mzList = vroom(file = paste0("data/MS_mass_lists/", MS_mass_lists$mass_list_file[j]), 
+                     delim = ",", num_threads = Ncpu, 
+                     col_names = "Precursor_mass", show_col_types = FALSE) %>%
+        lazy_dt() %>%
+        mutate(Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
+        mutate(Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
+        select(-Precursor_mass) %>%
+        as.data.table() %>%
+        unique()
+      
+      ### Which peptide sequences pass the MW filter
+      mz_nomod[[i]][[MS_mass_list]] <- input[mixANDmatch3(mzMin=mzList$Min, mzMax=mzList$Max, MW0 = input$MW),]
+    }
+  }
+  
+  ### ---------------------------- (6) Generate PTMs --------------------------------------
+  # to be implemented by @Kamil
+  
+  
+  
+  
+  ### ---------------------------- (7) Peptide sequence export --------------------------------------
+  # Unmodified m/z matched sequences
+  for (i in seq_along(mz_nomod)) {
+    for (j in seq_along(mz_nomod[[i]])) {
+      mz_nomod[[i]][[j]] %>%
+        vroom_write(paste0(dir_DB_PTM_mz, "/files_mz_match/", names(mz_nomod)[i], "_", filename, "_", names(mz_nomod[[i]])[j], ".csv.gz"),
+                    delim = ",", num_threads = Ncpu, append = TRUE)
+    }
+  }
+  
+  ### --------------------------------------(8) Chunk aggregation status (Snakemake output) --------------------------------------
+  # First export: Snakemake Wildcard
+  # Second export: Memory for future updates
+  if (operation_mode == "Generation") {
+    
+    save_peptide_chunks <- peptide_chunks %>%
+      mutate(Time = Sys.time()) %>%
+      left_join(MS_mass_lists)
+    
+    vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu,
+                unlist(snakemake@output[["chunk_aggregation_status"]]))
+    vroom_write(save_peptide_chunks, 
+                paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/", filename, ".csv"),
+                delim = ",", num_threads = Ncpu, append = FALSE)
+    
+  } else if (operation_mode == "Update") {
+    
+    save_peptide_chunks <- peptide_chunks %>%
+      mutate(Time = Sys.time()) %>%
+      left_join(MS_mass_lists) %>%
+      rbind(processed_files) 
+    
+    vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu,
+                unlist(snakemake@output[["chunk_aggregation_status"]]))
+    vroom_write(save_peptide_chunks, 
+                paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/", filename, ".csv"),
+                delim = ",", num_threads = Ncpu, append = FALSE)
+  }
 }
-
-
-
-
-### ---------------------------- (7) Export --------------------------------------
-
-
-
-
-
