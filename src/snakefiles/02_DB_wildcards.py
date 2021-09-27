@@ -51,7 +51,7 @@ rule Cluster_proteome:
 
 rule Split_proteome_chunks:
     """
-    Splits input proteome into chunks of approx similar volume for DB construction
+    Splits input proteome into chunks of approx similar volume for peptide generation
     """
     input:
         proteome = join(dir_reference, '{proteome}.fasta'),
@@ -85,6 +85,7 @@ rule Expand_Master_table:
         Master_table = features["Master_table"]
     output:
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
+### Potential feature
 #        PCP_indices = join(dir_DB_exhaustive, "PCP_indices.csv"),
         PSP_indices = join(dir_DB_exhaustive, "PSP_indices.csv")
     benchmark: 

@@ -12,22 +12,24 @@
 #               - Peptide-mass_list matching
 #               - Peptide filtering stats .csv
 #               
-# author:       YH, JL, KP
+# author:       YH, KP, JL
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
-library(Biostrings)
-library(dtplyr)
-library(dplyr)
-library(seqinr)
-library(stringr)
-library(parallel)
-library(parallelly)
-library(vroom)
-library(data.table)
+suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(dtplyr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(seqinr))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(parallelly))
+suppressPackageStartupMessages(library(vroom))
+suppressPackageStartupMessages(library(data.table))
+
 source("src/snakefiles/functions.R")
+print("Loaded functions. Loading the data")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 {

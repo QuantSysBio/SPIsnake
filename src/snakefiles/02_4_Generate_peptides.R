@@ -27,6 +27,7 @@ suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(vroom))
 
 source("src/snakefiles/functions.R")
+print("Loaded functions. Loading the data")
 
 # Functions
 seq_list_to_dt <- function(seq_list){

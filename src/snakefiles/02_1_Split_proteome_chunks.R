@@ -13,13 +13,13 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
-library(dplyr)
-library(seqinr)
-library(parallel)
-library(parallelly)
-library(foreach)
-source(snakemake@input[["functions"]])
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(seqinr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(parallelly))
+suppressPackageStartupMessages(library(foreach))
 
+source(snakemake@input[["functions"]])
 print("Loaded functions. Loading the data")
 
 ### ---------------------------- (1) read input file and extract info --------------------------------------
@@ -61,10 +61,10 @@ maxE = Master_table$MaxE
 print(paste("maxE:", maxE))
 
 ### CPUs
-Ncpu = as.numeric(snakemake@params[["n"]])
-#Ncpu = availableCores()
-#cl <- parallel::makeForkCluster(Ncpu)
-#cl <- parallelly::autoStopCluster(cl)
+#Ncpu = as.numeric(snakemake@params[["n"]])
+Ncpu = availableCores()
+cl <- parallel::makeForkCluster(Ncpu)
+cl <- parallelly::autoStopCluster(cl)
 
 ### Output dir
 directory = snakemake@params[["directory"]]
