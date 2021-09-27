@@ -19,10 +19,13 @@ Place PTM tables `.csv` files in `data/modifications`
 
 
 ## Execution
+### Workflow check
+`snakemake -j 1 -n`
+### Alternative commands for workflow execution:
 ```
-snakemake --use-conda -j 1 -n
 time snakemake --use-conda -j 27 --conda-frontend conda --resources load=100
 time snakemake --use-singularity --use-conda -j 27 --conda-frontend conda --resources load=100
+time snakemake --use-singularity --use-conda -j 7 --conda-frontend mamba --resources load=100
 ```
 
 ## SPIsnake + Slurm
