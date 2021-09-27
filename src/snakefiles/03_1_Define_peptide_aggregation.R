@@ -13,10 +13,10 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
-library(dplyr)
-library(tidyr)
-library(stringr)
-library(vroom)
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(vroom))
 
 {
   # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake-main")
@@ -26,6 +26,7 @@ library(vroom)
   # dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
 }
 source("src/snakefiles/functions.R")
+print("Loaded functions. Loading the data")
 
 ### ---------------------------- (1) Read inputs ----------------------------
 # Master_table_expanded

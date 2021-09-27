@@ -12,16 +12,18 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
-library(data.table)
-library(dtplyr)
-library(dplyr)
-library(seqinr)
-library(stringr)
-library(tidyr)
-library(parallel)
-library(parallelly)
-library(foreach)
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(dtplyr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(seqinr))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(parallelly))
+suppressPackageStartupMessages(library(foreach))
+
 source("src/snakefiles/functions.R")
+print("Loaded functions. Loading the data")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # Wildcard

@@ -18,15 +18,16 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
-library(Biostrings)
-library(dtplyr)
-library(dplyr)
-library(seqinr)
-library(stringr)
-library(parallel)
-library(parallelly)
-library(vroom)
-library(data.table)
+suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(dtplyr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(seqinr))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(parallelly))
+suppressPackageStartupMessages(library(vroom))
+suppressPackageStartupMessages(library(data.table))
+
 source("src/snakefiles/functions.R")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
@@ -39,7 +40,7 @@ source("src/snakefiles/functions.R")
   # dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
   # suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
   # 
-  # filename = "results/DB_PTM_mz/chunk_aggregation_status/G_15.csv"
+  # filename = "results/DB_PTM_mz/chunk_aggregation_status/F_9.csv"
   # filename <- filename %>%
   #  str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
   # filename <- filename[,2] %>%
@@ -60,13 +61,13 @@ source("src/snakefiles/functions.R")
 }
 
 # Experiment_design
-Experiment_design <- vroom(snakemake@input[["Experiment_design"]])
+Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
 
 # Master_table_expanded
-Master_table_expanded <- vroom(snakemake@input[["Master_table_expanded"]])
+Master_table_expanded <- vroom(snakemake@input[["Master_table_expanded"]], show_col_types = FALSE)
 
 # Master_table_expanded
-Peptide_aggregation_table <- vroom(snakemake@input[["Peptide_aggregation_table"]], delim = ",")
+Peptide_aggregation_table <- vroom(snakemake@input[["Peptide_aggregation_table"]], delim = ",", show_col_types = FALSE)
 
 # Output dir
 dir_DB_exhaustive = snakemake@params[["dir_DB_exhaustive"]]
@@ -140,7 +141,7 @@ if (operation_mode == "Update") {
   # For new peptide sequences
   peptide_chunks <- peptide_chunks %>%
     filter(file %in% keep$file & 
-           Splice_type %in% keep$Splice_type)
+             Splice_type %in% keep$Splice_type)
   
   # For new mass lists
   MS_mass_lists <- MS_mass_lists %>%
@@ -176,6 +177,7 @@ if (nrow(peptide_chunks) == 0) {
     PSP_list <- peptides[str_detect(peptides, "/PSP_")]  %>%
       mclapply(FUN = vroom, delim = ",", num_threads = Ncpu, show_col_types = FALSE)
   }
+  
   ### ---------------------------- (4) Compute MW --------------------------------------
   ### And check for peptide uniqueness
   pep_types <- c()
@@ -204,6 +206,7 @@ if (nrow(peptide_chunks) == 0) {
   
   ### ---------------------------- (5) m/z matching --------------------------------------
   mz_nomod <- list()
+  mz_stats <- tibble()
   for (i in pep_types) {
     input <- get(i)
     
@@ -218,12 +221,19 @@ if (nrow(peptide_chunks) == 0) {
         lazy_dt() %>%
         mutate(Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
         mutate(Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
-        select(-Precursor_mass) %>%
-        as.data.table() %>%
-        unique()
+        select(-Precursor_mass)  %>%
+        unique() %>%
+        as.data.table()
       
       ### Which peptide sequences pass the MW filter
-      mz_nomod[[i]][[MS_mass_list]] <- input[mixANDmatch3(mzMin=mzList$Min, mzMax=mzList$Max, MW0 = input$MW),]
+      mz_nomod[[i]][[MS_mass_list]] <- input[mixANDmatch3(mzMin=mzList$Min, mzMax=mzList$Max, MW0 = input$MW),] %>%
+        na.omit()
+      
+      ### Save stats
+      mz_stats_ij = tibble(Splice_type=i,
+                           mass_list = MS_mass_list,
+                           mz_matched_peptides = nrow(mz_nomod[[i]][[MS_mass_list]]))
+      mz_stats = rbind(mz_stats, mz_stats_ij)
     }
   }
   
@@ -244,13 +254,34 @@ if (nrow(peptide_chunks) == 0) {
   }
   
   ### --------------------------------------(8) Chunk aggregation status (Snakemake output) --------------------------------------
+  ### Record aggregation stats
+  {
+    aggregation_stats <- tibble(total_PCP = sum(unlist(lapply(PCP_list, nrow))), 
+                                unique_PCP = nrow(PCP),
+                                total_PSP = sum(unlist(lapply(PSP_list, nrow))),
+                                unique_PSP = nrow(PSP)
+    )
+    print("Loaded peptides")
+    print(t(aggregation_stats))
+    mz_stats
+  }
+  
   # First export: Snakemake Wildcard
   # Second export: Memory for future updates
   if (operation_mode == "Generation") {
     
     save_peptide_chunks <- peptide_chunks %>%
       mutate(Time = Sys.time()) %>%
-      left_join(MS_mass_lists)
+      left_join(MS_mass_lists) %>%
+      
+      # Add filtering stats
+      mutate(total_peptides = NA) %>%
+      mutate(total_peptides = ifelse(Splice_type == "PCP", aggregation_stats$total_PCP, total_peptides)) %>%
+      mutate(total_peptides = ifelse(Splice_type == "PSP", aggregation_stats$total_PSP, total_peptides)) %>%
+      mutate(unique_peptides = NA) %>%
+      mutate(unique_peptides = ifelse(Splice_type == "PCP", aggregation_stats$unique_PCP, unique_peptides)) %>%
+      mutate(unique_peptides = ifelse(Splice_type == "PSP", aggregation_stats$unique_PSP, unique_peptides)) %>%
+      left_join(mz_stats) 
     
     vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu,
                 unlist(snakemake@output[["chunk_aggregation_status"]]))
@@ -263,7 +294,16 @@ if (nrow(peptide_chunks) == 0) {
     save_peptide_chunks <- peptide_chunks %>%
       mutate(Time = Sys.time()) %>%
       left_join(MS_mass_lists) %>%
-      rbind(processed_files) 
+      rbind(processed_files)  %>%
+      
+      # Add filtering stats
+      mutate(total_peptides = NA) %>%
+      mutate(total_peptides = ifelse(Splice_type == "PCP", aggregation_stats$total_PCP, total_peptides)) %>%
+      mutate(total_peptides = ifelse(Splice_type == "PSP", aggregation_stats$total_PSP, total_peptides)) %>%
+      mutate(unique_peptides = NA) %>%
+      mutate(unique_peptides = ifelse(Splice_type == "PCP", aggregation_stats$unique_PCP, unique_peptides)) %>%
+      mutate(unique_peptides = ifelse(Splice_type == "PSP", aggregation_stats$unique_PSP, unique_peptides)) %>%
+      left_join(mz_stats) 
     
     vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu,
                 unlist(snakemake@output[["chunk_aggregation_status"]]))

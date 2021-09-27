@@ -14,10 +14,10 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
-library(data.table)
-library(dplyr)
-library(tidyr)
-library(stringr)
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(stringr))
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # Master table
@@ -56,7 +56,9 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     ### Splice type
     separate_rows(`Splice_type`, sep=",") %>% 
     mutate(`Splice_type`=str_squish(`Splice_type`)) %>%
-    mutate(`Splice_type`=str_replace_all(`Splice_type`, pattern = "PSP", replacement = "cis-PSP")) %>%
+    mutate(`Splice_type`= ifelse(`Splice_type`=="PSP", 
+            str_replace_all(`Splice_type`, pattern = fixed("PSP"), replacement = "cis-PSP"),
+            `Splice_type`)) %>%
     mutate(`Splice_type`=str_replace_all(`Splice_type`, pattern = "Cis-PSP", replacement = "cis-PSP")) %>%
     
     ### Attributes to keep from Master_table and peptide chunk files
