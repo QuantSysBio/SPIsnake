@@ -382,10 +382,14 @@ computeSPcomplete <- function(cp,maxL,minL,MiSl){
     temp2 <- rep(cp[i,2],N)
     temp3 <- cp[,1]
     temp4 <- cp[,2]
-    
+
     L = temp4-temp3+temp2-temp1+2
     
-    ind = which(((temp3-temp2)==1)|L!=maxL|((temp3-temp2)>(MiSl+1))|((temp1-temp4)>(MiSl+1))|((temp3<=temp2)&(temp4>=temp1)))
+    # L!=maxL
+    ind = which(((temp3-temp2)==1)|(L>maxL)|(L<minL)|((temp3-temp2)>(MiSl+1))|((temp1-temp4)>(MiSl+1))|((temp3<=temp2)&(temp4>=temp1)))
+    
+    #print("ind")    
+    #print(ind)
     
     if(length(ind)>0){
       temp1 = temp1[-ind]
@@ -395,7 +399,7 @@ computeSPcomplete <- function(cp,maxL,minL,MiSl){
     }
     
     #
-    if(!is.null(length(temp1))){
+    if(length(temp1)!=1){
       if((a+length(temp1)-1)>NN){
         ## this looks slow but is rarely called so it is fine
         SP = rbind(SP,matrix(NA,NN,4))
@@ -445,9 +449,13 @@ removeCPfromSP_seq <- function(x,z){
 
 mixANDmatch3 <- function(mzMin, mzMax, MW0){
   ## object recycling is intentional
-  X = data.table(a=MW0, b=mzMin, c=mzMax)
-  index = which(data.table::inrange(X$a, X$b, X$c, incbounds=TRUE))
-  return(index)
+  if(length(mzMin) < length(MW0)){
+    X = data.table(a=MW0, b=mzMin, c=mzMax)
+    index = which(data.table::inrange(X$a, X$b, X$c, incbounds=TRUE))
+  }else{
+    ind = vapply(MW0,function(x) any((x>mzMin)&(x<mzMax)), 1)
+    index = which(ind>0)
+  }
 }
 
 computeMZ_biostrings <- function(seq){
