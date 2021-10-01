@@ -13,56 +13,56 @@ splitWithOverlap <- function(seq, max_length, overlap_length) {
   end   = start + max_length - 1
   end[end > length(seq)] = length(seq)
   
-  out <- lapply(1:length(start), function(i){
-    paste(seq[start[i]:end[i]], sep="", collapse="")
+  out = lapply(1:length(start), function(i){
+    stri_c(seq[start[i]:end[i]], sep="", collapse="")
   })
-  names(out) <- paste(start, end, sep="-")
+  names(out) = stri_c(start, end, sep="-")
   return(out)
 }
 
 Split_list_max_length <- function(String_list, max_length=2000, overlap_length=MiSl*2){
-  out <- lapply(seq_along(String_list), function(i){
+  out = lapply(seq_along(String_list), function(i){
     
     # Extract sequence attributes
-    protein_name <- attr(String_list[[i]], "name")
-    protein_seq <- getSequence(String_list[[i]])
+    protein_name = attr(String_list[[i]], "name")
+    protein_seq = getSequence(String_list[[i]])
     
     # Split input into overlaping chunks
-    protein_chunks <- splitWithOverlap(seq = protein_seq, 
+    protein_chunks = splitWithOverlap(seq = protein_seq, 
                                        max_length = max_length, 
                                        overlap_length = overlap_length)
     
     # Save chunk properties in sequence names
-    names(protein_chunks) <- paste0(protein_name, "|chunk:", names(protein_chunks))
+    names(protein_chunks) = paste0(protein_name, "|chunk:", names(protein_chunks))
     return(protein_chunks)
   })
   # Convert to incoming list format
-  unl <- unlist(out)
-  out <- as.list(unl)
-  names(out) <- names(unl)
+  unl = unlist(out)
+  out = as.list(unl)
+  names(out) = names(unl)
   return(out)
 }
 
 Split_list_max_length_parallel <- function(String_list, max_length=2000, overlap_length=MiSl*2){
-  out <- mclapply(seq_along(String_list), mc.cores = Ncpu, function(i){
+  out = mclapply(seq_along(String_list), mc.cores = Ncpu, function(i){
     
     # Extract sequence attributes
-    protein_name <- attr(String_list[[i]], "name")
-    protein_seq <- getSequence(String_list[[i]])
+    protein_name = attr(String_list[[i]], "name")
+    protein_seq = getSequence(String_list[[i]])
     
     # Split input into overlaping chunks
-    protein_chunks <- splitWithOverlap(seq = protein_seq, 
+    protein_chunks = splitWithOverlap(seq = protein_seq, 
                                        max_length = max_length, 
                                        overlap_length = overlap_length)
     
     # Save chunk properties in sequence names
-    names(protein_chunks) <- paste0(protein_name, "|chunk:", names(protein_chunks))
+    names(protein_chunks) = paste0(protein_name, "|chunk:", names(protein_chunks))
     return(protein_chunks)
   })
   # Convert to incoming list format
-  unl <- unlist(out)
-  out <- as.list(unl)
-  names(out) <- names(unl)
+  unl = unlist(out)
+  out = as.list(unl)
+  names(out) = names(unl)
   return(out)
 }
 
@@ -85,10 +85,10 @@ Save_prot_chunk <- function(dat,
 ### ---------------------------- PCP/PSP generation ----------------------------
 
 CutAndPaste_seq_return_sp <- function(inputSequence,nmer,MiSl){
-  # Makes PCP, cis-PSP, revcis-PCP from a given input
-  names(inputSequence)="test"
+  ### Makes PCP, cis-PSP, revcis-PCP from a given input
+  # names(inputSequence)="test"
   
-  results <- list()
+  results = list()
   peptide = strsplit(inputSequence,"")[[1]]
   #print(peptide)
   L = length(peptide)
@@ -122,29 +122,28 @@ CutAndPaste_seq_return_sp <- function(inputSequence,nmer,MiSl){
 
 
 translateSP_fast <- function(SP,peptide){
-  peptide <- paste0(peptide,collapse="")
-  peptide <- AAString(peptide)
+  peptide = stri_c(peptide,collapse="")
+  peptide = AAString(peptide)
   ## apply SP (coordinate) to peptie using biostrings
-  left <- IRanges(start = SP[,1],end = SP[,2])
-  right <- IRanges(start = SP[,3],end = SP[,4])
-  rez <- stringi::stri_join(extractAt(peptide,left),extractAt(peptide,right))
+  left = IRanges(start = SP[,1],end = SP[,2])
+  right = IRanges(start = SP[,3],end = SP[,4])
+  rez = stri_join(extractAt(peptide,left), extractAt(peptide,right))
   return(rez)
-  rm(rez)
 }
 
 ## this is the fast implementation of Juliane's function
 CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiSl){
-  # we take the precalculated sp object for ALL protein lengths, select the subset we need
-  # the subset we need is selected via length(peptide) as index
-  # big_sp_input then obviously must be ordered from 1:N
-  names(inputSequence)="test"
+  ## we take the precalculated sp object for ALL protein lengths, select the subset we need
+  ## the subset we need is selected via length(peptide) as index
+  ## big_sp_input then obviously must be ordered from 1:N
+  # names(inputSequence)="test"
   
-  results <- list()
+  results = list()
   peptide = strsplit(inputSequence,"")[[1]]
   #print(peptide)
   L = length(peptide)
   
-  sp_input <- big_sp_input[[L]]
+  sp_input = big_sp_input[[L]]
   rm(big_sp_input)
   
   if(L>nmer){
@@ -180,7 +179,7 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
       SPseqClean = x[[1]]
       #print(paste("SP without CP:",length(SPseqClean)))
       
-      prot_stats <- data.frame(protein = attr(inputSequence, "name"),
+      prot_stats = data.frame(protein = attr(inputSequence, "name"),
                                all_PCP = length(CPseq),
                                all_PSP = length(SPseq),
                                unique_PCP = length(CPseqClean),
@@ -218,7 +217,7 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
 CutAndPaste_seq <- function(inputSequence,nmer,MiSl){
   # Makes PCP, cis-PSP, revcis-PCP from a given input
   
-  results <- list()
+  results = list()
   peptide = strsplit(inputSequence,"")[[1]]
   L = length(peptide)
   
@@ -254,7 +253,7 @@ CutAndPaste_seq <- function(inputSequence,nmer,MiSl){
       SPseqClean = x[[1]]
       # print(paste("SP without CP:",length(SPseqClean)))
       
-      prot_stats <- data.frame(protein = attr(inputSequence, "name"),
+      prot_stats = data.frame(protein = attr(inputSequence, "name"),
                                all_PCP = length(CPseq),
                                all_PSP = length(SPseq),
                                unique_PCP = length(CPseqClean),
@@ -289,7 +288,7 @@ CutAndPaste_seq <- function(inputSequence,nmer,MiSl){
 CutAndPaste_seq_PCP <- function(inputSequence,nmer){
   # Make PCP sequences from a given input
   
-  results <- list()
+  results = list()
   peptide = strsplit(inputSequence,"")[[1]]
   L = length(peptide)
   
@@ -308,7 +307,7 @@ CutAndPaste_seq_PCP <- function(inputSequence,nmer){
       
       CPseqClean = unique(CPseq)
       
-      prot_stats <- data.frame(protein = attr(inputSequence, "name"),
+      prot_stats = data.frame(protein = attr(inputSequence, "name"),
                                all_PCP = length(CPseq),
                                all_PSP = 0,
                                unique_PCP = length(CPseqClean),
@@ -337,7 +336,6 @@ CutAndPaste_seq_PCP <- function(inputSequence,nmer){
     }
   }
   return(results)
-  rm(results, peptide, L, cp, index, cpNmer, CPseq, CPseqClean, prot_stats)
 }
 
 
@@ -345,7 +343,7 @@ CutAndPaste_seq_PCP <- function(inputSequence,nmer){
 computeCPomplete <- function(L,nmer){
   
   maxL = nmer+1
-  CP <- numeric()
+  CP = numeric()
   
   for(i in 1:L){
     CP = rbind(CP, cbind(rep(i,length(c(i:min(L,(i+maxL-2))))),
@@ -369,7 +367,7 @@ translateCP <- function(CP,peptide){
 # compute all PSP with length == nmer
 computeSPcomplete <- function(cp,maxL,minL,MiSl){
   ## aded L!=maxL
-  SP <- numeric()
+  SP = numeric()
   N = dim(cp)[1]
   NN = 5 * (10**6)
   
@@ -378,10 +376,10 @@ computeSPcomplete <- function(cp,maxL,minL,MiSl){
   a = 1
   # repeat as many times as you have cp
   for(i in 1:N){
-    temp1 <- rep(cp[i,1],N)
-    temp2 <- rep(cp[i,2],N)
-    temp3 <- cp[,1]
-    temp4 <- cp[,2]
+    temp1 = rep(cp[i,1],N)
+    temp2 = rep(cp[i,2],N)
+    temp3 = cp[,1]
+    temp4 = cp[,2]
 
     L = temp4-temp3+temp2-temp1+2
     
@@ -430,19 +428,17 @@ translateSP <- function(SP,peptide){
   
   SPseq = rep(NA,dim(SP)[1])
   for(i in 1:dim(SP)[1]){
-    SPseq[i] = paste(peptide[c(SP[i,1]:SP[i,2],SP[i,3]:SP[i,4])],sep="",collapse="")
+    SPseq[i] = stri_c(peptide[c(SP[i,1]:SP[i,2],SP[i,3]:SP[i,4])],sep="",collapse="")
   }
   return(SPseq)
   rm(SPseq)
 }
 
 removeCPfromSP_seq <- function(x,z){
-  
-  result <- list()
+  result = list()
   result[[1]] = x[-which(x%in%z)]
   
   return(result)
-  rm(result)
 }
 
 ### ---------------------------- MW and PTMs ----------------------------
@@ -452,14 +448,14 @@ mixANDmatch3 <- function(mzMin, mzMax, MW0){
   if(length(mzMin) < length(MW0)){
     X = data.table(a=MW0, b=mzMin, c=mzMax)
     index = which(data.table::inrange(X$a, X$b, X$c, incbounds=TRUE))
-  }else{
+  } else {
     ind = vapply(MW0,function(x) any((x>mzMin)&(x<mzMax)), 1)
     index = which(ind>0)
   }
 }
 
 computeMZ_biostrings <- function(seq){
-  seq <- AAStringSet(seq)
+  seq = AAStringSet(seq)
  
   if(length(seq)<1){
     mz = numeric()
@@ -473,15 +469,15 @@ computeMZ_biostrings <- function(seq){
     aa2 = c(71.037114, 156.101111, 114.042927, 115.026943, 103.009185, 129.042593, 128.058578, 57.021464, 137.058912, 113.084064, 113.084064, 128.094963, 131.040485, 147.068414, 97.052764, 87.032028, 101.047679, 186.079313, 163.06332, 99.068414)
    
    
-    aa3 <-  matrix(NA, nrow=20, ncol=length(seq))
+    aa3 =  matrix(NA, nrow=20, ncol=length(seq))
     for(n in 1:length(aa1)){
-      count <- Biostrings::vcountPattern(aa1[n],seq)
-      aa3[n,] <- count*aa2[n]
+      count = Biostrings::vcountPattern(aa1[n],seq)
+      aa3[n,] = count*aa2[n]
     }
     MW=colSums(aa3)+18.01528
     ## add NA for zero values
     MW=round(MW, digits = 5)
-    MW[MW==18.01528] <- NA
+    MW[MW==18.01528] = NA
   }
   return(MW)
 }
