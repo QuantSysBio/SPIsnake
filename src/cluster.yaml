@@ -1,0 +1,8 @@
+__default__:
+  partition: "elbe"
+  nodes: 1
+  ncpus: 72
+  mem: 100G
+  job-name: "{rule}"
+  output: "../outfiles/spisnake-%J.out"
+  chdir: '/data/SPIsnake/SPIsnake'
