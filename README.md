@@ -38,13 +38,20 @@ After that, create the SPIsnake environment as described under **Installation**.
 
 ### Clone repo + upload data
 Enter `git clone https://github.com/QuantSysBio/SPIsnake` to retrieve the latest code.
-If necessary, deposit your data using `sftp`.
+If necessary, deposit your data in the correct directory using `sftp`. Instructions for using `sftp` can be found in the QSB getting started document.
 
-### Jobscript
-The `jobscript.sh` script specifies parameters of both Slurm and Snakemake.
-More info about Slurm's `sbatch` can be found [here](https://slurm.schedmd.com/sbatch.html). Useful guidelines about creating jobscripts can be found [here](https://docs.gwdg.de/doku.php?id=en:services:application_services:high_performance_computing:courses:scc-introductory-course).
-You can get an overview about which compute nodes are assigned to which partition by calling `sinfo`.
+### Cluster execution
+- Make sure you are in the correct directory (`data/SPIsnake/SPIsnake`) and on the correct node (`s1604-fs01`)
+- Snakemake is executed from a Bash screen session that prevents the job from crashing once you disconnect from `ssh`. Therefore, enter:
+`screen -S spisnake`
+- Activate the conda environment:
+`conda activate SPIsnake`
+- Submit the job to the `elbe` partition. (You can get an overview about which compute nodes are assigned to which partition by calling `sinfo`.)  
+`snakemake --use-conda --use-singularity --cluster-config src/cluster.yaml --cluster "sbatch -p {cluster.partition} -N {cluster.nodes} -c {cluster.ncpus} --mem {cluster.mem} --job-name {cluster.job-name} -o {cluster.output} -D {cluster.chdir}" --conda-frontend conda -j 10000 -w 36000`
+- Detach from the screen session by pressing `Ctrl+a+d`. You can resume to the session to check the progress via `screen -r spisnake`
 
-### Submit jobs
-Make sure you have activated the SPIsnake environment.
-Enter `sbatch jobscript.sh`. You can track the status of your job via the outfile of by `ssh`-ing on the compute nodes and monitoring their activity.
+### Check job status
+Enter `squeue` on any of the nodes except the Mascot server to check which jobs are currently running.
+You can track the status of your job via the outfile (`data/SPIsnake/outfiles/*.out`). Alternatively, you can monitor the node occupancy by `ssh`-ing on the compute nodes and monitoring their activity.
+Finally, when the pipeline finished check if all desired output files are present.
+
