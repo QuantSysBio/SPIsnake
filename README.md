@@ -7,7 +7,6 @@ conda create -c conda-forge -c bioconda -n SPIsnake snakemake
 conda activate SPIsnake
 conda install -c conda-forge singularity 
 ```
-For cluster execution, please install mamba package manager: `conda install -n base -c conda-forge mamba`.
 
 ## Setup
 1. Define common job parameters in `config.yml` and `features.yml`
@@ -47,7 +46,9 @@ If necessary, deposit your data in the correct directory using `sftp`. Instructi
 - Activate the conda environment:
 `conda activate SPIsnake`
 - Submit the job to the `elbe` partition. (You can get an overview about which compute nodes are assigned to which partition by calling `sinfo`.)  
-`snakemake --use-conda --use-singularity --cluster-config src/cluster.yaml --cluster "sbatch -p {cluster.partition} -N {cluster.nodes} -c {cluster.ncpus} --mem {cluster.mem} --job-name {cluster.job-name} -o {cluster.output} -D {cluster.chdir}" --conda-frontend conda -j 10000 -w 36000`
+```
+snakemake --use-conda --use-singularity --cluster-config src/cluster.yaml --cluster "sbatch -p {cluster.partition} -N {cluster.nodes} -c {cluster.ncpus} --mem {cluster.mem} --job-name {cluster.job-name} -o {cluster.output} -D {cluster.chdir}" --conda-frontend conda -j 10000 -w 36000
+```
 - Detach from the screen session by pressing `Ctrl+a+d`. You can resume to the session to check the progress via `screen -r spisnake`
 
 ### Check job status
