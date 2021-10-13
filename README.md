@@ -9,7 +9,7 @@ conda install -c conda-forge singularity
 ```
 
 ## Setup
-1. Define common job parameters in `config.yml` and `features.yml`
+1. Define common job parameters in `config.yml` and `features.yaml`
 2. Define proteomic search space in `Master_table.csv`. 
 N-mers separated by underscores will give rise to a full range of peptide sequences. Redundancies are removed internally. 
 Place proteome `.fasta` files in `data/reference`
