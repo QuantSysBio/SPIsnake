@@ -8,5 +8,6 @@ DB:
     max_protein_length: 1000
     max_variable_PTM: 2
     AA_index_length: 1
+    replace_I_with_L: FALSE
 
 ...

@@ -15,9 +15,41 @@ sink(log)
 
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
+suppressPackageStartupMessages(library(stringi))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
+
+{
+  # # Manual startup
+  # source("src/snakefiles/functions.R")
+  # 
+  # proteome <- "data/reference/Measles_CDS_6_frame.fasta"
+  # dat = read.fasta(file=proteome, seqtype="AA", as.string = TRUE)
+  # proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
+  # proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
+  # 
+  # prot_cluster <- read.table("results/Cluster/Measles_CDS_6_frame/Measles_CDS_6_frame_cluster.tsv")
+  # 
+  # Master_table <- read.csv("Master_table.csv") %>%
+  #   as_tibble()  %>%
+  #   filter(Proteome == proteome) %>%
+  #   select(Proteome, MaxE, Min_Interv_length)
+  # 
+  # # max intervening sequence length
+  # MiSl <- 25
+  # min_protein_length = 8
+  # dat <- dat[which(lapply(dat, nchar) >= min_protein_length)]
+  # 
+  # max_length=500
+  # overlap_length=MiSl*2
+  # maxE = Master_table$MaxE
+  # replace_I_with_L = TRUE
+  # 
+  # Ncpu = availableCores()
+  # cl <- parallel::makeForkCluster(Ncpu)
+  # cl <- parallelly::autoStopCluster(cl)
+}
 
 source(snakemake@input[["functions"]])
 print("Loaded functions. Loading the data")
@@ -60,6 +92,11 @@ overlap_length=MiSl*2
 maxE = Master_table$MaxE
 print(paste("maxE:", maxE))
 
+# Replace I with L
+replace_I_with_L = as.logical(snakemake@params[["replace_I_with_L"]])
+print(paste("Replace I with L:", replace_I_with_L))
+
+
 ### CPUs
 #Ncpu = as.numeric(snakemake@params[["n"]])
 Ncpu = availableCores()
@@ -78,6 +115,15 @@ suppressWarnings(
 dat <- dat[which(lapply(dat, nchar) >= min_protein_length)]
 prot_cluster <- prot_cluster[prot_cluster$V2 %in% names(dat),]
 dat <- dat[match(prot_cluster$V2, names(dat))]
+
+# I/L redundancy
+if (replace_I_with_L == TRUE) {
+  tmp <- names(dat)
+  
+  dat <- as.list(stri_replace_all_fixed(dat, pattern = "I", replacement = "L"))
+  names(dat) <- tmp
+  rm(tmp)
+}
 
 # Split long entries into overlapping chunks
 dat <- Split_list_max_length_parallel(String_list = dat, 
