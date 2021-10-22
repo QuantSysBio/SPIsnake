@@ -18,6 +18,7 @@ suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(stringi))
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # Master table

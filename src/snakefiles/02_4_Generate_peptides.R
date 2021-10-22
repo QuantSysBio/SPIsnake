@@ -21,6 +21,7 @@ suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(stringi))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
@@ -40,7 +41,7 @@ seq_list_to_dt <- function(seq_list){
   # directory = "results/DB_exhaustive/"
   # dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
   # Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-  # filename = "results/DB_exhaustive/Seq_stats/8_cis-cis-PSP_Unimod_25_proteome_expressed_gencode_18568_19192.fasta.csv.gz"
+  # filename = "results/DB_exhaustive/Seq_stats/8_cis-PSP_Unimod_25_Measles_CDS_6_frame_1_48.fasta.csv.gz"
   # index_length = 1
   # max_protein_length = 100
   # 

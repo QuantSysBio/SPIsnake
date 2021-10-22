@@ -9,42 +9,42 @@ stop_quietly <- function() {
 ### ---------------------------- Proteome pre-processing ----------------------------
 
 splitWithOverlap <- function(seq, max_length, overlap_length) {
-  start = seq(1, length(seq), by=max_length-overlap_length)
-  end   = start + max_length - 1
+  start <- seq(1, length(seq), by=max_length-overlap_length)
+  end   <- start + max_length - 1
   end[end > length(seq)] = length(seq)
   
-  out = lapply(1:length(start), function(i){
+  out <- lapply(1:length(start), function(i){
     stri_c(seq[start[i]:end[i]], sep="", collapse="")
   })
-  names(out) = stri_c(start, end, sep="-")
+  names(out) <- stri_c(start, end, sep="-")
   return(out)
 }
 
 Split_list_max_length <- function(String_list, max_length=2000, overlap_length=MiSl*2){
-  out = lapply(seq_along(String_list), function(i){
+  out <- lapply(seq_along(String_list), function(i){
     
     # Extract sequence attributes
     protein_name = attr(String_list[[i]], "name")
     protein_seq = getSequence(String_list[[i]])
     
     # Split input into overlaping chunks
-    protein_chunks = splitWithOverlap(seq = protein_seq, 
+    protein_chunks <- splitWithOverlap(seq = protein_seq, 
                                        max_length = max_length, 
                                        overlap_length = overlap_length)
     
     # Save chunk properties in sequence names
-    names(protein_chunks) = paste0(protein_name, "|chunk:", names(protein_chunks))
+    names(protein_chunks) <- paste0(protein_name, "|chunk:", names(protein_chunks))
     return(protein_chunks)
   })
   # Convert to incoming list format
-  unl = unlist(out)
-  out = as.list(unl)
-  names(out) = names(unl)
+  unl <- unlist(out)
+  out <- as.list(unl)
+  names(out) <- names(unl)
   return(out)
 }
 
 Split_list_max_length_parallel <- function(String_list, max_length=2000, overlap_length=MiSl*2){
-  out = mclapply(seq_along(String_list), mc.cores = Ncpu, function(i){
+  out <- mclapply(seq_along(String_list), mc.cores = Ncpu, function(i){
     
     # Extract sequence attributes
     protein_name = attr(String_list[[i]], "name")
@@ -480,4 +480,31 @@ computeMZ_biostrings <- function(seq){
     MW[MW==18.01528] = NA
   }
   return(MW)
+}
+
+
+### ---------------------------- RT filtering ----------------------------
+regression_stats <- function(obs, pred){
+  # lm
+  data = data.frame(pred = pred, 
+                    obs = obs)
+  pred.lm = lm(pred ~ obs, data = data)
+  
+  # metrics
+  # correlation coefficients
+  pc = cor(obs, pred, method = "pearson")
+  sm = cor(obs, pred, method = "spearman")
+  
+  # mean squared error
+  mse =  round(mean((obs - pred)^2), 4)
+  # root mean squared error
+  rmse = round(sqrt(mse), 4)
+  # mean absolute deviation
+  mae =  round(mean(abs((obs - pred))), 4)
+  
+  # sumarize
+  all.metrics = c(summary(pred.lm)$r.squared, pc, mse, rmse, mae)
+  names(all.metrics) = c("Rsquared", "PCC", "MSE", "RMSE", "MAE")
+  
+  return(all.metrics)
 }

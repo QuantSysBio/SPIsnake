@@ -61,7 +61,8 @@ rule PTM_mz_matching:
     input: 
         Peptide_aggregation_table = join(dir_DB_PTM_mz, "Peptide_aggregation_table.csv"),
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
-        Experiment_design = join(dir_data, "Experiment_design.csv")
+        Experiment_design = join(dir_data, "Experiment_design.csv"),
+        RT_Performance_df = join(dir_RT_prediction, "RT_Performance.csv")
     output:
         chunk_aggregation_status = join(dir_DB_PTM_mz, "chunk_aggregation_status/{AA_length}.csv")
     benchmark: 

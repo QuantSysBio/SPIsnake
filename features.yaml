@@ -10,4 +10,8 @@ DB:
     AA_index_length: 1
     replace_I_with_L: FALSE
 
+RT_filter:
+    n_folds: 3
+    proportion_train: 0.9
+
 ...
