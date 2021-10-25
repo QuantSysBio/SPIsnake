@@ -20,7 +20,7 @@ suppressPackageStartupMessages(library(vroom))
 {
   # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
   # RT_dataset = "results/RT_prediction/AutoRT_models/MeV_MA0009-BE08_allFractions/model.json"
-  # cmd_AutoRT_train = vroom(file = "results/RT_prediction/cmd_AutoRT_train.csv", delim=',')
+  # cmd_AutoRT_train = vroom(file = "results/RT_prediction/cmd_AutoRT_train.csv", delim=',', show_col_types = FALSE)
 }
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
@@ -30,7 +30,7 @@ print("Loaded functions. Loading the data")
 RT_dataset = snakemake@output[[1]]
 
 # Cmd table
-cmd_AutoRT_train <- vroom(snakemake@input[["cmd_AutoRT_train"]], delim=',')
+cmd_AutoRT_train <- vroom(snakemake@input[["cmd_AutoRT_train"]], delim=',', show_col_types = FALSE)
 
 # Output dirs
 dir_RT_calibration = snakemake@params[["dir_RT_calibration"]]

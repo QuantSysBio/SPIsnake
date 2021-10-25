@@ -72,7 +72,6 @@ rule aggregate_RT:
         checkpoint = Checkpoint_RT_train(join(dir_RT_prediction, "AutoRT_models/{RT_dataset}/model.json")),
         cmd_AutoRT_test = join(dir_RT_prediction, "cmd_AutoRT_test.csv")
     output:
-        RT_Performance_plot = join(dir_RT_prediction, "RT_Performance.pdf"),
         RT_Performance_df = join(dir_RT_prediction, "RT_Performance.csv")
     benchmark: 
         join(benchmarks, "aggregate_RT.json")

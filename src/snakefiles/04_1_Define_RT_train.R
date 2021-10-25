@@ -22,7 +22,7 @@ suppressPackageStartupMessages(library(vroom))
 
 {
   # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-  # Experiment_design <- vroom("data/Experiment_design.csv")
+  # Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
   # n_folds = 3
   # proportion_train = 0.9
   # dir_RT_calibration = "data/RT_calibration/"
@@ -39,7 +39,7 @@ setDTthreads(Ncpu)
 
 ### ---------------------------- (1) Read inputs ----------------------------
 # Master_table_expanded
-Experiment_design <- vroom(snakemake@input[["Experiment_design"]])
+Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
 
 # train/test split
 dir_RT_calibration = snakemake@params[["dir_RT_calibration"]]
@@ -64,7 +64,19 @@ dir_RT_prediction = snakemake@params[["dir_RT_prediction"]]
   suppressWarnings(
     dir.create(paste0(dir_RT_prediction, "/AutoRT_models"))
   )
+  suppressWarnings(
+    dir.create(paste0(dir_RT_prediction, "/plots"))
+  )
+  suppressWarnings(
+    dir.create(paste0(dir_RT_prediction, "/peptide_RT"))
+  )
 }
+
+
+
+
+
+
 
 ### ---------------------------- (2) Split train/test --------------------------------------
 # Prepare calibration data
@@ -142,7 +154,7 @@ out_AutoRT %>%
   lapply(dir.create, showWarnings = FALSE)
 
 # Dirs to store predictions
-pred_AutoRT <- out_AutoRT[!grepl("AutoRT_models_100", out_AutoRT)] %>%
+pred_AutoRT <- out_AutoRT[str_ends(out_AutoRT, ".sample[:digit:]")] %>%
   str_replace(pattern = "results/RT_prediction/AutoRT_models/", replacement = "results/RT_prediction/predict/")
 
 pred_AutoRT %>%
@@ -154,7 +166,7 @@ cmd_AutoRT_train <- c()
 for (i in seq_along(train_AutoRT)) {
   cmd_AutoRT_train[i] <- paste("python bin/AutoRT/autort.py train -i", train_AutoRT[i] ,
                                "-o", out_AutoRT[i] ,
-                               "-e 40 -b 64 -u s -m bin/AutoRT/models/general_base_model/model.json",
+                               "-e 40 -b 64 -u m -m bin/AutoRT/models/general_base_model/model.json",
                                "--add_ReduceLROnPlateau --early_stop_patience 10")
 }
 

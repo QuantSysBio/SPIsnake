@@ -1,5 +1,5 @@
-### ---------------------------------------------- Aggregate_PTM_mz_matching ----------------------------------------------
-# description:  Find a unique set of peptide sequences, compute molecular weight (MW) and do m/z matching with all input mass_lists. 
+### ---------------------------------------------- Aggregate_PTM_mz_RT_matching ----------------------------------------------
+# description:  Find a unique set of peptide sequences, compute molecular weight (MW) and do m/z and RT matching with all input mass_lists. 
 #               If PTMs are required, generate them too. 
 #               
 # input:        1. Peptide sequences generated in chunks
@@ -8,7 +8,7 @@
 #               Output files are saved in chunks that depend on first N=index_length letters of a peptide
 #               - Unique sequences per experiment .csv.gz
 #               - Unique peptides MW .csv.gz
-#               - Unique peptides after m/z matching per experiment .csv.gz
+#               - Unique peptides after m/z and RT matching per experiment .csv.gz
 #               - Peptide-mass_list matching
 #               - Peptide filtering stats .csv
 #               
@@ -31,34 +31,38 @@ suppressPackageStartupMessages(library(data.table))
 source("src/snakefiles/functions.R")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
-{
-  # # Manual setup
-  # Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
-  # Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
-  # Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
-  # dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
-  # dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
-  # suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
-  # 
-  # filename = "results/DB_PTM_mz/chunk_aggregation_status/F_9.csv"
-  # filename <- filename %>%
-  #  str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
-  # filename <- filename[,2] %>%
-  #  str_remove(pattern = ".csv")
-  # print(filename)
-  # MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
-  #  as_tibble() %>%
-  #  mutate(file = str_remove_all(value, ".txt"))
-  # 
-  # ### CPUs
-  # Ncpu = availableCores()
-  # cl <- parallel::makeForkCluster(Ncpu)
-  # cl <- parallelly::autoStopCluster(cl)
-  # setDTthreads(Ncpu)
-  # 
-  # # Save into chunks according to first N letters
-  # index_length = 1
-}
+# {
+#   ### Manual setup
+#   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
+#   Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
+#   Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
+#   dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake/results/DB_exhaustive"
+#   dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake/results/DB_PTM_mz"
+#   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
+#   
+#   # Wildcard
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/H_15.csv"
+#   filename <- filename %>%
+#    str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
+#   filename <- filename[,2] %>%
+#    str_remove(pattern = ".csv")
+#   print(filename)
+#   
+#   # Calibration
+#   MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
+#    as_tibble() %>%
+#    mutate(file = str_remove_all(value, ".txt"))
+#   RT_Performance_df <- vroom("results/RT_prediction/RT_Performance.csv", delim = ",", show_col_types = FALSE)
+# 
+#   ### CPUs
+#   Ncpu = availableCores()
+#   cl <- parallel::makeForkCluster(Ncpu)
+#   cl <- parallelly::autoStopCluster(cl)
+#   setDTthreads(Ncpu)
+# 
+#   # Save into chunks according to first N letters
+#   index_length = 1
+# }
 
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
@@ -95,6 +99,8 @@ MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
   mutate(AA_length = filename) 
 
 ### RT calibration data
+RT_Performance_df <- vroom(snakemake@input[["RT_Performance_df"]], delim = ",", show_col_types = FALSE)
+
 # File should be named the same as the corresponding mass_list
 RT_calibration_lists <- list.files("data/RT_calibration", pattern = ".csv") %>%
   as_tibble() %>%
@@ -108,22 +114,6 @@ Ncpu = availableCores()
 cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
-
-### Python setup for RT prediction
-library(reticulate)
-use_condaenv("R_env_reticulate")
-pyteomics <- import("pyteomics")
-
-py_run_string("
-import glob
-import pandas as pd
-from pyteomics import achrom
-import numpy
-rcond = None
-")
-
-# To be inferred during RT predictor calibration
-RT_tolerance = 500
 
 ### ---------------------------- (2) Operation mode --------------------------------------
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/files_mz_match/")))
@@ -228,33 +218,6 @@ if (nrow(peptide_chunks) == 0) {
   }
   
   ### ---------------------------- (5) m/z matching --------------------------------------
-  
-  
-  
-  
-  
-  
-  # --------------- DEV: ON
-  # Calibrate RT predictor on 100% of the data
-  RT_calibration <- paste0("data/RT_calibration/", RT_calibration_lists$RT_list_file) %>%
-    lapply(vroom, col_names = c("row", "peptide", "RT", "scans"), show_col_types = F, skip = 1)
-  names(RT_calibration) <- RT_calibration_lists$RT_list 
-  
-  RT_models <- list()
-  for (i in seq_along(RT_calibration)) {
-    RT_models[[i]] = pyteomics$achrom$get_RCs(sequences = r_to_py(RT_calibration[[i]]$peptide), 
-                                              RTs=r_to_py(RT_calibration[[i]]$RT), 
-                                              term_aa=r_to_py(FALSE))
-  }
-  names(RT_models) <- names(RT_calibration)
-  
-  # --------------- DEV: OFF
-  
-  
-  
-  
-  
-  # m/z filter
   mz_nomod <- list()
   mz_stats <- tibble()
   for (i in pep_types) {
@@ -264,7 +227,12 @@ if (nrow(peptide_chunks) == 0) {
       print(MS_mass_lists$mass_list[j])
       MS_mass_list <- MS_mass_lists$mass_list[j]
       
+      # Filter tolerances
       tolerance = as.numeric(Experiment_design$Precursor_mass_tolerance_ppm[Experiment_design$Filename == MS_mass_list])
+      RT_tolerance = as.numeric(RT_Performance_df$mean_value[RT_Performance_df$dataset == MS_mass_list & RT_Performance_df$metric == "MAE"])
+      # RT_tolerance = RT_tolerance * 60
+      
+      # Calibration input
       mzList = vroom(file = paste0("data/MS_mass_lists/", MS_mass_lists$mass_list_file[j]), 
                      delim = " ", num_threads = Ncpu, 
                      col_names = c("Precursor_mass","RT"),
@@ -272,6 +240,8 @@ if (nrow(peptide_chunks) == 0) {
         lazy_dt() %>%
         mutate(MW_Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
         mutate(MW_Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
+        # Min/sec for RT
+        mutate(RT = RT / 60) %>%
         mutate(RT_Min = RT - RT_tolerance) %>%
         mutate(RT_Max = RT + RT_tolerance) %>%
         select(-Precursor_mass)  %>%
@@ -286,20 +256,27 @@ if (nrow(peptide_chunks) == 0) {
                            mass_list = MS_mass_list,
                            mz_matched_peptides = nrow(mz_nomod[[i]][[MS_mass_list]]))
       
-      
-      
-      
+    
       
       # --------------- DEV: ON
-      ### Predict RT
-      x = mz_nomod[[i]][[MS_mass_list]]$peptide %>%
-        str_replace_all(pattern = "I", replacement = "L") %>%
-        r_to_py()
+      ### Predict RT for m/z matched peptides
+      # Save AutoRT input
+      mz_nomod[[i]][[MS_mass_list]]  %>%
+        as_tibble() %>%
+        rename(x=peptide) %>%
+        select(x) %>%
+        vroom_write(file = paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list, ".tsv"), 
+                    num_threads = Ncpu, append = F, delim = "\t")
       
-      mz_nomod[[i]][[MS_mass_list]]$RT_pred <- py_calls$achrom_calculate_RT(x, 
-                                                                            RT_models[[MS_mass_list]], 
-                                                                            r_to_py(FALSE))
+      # AutoRT predict with pre-trained model
+      system(command = paste("python bin/AutoRT/autort.py predict --test", paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list, ".tsv"),
+                              "-s", paste0("results/RT_prediction/AutoRT_models/", MS_mass_list, "/model.json"),
+                              "-o", paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list)), 
+             intern = T)
       
+      # Import AutoRT
+      RT_pred <- vroom(paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list, "/test.tsv"), show_col_types = FALSE)
+      mz_nomod[[i]][[MS_mass_list]]$RT_pred <- RT_pred$y_pred
       
       mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]][
         MW %inrange% mzList[,c("MW_Min", "MW_Max")] & RT_pred %inrange% mzList[,c("RT_Min", "RT_Max")]]
@@ -308,10 +285,6 @@ if (nrow(peptide_chunks) == 0) {
       mz_stats_ij$mz_RT_matched_peptides = nrow(mz_nomod[[i]][[MS_mass_list]])
       
       # --------------- DEV: OFF
-      
-      
-      
-      
       
       
       

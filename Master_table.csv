@@ -1,2 +1,2 @@
-Proteome,Splice_type,N_mers,Min_Interv_length,MaxE,PTMs,mz_filter,RT_filter,IC_50_filter
-Measles_CDS_6_frame,cis-PSP,8_15,25,76595700,Unimod,yes,yes,yes
+Proteome,Splice_type,N_mers,Min_Interv_length,MaxE,PTMs
+Measles_CDS_6_frame,cis-PSP,8_15,25,76595700,Unimod

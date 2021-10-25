@@ -70,11 +70,11 @@ rule PTM_mz_matching:
     log: 
         join(logs, "PTM_mz_matching_{AA_length}.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         load = 100 
     params:
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_DB_PTM_mz=dir_DB_PTM_mz
     script:
-        "03_2_PTM_mz_matching.R"
+        "03_2_PTM_mz_RT_matching.R"
