@@ -21,10 +21,12 @@ sink(log)
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(parallelly))
+suppressPackageStartupMessages(library(reticulate))
 suppressPackageStartupMessages(library(vroom))
 suppressPackageStartupMessages(library(data.table))
 
@@ -39,15 +41,15 @@ source("src/snakefiles/functions.R")
 #   dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake/results/DB_exhaustive"
 #   dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake/results/DB_PTM_mz"
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
-#   
+# 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/H_15.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/F_9.csv"
 #   filename <- filename %>%
 #    str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
 #    str_remove(pattern = ".csv")
 #   print(filename)
-#   
+# 
 #   # Calibration
 #   MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
 #    as_tibble() %>%
@@ -62,6 +64,9 @@ source("src/snakefiles/functions.R")
 # 
 #   # Save into chunks according to first N letters
 #   index_length = 1
+# 
+#   # RT prediction method
+#   method = as.character("achrom")
 # }
 
 # Experiment_design
@@ -89,6 +94,16 @@ print(filename)
 # Save into chunks according to first N letters
 index_length = as.integer(snakemake@params[["AA_index_length"]])
 
+### RT calibration data
+RT_Performance_df <- vroom(snakemake@input[["RT_Performance_df"]], delim = ",", show_col_types = FALSE)
+
+# RT prediction method
+method = as.character(snakemake@params[["method"]])
+
+### ---------------------------- End user variables ----------------------------
+# Proteinogenic AAs
+AA = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
+
 ### Mass_lists
 # Only user defined lists will be used 
 MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
@@ -97,9 +112,6 @@ MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
   filter(mass_list %in% Experiment_design$Filename) %>%
   rename(mass_list_file = value) %>%
   mutate(AA_length = filename) 
-
-### RT calibration data
-RT_Performance_df <- vroom(snakemake@input[["RT_Performance_df"]], delim = ",", show_col_types = FALSE)
 
 # File should be named the same as the corresponding mass_list
 RT_calibration_lists <- list.files("data/RT_calibration", pattern = ".csv") %>%
@@ -116,8 +128,23 @@ cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
 
 ### ---------------------------- (2) Operation mode --------------------------------------
-suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/files_mz_match/")))
+suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/")))
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/")))
+suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_status/")))
+suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched/")))
+
+if (method == "achrom") {
+use_condaenv("R_env_reticulate")
+pyteomics <- import("pyteomics")
+  
+  py_run_string("
+import glob
+import pandas as pd
+from pyteomics import achrom
+import numpy
+rcond = None
+")  
+}
 
 # Check if there exist previous outputs to be updated:
 processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory"), pattern = paste0(filename, ".csv"))
@@ -230,7 +257,6 @@ if (nrow(peptide_chunks) == 0) {
       # Filter tolerances
       tolerance = as.numeric(Experiment_design$Precursor_mass_tolerance_ppm[Experiment_design$Filename == MS_mass_list])
       RT_tolerance = as.numeric(RT_Performance_df$mean_value[RT_Performance_df$dataset == MS_mass_list & RT_Performance_df$metric == "MAE"])
-      # RT_tolerance = RT_tolerance * 60
       
       # Calibration input
       mzList = vroom(file = paste0("data/MS_mass_lists/", MS_mass_lists$mass_list_file[j]), 
@@ -241,53 +267,88 @@ if (nrow(peptide_chunks) == 0) {
         mutate(MW_Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
         mutate(MW_Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
         # Min/sec for RT
-        mutate(RT = RT / 60) %>%
+        # mutate(RT = RT / 60) %>%
         mutate(RT_Min = RT - RT_tolerance) %>%
         mutate(RT_Max = RT + RT_tolerance) %>%
         select(-Precursor_mass)  %>%
         unique() %>%
         as.data.table()
       
-      ### Which peptide sequences pass the MW filter
+      # Which peptide sequences pass the MW filter
       mz_nomod[[i]][[MS_mass_list]] <- input[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
+      print("MW filter: done")
       
-      ### Save stats
+      # Save stats
       mz_stats_ij = tibble(Splice_type=i,
                            mass_list = MS_mass_list,
                            mz_matched_peptides = nrow(mz_nomod[[i]][[MS_mass_list]]))
       
-    
+      ### ----------------------------- Predict RT for m/z matched peptides -----------------------------
+      if (method == "AutoRT") {
+        # Save AutoRT input
+        mz_nomod[[i]][[MS_mass_list]]  %>%
+          as_tibble() %>%
+          rename(x=peptide) %>%
+          select(x) %>%
+          vroom_write(file = paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", i, "_", filename, "_", MS_mass_list, ".tsv"), 
+                      num_threads = Ncpu, append = F, delim = "\t")
+        
+        # AutoRT predict with pre-trained model
+        system(command = paste("python bin/AutoRT/autort.py predict --test", 
+                               paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", i, "_", filename, "_", MS_mass_list, ".tsv"),
+                               "-s", paste0("results/RT_prediction/AutoRT_models/", MS_mass_list, "/model.json"),
+                               "-o", paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list)), 
+               intern = T)
+        
+        # Import AutoRT
+        RT_pred <- vroom(paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list, "/test.tsv"), show_col_types = FALSE)
+        mz_nomod[[i]][[MS_mass_list]]$RT_pred <- RT_pred$y_pred
+        
+      } else if (method == "achrom") {
+        mz_nomod[[i]][[MS_mass_list]]  %>%
+          as_tibble() %>%
+          vroom_write(file = paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", i, "_", filename, "_", MS_mass_list, ".tsv"), 
+                      num_threads = Ncpu, append = F, delim = "\t")
+        
+        # Load parameters
+        RCs <- readRDS(paste0("results/RT_prediction/RT_models/", MS_mass_list, "/achrom_RCs.rds"))
+        
+        # Use Leu values for Ile in case no Ile was provided in calibration
+        if (is.null(RCs$aa$I)) {
+          RCs$aa$I <- RCs$aa$L
+        }
+        
+        # Exclusion pattern: peptides containing these letters will be omitted
+        exclusion_pattern <- AA[!AA %in% names(RCs$aa)] %>% str_c(collapse = "|")
+        if (!exclusion_pattern == "") {
+          mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]] %>%
+            filter(!str_detect(peptide, exclusion_pattern)) %>%
+            as.data.table()
+        }
+        
+        # Predict
+        x <- mz_nomod[[i]][[MS_mass_list]] %>%
+          pull(peptide) %>%
+          r_to_py()
+        
+        py_calls <- py_run_string("
+def achrom_calculate_RT(x, RCs, raise_no_mod):
+  x = pd.DataFrame({'sequences': x})
+  out = x['sequences'].apply(
+    lambda x : achrom.calculate_RT(x, RCs, raise_no_mod=False)
+  )
+  return out
+")
+        mz_nomod[[i]][[MS_mass_list]]$RT_pred = py_calls$achrom_calculate_RT(x, RCs, r_to_py(FALSE)) 
+      }
       
-      # --------------- DEV: ON
-      ### Predict RT for m/z matched peptides
-      # Save AutoRT input
-      mz_nomod[[i]][[MS_mass_list]]  %>%
-        as_tibble() %>%
-        rename(x=peptide) %>%
-        select(x) %>%
-        vroom_write(file = paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list, ".tsv"), 
-                    num_threads = Ncpu, append = F, delim = "\t")
-      
-      # AutoRT predict with pre-trained model
-      system(command = paste("python bin/AutoRT/autort.py predict --test", paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list, ".tsv"),
-                              "-s", paste0("results/RT_prediction/AutoRT_models/", MS_mass_list, "/model.json"),
-                              "-o", paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list)), 
-             intern = T)
-      
-      # Import AutoRT
-      RT_pred <- vroom(paste0("results/RT_prediction/peptide_RT/", i, "_", filename, "_", MS_mass_list, "/test.tsv"), show_col_types = FALSE)
-      mz_nomod[[i]][[MS_mass_list]]$RT_pred <- RT_pred$y_pred
-      
+      # 2D filter: MW & RT
       mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]][
         MW %inrange% mzList[,c("MW_Min", "MW_Max")] & RT_pred %inrange% mzList[,c("RT_Min", "RT_Max")]]
+      print("2D MW/RT filter: done")
       
       # Update stats after RT filter
       mz_stats_ij$mz_RT_matched_peptides = nrow(mz_nomod[[i]][[MS_mass_list]])
-      
-      # --------------- DEV: OFF
-      
-      
-      
       mz_stats = rbind(mz_stats, mz_stats_ij)
     }
   }
@@ -300,11 +361,12 @@ if (nrow(peptide_chunks) == 0) {
   
   ### ---------------------------- (7) Peptide sequence export --------------------------------------
   # Unmodified m/z matched sequences
+  # No compression is done to facilitate read-in by NetMHCPan
   for (i in seq_along(mz_nomod)) {
     for (j in seq_along(mz_nomod[[i]])) {
       mz_nomod[[i]][[j]] %>%
-        vroom_write(paste0(dir_DB_PTM_mz, "/files_mz_match/", names(mz_nomod)[i], "_", filename, "_", names(mz_nomod[[i]])[j], ".csv.gz"),
-                    delim = ",", num_threads = Ncpu, append = TRUE)
+        vroom_write(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", names(mz_nomod)[i], "_", filename, "_", names(mz_nomod[[i]])[j], ".tsv"),
+                    delim = "\t", num_threads = Ncpu, append = TRUE)
     }
   }
   

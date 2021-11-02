@@ -1,7 +1,7 @@
 ### ---------------------------------------------- Define peptide aggregation  ----------------------------------------------
 # description:  Evaluate RT prediction error. 
 #               
-# input:        1. AutoRT command
+# input:        1. RT command
 #               2. RT Calibration peptides split into train/test
 # output:       
 #               A table with a single line per combination of parameters for peptide across proteome chunks. 
@@ -28,21 +28,27 @@ suppressPackageStartupMessages(library(vroom))
 {
   ### Manual startup
   # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-  # cmd_AutoRT_test <- vroom("results/RT_prediction/cmd_AutoRT_test.csv", delim=',', show_col_types = FALSE)
+  # cmd_RT_test <- vroom("results/RT_prediction/cmd_RT_test.csv", delim=',', show_col_types = FALSE)
+  # method = "achrom"
 }
 
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 
 # Cmd table
-cmd_AutoRT_test <- vroom(snakemake@input[["cmd_AutoRT_test"]], delim=',', show_col_types = FALSE)
+cmd_RT_test <- vroom(snakemake@input[["cmd_RT_test"]], delim=',', show_col_types = FALSE)
+
+# Params
+method = as.character(snakemake@params[["method"]])
 
 RT_predictors <- c()
 gg_out <- list()
 
-### ---------------------------- (1) AutoRT: Predict cmds ----------------------------
-for (i in 1:length(cmd_AutoRT_test$cmd)) {
-  system(cmd_AutoRT_test$cmd[i])
+### ---------------------------- (1) RT: Predict cmds ----------------------------
+if (!is.na(cmd_RT_test$cmd)) {
+  for (i in 1:length(cmd_RT_test$cmd)) {
+    system(cmd_RT_test$cmd[i])
+  }
 }
 
 ### ---------------------------- (2) Performance evaluation --------------------------------------
@@ -66,29 +72,30 @@ split_structure <- files_test %>%
   select(dataset, sample) %>%
   unique()
 
-# AutoRT
-pred_AutoRT <- list.files("results/RT_prediction/predict/", pattern = "test.tsv", full.names = T, recursive = T) %>%
+# RT
+pred_RT <- list.files("results/RT_prediction/predict/", pattern = "test.tsv", full.names = T, recursive = T) %>%
   lapply(vroom, show_col_types = FALSE)
-names(pred_AutoRT) <- list.files("results/RT_prediction/predict/", pattern = "test.tsv", full.names = F, recursive = T) %>%
+names(pred_RT) <- list.files("results/RT_prediction/predict/", pattern = "test.tsv", full.names = F, recursive = T) %>%
   str_remove_all(pattern = "/test.tsv")
 
-### Train a lm fit on train data, predict test
-### Update this step accordingly
-# pred <- lapply(pred_AutoRT, function(x) predict(lm(y ~ y_pred, data = x))) %>%
-#   lapply(as_tibble) %>%
-#   bind_rows()
+if (unique(c("x", "y", "y_pred") %in% colnames(pred_RT[1]))) {
+  # AutoRT input
+  RT <- pred_RT %>%
+    bind_rows(.id = "file") %>%
+    dplyr::rename(peptide = x)  %>%
+    mutate(RT = y/60,
+           RT_pred = y_pred) %>%
+    select(-RT) %>%
+    split(~file)
+  
+} else if (unique(c("peptide", "RT", "RT_pred") %in% colnames(pred_RT[[1]]))) {
+  RT <- pred_RT %>%
+    bind_rows(.id = "file") %>%
+    select(-RT) %>%
+    split(~file)
+}
 
-AutoRT <- pred_AutoRT %>%
-  bind_rows(.id = "file") %>%
-  dplyr::rename(Mascot_seq = x)  %>%
-  mutate(RT = y/60,
-         RT_pred = y_pred) %>%
-  # select(-y) %>%
-  # select(-y_pred) %>%
-  split(~file)
-
-RT_predictors <- c(RT_predictors, "AutoRT")
-
+RT_predictors <- c(RT_predictors, "RT")
 
 out <- tibble()
 for (i in seq_along(split_structure$dataset)) {
@@ -101,7 +108,7 @@ for (i in seq_along(split_structure$dataset)) {
     for (pred in RT_predictors) {
       
       dt = keep[[j]] %>%
-        left_join(get(pred)[[names(keep)[j]]]) %>%
+        left_join(get(pred)[[names(keep)[j]]], by="peptide") %>%
         na.omit()
       
       out_tmp <- regression_stats(obs = dt$RT, 
@@ -110,14 +117,14 @@ for (i in seq_along(split_structure$dataset)) {
         as_tibble() %>%
         mutate(dataset = dataset,
                sample = names(keep)[j],
-               predictor = pred)
+               predictor = method)
       out <- rbind(out, out_tmp)
     }
   }
 }
 out <- out %>%
   mutate(predictor = str_remove(predictor, "pred_"),
-         sample = str_split_fixed(sample, ".sample", 2)[,2]) %>%
+         sample = as.numeric(str_split_fixed(sample, ".sample", 2)[,2])) %>%
   pivot_longer(cols = c("Rsquared", "PCC", "MSE", "RMSE", "MAE"), names_to = "metric")
 
 # Print

@@ -18,11 +18,13 @@ include: snakefiles + "01_folders.py"
 include: snakefiles + "02_DB_wildcards.py"
 include: snakefiles + "03_PTM_mz_matching.py"
 include: snakefiles + "04_RT_prediction.py"
+include: snakefiles + "05_IC50_prediction.py"
 
 rule all:
     input:
         join(dir_DB_exhaustive, ".Generate_indices.done"),
         join(dir_DB_PTM_mz, ".Aggregate_peptides.done"),
+        join(Output_dir, "Output_fasta/Peptides.fasta"),
         join(dir_DB_exhaustive, ".Generate_peptides.done")
 
 

@@ -18,9 +18,9 @@ suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(vroom))
 
 {
-  # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-  # RT_dataset = "results/RT_prediction/AutoRT_models/MeV_MA0009-BE08_allFractions/model.json"
-  # cmd_AutoRT_train = vroom(file = "results/RT_prediction/cmd_AutoRT_train.csv", delim=',', show_col_types = FALSE)
+  setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+  RT_dataset = "results/RT_prediction/RT_models/nan/model.json"
+  cmd_RT_train = vroom(file = "results/RT_prediction/cmd_RT_train.csv", delim=',', show_col_types = FALSE)
 }
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
@@ -28,17 +28,25 @@ print("Loaded functions. Loading the data")
 ### ---------------------------- (1) Read inputs ----------------------------
 # Wildcard
 RT_dataset = snakemake@output[[1]]
+out <- RT_dataset
 
 # Cmd table
-cmd_AutoRT_train <- vroom(snakemake@input[["cmd_AutoRT_train"]], delim=',', show_col_types = FALSE)
+cmd_RT_train <- vroom(snakemake@input[["cmd_RT_train"]], delim=',', show_col_types = FALSE)
 
 # Output dirs
 dir_RT_calibration = snakemake@params[["dir_RT_calibration"]]
 
 ### ---------------------------- (2) Define aggregation wildcards --------------------------------------
 # Choose the train cmd
-RT_dataset <- str_split_fixed(RT_dataset, pattern = "results/RT_prediction/AutoRT_models/", n = 2)[,2] %>%
+RT_dataset <- str_split_fixed(RT_dataset, pattern = "results/RT_prediction/RT_models/", n = 2)[,2] %>%
   str_remove_all(pattern = "/model.json") 
 
-# Call AutoRT
-system(cmd_AutoRT_train$cmd[cmd_AutoRT_train$RT_dataset == RT_dataset])
+if (!RT_dataset == "nan") {
+  # Call external training cmd
+  system(cmd_RT_train$cmd[cmd_RT_train$RT_dataset == RT_dataset])
+  
+} else {
+  # Empty output for achrom filter
+  suppressWarnings(dir.create(str_remove_all(out, pattern = "/model.json") ))
+  system(paste("touch", out))
+}
