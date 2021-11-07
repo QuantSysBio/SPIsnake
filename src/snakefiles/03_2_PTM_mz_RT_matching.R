@@ -19,31 +19,32 @@ log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
 suppressPackageStartupMessages(library(Biostrings))
+suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
-suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(dplyr, warn.conflicts = FALSE))
 suppressPackageStartupMessages(library(foreach))
-suppressPackageStartupMessages(library(seqinr))
-suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(reticulate))
+suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(vroom))
-suppressPackageStartupMessages(library(data.table))
 
 source("src/snakefiles/functions.R")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # {
 #   ### Manual setup
+#   setwd("/home/yhorokh/Snakemake/SPIsnake")
+# 
 #   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
 #   Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
 #   Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
-#   dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake/results/DB_exhaustive"
-#   dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake/results/DB_PTM_mz"
+#   dir_DB_exhaustive = "/home/yhorokh/Snakemake/SPIsnake/results/DB_exhaustive"
+#   dir_DB_PTM_mz = "/home/yhorokh/Snakemake/SPIsnake/results/DB_PTM_mz"
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 # 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/F_9.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/V_11.csv"
 #   filename <- filename %>%
 #    str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
@@ -205,43 +206,58 @@ if (nrow(peptide_chunks) == 0) {
   
   peptides <- as.list(peptide_chunks$value)
   names(peptides) <- peptide_chunks$file
-  head(peptides)
+  peptides <- peptides[1:60]
   
   # PCP
   if (length(peptides[str_detect(peptides, "/PCP_")]) > 0) {
     PCP_list <- peptides[str_detect(peptides, "/PCP_")]  %>%
       mclapply(FUN = vroom, delim = ",", mc.cores = Ncpu, show_col_types = FALSE) 
+    print("Reading in PCP sequences: Done")
   }
   # PSP
   if (length(peptides[str_detect(peptides, "/PSP_")]) > 0) {
     PSP_list <- peptides[str_detect(peptides, "/PSP_")]  %>%
       mclapply(FUN = vroom, delim = ",", mc.cores = Ncpu, show_col_types = FALSE)
+    print("Reading in PSP sequences: Done")
   }
   
   ### ---------------------------- (4) Compute MW --------------------------------------
   ### And check for peptide uniqueness
   pep_types <- c()
-  if (length(PCP_list) > 0) {
+  if (length(peptides[str_detect(peptides, "/PCP_")]) > 0) {
     PCP <- PCP_list %>%
-      rbindlist() %>%
-      lazy_dt() %>%
-      unique() %>%
-      mutate(MW=computeMZ_biostrings(peptide)) %>%
-      as.data.table()
+      rbindlist()
+    PCP$index <- str_sub(PCP$peptide, index_length + 1, index_length + 1)
     
+    PCP <- PCP %>%
+      split(by = "index", drop = T) %>%
+      mclapply(mc.cores = Ncpu, FUN = function(x){
+        x %>%
+          lazy_dt() %>%
+          unique() %>%
+          mutate(MW=computeMZ_biostrings(peptide)) %>%
+          as.data.table()
+      }) 
     pep_types <- c(pep_types, "PCP")
+    print("MW PCP: Done")
   }
   
-  if (length(PSP_list) > 0) {
+  if (length(peptides[str_detect(peptides, "/PSP_")]) > 0) {
     PSP <- PSP_list %>%
-      rbindlist() %>%
-      lazy_dt() %>%
-      select(peptide) %>%
-      unique() %>%
-      mutate(MW=computeMZ_biostrings(peptide)) %>%
-      as.data.table()
+      rbindlist() 
+    PSP$index <- str_sub(PSP$peptide, index_length + 1, index_length + 1)
     
+    PSP <- PSP %>%
+      split(by = "index", drop = T) %>%
+      mclapply(mc.cores = Ncpu, FUN = function(x){
+        x %>%
+          lazy_dt() %>%
+          unique() %>%
+          mutate(MW=computeMZ_biostrings(peptide)) %>%
+          as.data.table()
+      }) 
     pep_types <- c(pep_types, "PSP")
+    print("MW PSP: Done")
   }
   
   ### ---------------------------- (5) m/z matching --------------------------------------
@@ -275,7 +291,11 @@ if (nrow(peptide_chunks) == 0) {
         as.data.table()
       
       # Which peptide sequences pass the MW filter
-      mz_nomod[[i]][[MS_mass_list]] <- input[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
+        mz_nomod[[i]][[MS_mass_list]] <- input %>%
+        mclapply(mc.cores = Ncpu, FUN = function(x){
+          x[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
+        }) %>%
+        rbindlist()
       print("MW filter: done")
       
       # Save stats
@@ -322,15 +342,13 @@ if (nrow(peptide_chunks) == 0) {
         exclusion_pattern <- AA[!AA %in% names(RCs$aa)] %>% str_c(collapse = "|")
         if (!exclusion_pattern == "") {
           mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]] %>%
+            lazy_dt() %>%
             filter(!str_detect(peptide, exclusion_pattern)) %>%
             as.data.table()
         }
-        
-        # Predict
-        x <- mz_nomod[[i]][[MS_mass_list]] %>%
-          pull(peptide) %>%
-          r_to_py()
-        
+
+        if (!is.na(nrow(mz_nomod[[i]][[MS_mass_list]])) == FALSE) {
+          ### Predict
         py_calls <- py_run_string("
 def achrom_calculate_RT(x, RCs, raise_no_mod):
   x = pd.DataFrame({'sequences': x})
@@ -339,13 +357,39 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   )
   return out
 ")
-        mz_nomod[[i]][[MS_mass_list]]$RT_pred = py_calls$achrom_calculate_RT(x, RCs, r_to_py(FALSE)) 
+        mz_nomod[[i]][[MS_mass_list]]$RT_pred <- mz_nomod[[i]][[MS_mass_list]] %>%
+          split(by = c("index"), drop = T) %>%
+          mclapply(mc.cores = Ncpu, FUN = function(x){
+            x = x %>%
+              lazy_dt() %>%
+              select(-index) %>%
+              pull(peptide) %>%
+              r_to_py()
+            x = data.table(RT = py_calls$achrom_calculate_RT(x, RCs, r_to_py(FALSE)))
+            return(x)
+          }) %>%
+          rbindlist() %>%
+          pull(RT)
       }
+        }
+      print("RT prediction: Done")
       
-      # 2D filter: MW & RT
-      mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]][
-        MW %inrange% mzList[,c("MW_Min", "MW_Max")] & RT_pred %inrange% mzList[,c("RT_Min", "RT_Max")]]
-      print("2D MW/RT filter: done")
+      ### 2D filter: MW & RT
+      if (!is.na(nrow(mz_nomod[[i]][[MS_mass_list]])) == FALSE) {
+
+        mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]] %>%
+        split(by = c("index"), drop = T) %>%
+        mclapply(mc.cores = Ncpu, FUN = function(x){
+          x = x %>%
+            lazy_dt() %>%
+            select(-index) %>%
+            as.data.table()
+          x = x[MW %inrange% mzList[,c("MW_Min", "MW_Max")] & RT_pred %inrange% mzList[,c("RT_Min", "RT_Max")]]
+          return(x)
+        }) %>%
+        rbindlist()
+      }
+      print("2D MW/RT filter: Done")
       
       # Update stats after RT filter
       mz_stats_ij$mz_RT_matched_peptides = nrow(mz_nomod[[i]][[MS_mass_list]])
@@ -372,16 +416,19 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   
   ### --------------------------------------(8) Chunk aggregation status (Snakemake output) --------------------------------------
   ### Record aggregation stats
-  {
+  
+  if (length(peptides[str_detect(peptides, "/PSP_")]) > 0) {
     aggregation_stats <- tibble(total_PCP = sum(unlist(lapply(PCP_list, nrow))), 
-                                unique_PCP = nrow(PCP),
+                                unique_PCP = sum(unlist(lapply(PCP, nrow))),
                                 total_PSP = sum(unlist(lapply(PSP_list, nrow))),
-                                unique_PSP = nrow(PSP)
-    )
-    print("Loaded peptides")
-    print(t(aggregation_stats))
-    mz_stats
+                                unique_PSP = sum(unlist(lapply(PSP, nrow))))
+  } else {
+    aggregation_stats <- tibble(total_PCP = sum(unlist(lapply(PCP_list, nrow))), 
+                                unique_PCP = sum(unlist(lapply(PCP, nrow))),
+                                total_PSP = 0,
+                                unique_PSP = 0)
   }
+  print(t(aggregation_stats))
   
   # First export: Snakemake Wildcard
   # Second export: Memory for future updates

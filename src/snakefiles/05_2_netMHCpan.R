@@ -31,13 +31,13 @@ suppressPackageStartupMessages(library(vroom))
 source("src/snakefiles/functions.R")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
-# {
-#   setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-#   dir_IC50 = "results/IC50/"
-#   cmd_netMHCpan <- vroom(paste0(dir_IC50, "cmd_netMHCpan.csv"), show_col_types = FALSE)
-#   
-#   binders = "results/IC50/IC50_filtered_peptides/PCP_Q_11_MeV_BLCL_allFractions_H-2-Db.csv.gz"
-# }
+{
+  setwd("/home/yhorokh/Snakemake/SPIsnake")
+  dir_IC50 = "results/IC50/"
+  cmd_netMHCpan <- vroom(paste0(dir_IC50, "cmd_netMHCpan.csv"), show_col_types = FALSE)
+
+  binders = "results/IC50/IC50_filtered_peptides/PSP_T_12_MeV_BLCL_allFractions_H-2-Db.csv.gz"
+}
 
 # Experiment_design
 cmd_netMHCpan <- vroom(snakemake@input[["cmd_netMHCpan"]], show_col_types = FALSE)
@@ -53,8 +53,10 @@ dir_IC50 = snakemake@params[["dir_IC50"]]
 Affinity_threshold <- cmd_netMHCpan$Affinity_threshold[str_detect(binders, cmd_netMHCpan$Peptide_file)]
 
 # Run netMHCpan-4.1
-print(cmd_netMHCpan$cmds[str_detect(binders, cmd_netMHCpan$Peptide_file)])
-system(cmd_netMHCpan$cmds[str_detect(binders, cmd_netMHCpan$Peptide_file)])
+cmd <- cmd_netMHCpan$cmds[str_detect(binders, cmd_netMHCpan$Peptide_file)]
+print(cmd)
+print(file.exists("bin/netMHCpan-4.1/netMHCpan"))
+system(cmd, intern = T)
 
 netMHCpan_out <- readr::read_delim(
   file = paste0("results/IC50/netMHCpan_output/", cmd_netMHCpan$Peptide_file[str_detect(binders, cmd_netMHCpan$Peptide_file)], ".txt"),

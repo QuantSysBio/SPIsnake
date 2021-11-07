@@ -18,9 +18,9 @@ suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(vroom))
 
 {
-  setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-  RT_dataset = "results/RT_prediction/RT_models/nan/model.json"
-  cmd_RT_train = vroom(file = "results/RT_prediction/cmd_RT_train.csv", delim=',', show_col_types = FALSE)
+  #setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+  #RT_dataset = "results/RT_prediction/RT_models/nan/model.json"
+  #cmd_RT_train = vroom(file = "results/RT_prediction/cmd_RT_train.csv", delim=',', show_col_types = FALSE)
 }
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")

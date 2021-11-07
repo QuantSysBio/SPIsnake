@@ -6,7 +6,7 @@ rule clone_AutoRT:
     log: 
         join(logs, "clone_AutoRT.txt")
     conda: 
-        "git.yaml"
+        "R_env_reticulate.yaml"
     params:
         url = "https://github.com/bzhanglab/AutoRT"
     shell:

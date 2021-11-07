@@ -1,7 +1,8 @@
 rule Define_IC50:
     input:
         Experiment_design = features["Experiment_design"],
-        netMHCpan = "bin/netMHCpan-4.1/netMHCpan"
+        netMHCpan = "bin/netMHCpan-4.1/netMHCpan",
+        mz_RT_aggregation = join(dir_DB_PTM_mz, ".Aggregate_peptides.done")
     output:
         cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv"),
         IC50_aggregation_table = join(dir_IC50, "IC50_aggregation_table.csv")
@@ -76,7 +77,7 @@ rule predict_MHC_affinity:
     log: 
         join(logs, "Predict_MHC_affinity_{Peptide_file}.txt")
     conda: 
-        "R_env_reticulate.yaml"
+        "R_env.yaml"
     resources: # 1 per node at the time
         load = 100 
     params:

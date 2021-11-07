@@ -12,9 +12,10 @@ dependencies:
  - r-dplyr=1.0.7
  - r-foreach=1.5.1 
  - r-parallelly 1.26.1
+ - r-readr=2.0.2
  - r-seqinr=4.2_8 
  - r-stringi=1.7.4
  - r-stringr=1.4.0
  - r-tidyr=1.1.3
- - r-vroom=1.5.1
+ - r-vroom=1.5.5
  - pigz=2.6

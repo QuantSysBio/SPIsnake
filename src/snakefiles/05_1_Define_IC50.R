@@ -21,7 +21,7 @@ suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(vroom))
 
 # {
-#   setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+#   setwd("/home/yhorokh/Snakemake/SPIsnake/")
 #   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
 #   netMHCpan = "bin/netMHCpan-4.1/netMHCpan"
 #   dir_DB_PTM_mz = "results/DB_PTM_mz/"
