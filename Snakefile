@@ -7,7 +7,7 @@ import yaml
 from snakemake.utils import min_version
 
 min_version("6.0")
-#shell.prefix("set -euo pipefail;")
+shell.prefix("set -euo pipefail;")
 
 config = yaml.load(open("config.yml", "r"), Loader=yaml.FullLoader)
 features = yaml.load(open("features.yaml", "r"), Loader=yaml.FullLoader)
