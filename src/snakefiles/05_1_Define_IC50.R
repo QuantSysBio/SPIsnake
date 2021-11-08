@@ -23,10 +23,11 @@ suppressPackageStartupMessages(library(vroom))
 # {
 #   setwd("/home/yhorokh/Snakemake/SPIsnake/")
 #   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
-#   netMHCpan = "bin/netMHCpan-4.1/netMHCpan"
+#   netMHCpan = "/bin/netMHCpan-4.1/netMHCpan"
 #   dir_DB_PTM_mz = "results/DB_PTM_mz/"
 #   dir_IC50 = "results/IC50/"
 # }
+
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 

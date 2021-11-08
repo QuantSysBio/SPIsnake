@@ -32,11 +32,11 @@ source("src/snakefiles/functions.R")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 {
-  setwd("/home/yhorokh/Snakemake/SPIsnake")
-  dir_IC50 = "results/IC50/"
-  cmd_netMHCpan <- vroom(paste0(dir_IC50, "cmd_netMHCpan.csv"), show_col_types = FALSE)
-
-  binders = "results/IC50/IC50_filtered_peptides/PSP_T_12_MeV_BLCL_allFractions_H-2-Db.csv.gz"
+  # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+  # dir_IC50 = "results/IC50/"
+  # cmd_netMHCpan <- vroom(paste0(dir_IC50, "cmd_netMHCpan.csv"), show_col_types = FALSE)
+  # 
+  # binders = "results/IC50/IC50_filtered_peptides/PCP_T_15_MeV_MA0009-BE08_allFractions_H-2-Kb.csv.gz"
 }
 
 # Experiment_design
@@ -55,44 +55,42 @@ Affinity_threshold <- cmd_netMHCpan$Affinity_threshold[str_detect(binders, cmd_n
 # Run netMHCpan-4.1
 cmd <- cmd_netMHCpan$cmds[str_detect(binders, cmd_netMHCpan$Peptide_file)]
 print(cmd)
-print(file.exists("bin/netMHCpan-4.1/netMHCpan"))
 system(cmd, intern = T)
+print("Predicted MHC affinity")
 
-netMHCpan_out <- readr::read_delim(
-  file = paste0("results/IC50/netMHCpan_output/", cmd_netMHCpan$Peptide_file[str_detect(binders, cmd_netMHCpan$Peptide_file)], ".txt"),
-  trim_ws = TRUE,
-  delim = " ", 
-  quote = "#", 
-  skip = 55, 
-  col_names = c("Pos", "MHC", "Peptide", "Core", 
-                "Of", "Gp", "Gl", "Ip", "Il", "Icore", "Identity", 
-                "Score_EL", "Perc_Rank", "Score_BA", "Perc_Rank_BA", "Aff(nM)", "BindLevel2", "BindLevel"),
-  col_types=cols_only(
-    MHC = col_character(),
-    Peptide = col_character(),
-    `Aff(nM)` = col_double()
-  )) %>%
-  filter(!MHC %in% c("PEPLIST","PEPLIST.")) %>%
-  filter(!is.na(MHC))
-netMHCpan_out
+suppressWarnings(
+  netMHCpan_out <- read_delim(
+    file = paste0(dir_IC50, "/netMHCpan_output/", cmd_netMHCpan$Peptide_file[str_detect(binders, cmd_netMHCpan$Peptide_file)], ".txt"),
+    trim_ws = TRUE,
+    delim = " ", 
+    quote = "#", 
+    skip = 55, 
+    col_names = c("Pos", "MHC", "Peptide", "Core", 
+                  "Of", "Gp", "Gl", "Ip", "Il", "Icore", "Identity", 
+                  "Score_EL", "Perc_Rank", "Score_BA", "Perc_Rank_BA", "Aff(nM)", "BindLevel2", "BindLevel"),
+    show_col_types = FALSE) %>%
+    select(MHC, Peptide, `Aff(nM)`) %>%
+    mutate(`Aff(nM)` = as.numeric(`Aff(nM)`)) %>%
+    filter(!MHC %in% c("PEPLIST","PEPLIST.")) %>%
+    filter(!is.na(MHC))
+)
+print(head(netMHCpan_out))
 
 ### ---------------------------------------------- Select MHC-I binders --------------------------------------------------
 binders_df <- netMHCpan_out %>%
   select(-MHC) %>%
   filter(`Aff(nM)` <= Affinity_threshold)
-binders_df
+print(head(binders_df))
 
-# aggregation_stats <- cmd_netMHCpan[str_detect(netMHCpan_pred, cmd_netMHCpan$Peptide_file),] %>%
-#   select(Peptide_file, `MHC-I_alleles`, Affinity_threshold) %>%
-#   mutate(IC50_filtered_peptides = nrow(binders_df))
-# aggregation_stats
+IC50_filter_stats <- cmd_netMHCpan[str_detect(binders, cmd_netMHCpan$Peptide_file),] %>%
+  mutate(IC50_filtered_peptides = nrow(binders_df))
+print(head(IC50_filter_stats))
 
 ### ---------------------------------------------- (4) Export --------------------------------------------------
-# {
-#   binders_df %>%
-#     vroom_write(delim = ",", append = FALSE, col_names = TRUE,
-#                 file = binders)
-# }
+IC50_filter_stats %>%
+  vroom_write(delim = ",", append = FALSE, col_names = TRUE,
+              file = unlist(snakemake@output[["IC50_filter_stats"]]))
+
 binders_df %>%
   vroom_write(delim = ",", append = FALSE, col_names = TRUE,
               file = unlist(snakemake@output[["binders"]]))

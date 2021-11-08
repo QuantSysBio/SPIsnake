@@ -11,7 +11,7 @@ rule Define_IC50:
     log: 
         join(logs, "Define_IC50.txt")
     conda: 
-        "R_env_reticulate.yaml"
+        "R_env.yaml"
     params:
         dir_IC50=dir_IC50,
         dir_DB_PTM_mz=dir_DB_PTM_mz
@@ -51,17 +51,19 @@ rule aggregate_IC50_prediction:
     input:
         checkpoint = Checkpoint_IC50(join(dir_IC50, "IC50_filtered_peptides/{Peptide_file}.csv.gz"))
     output:
-        join(Output_dir, "Output_fasta/Peptides.fasta")
+        Summary_stats = join(dir_DB_out, "Stats.csv")
     benchmark: 
         join(benchmarks, "aggregate_IC50.json")
     log: 
         join(logs, "aggregate_IC50.txt")
     conda: 
-        "R_env_reticulate.yaml"
+        "R_env.yaml"
     resources: # 1 per node at the time
         load = 100
     params:
-        dir_IC50=dir_IC50
+        dir_IC50=dir_IC50,
+        dir_DB_out=dir_DB_out,
+        informative_headers=features["DB"]["informative_headers"]
     script:
         "05_3_aggregate_IC50.R"
 
@@ -71,7 +73,8 @@ rule predict_MHC_affinity:
         cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv"),
         netMHCpan = "bin/netMHCpan-4.1/netMHCpan"
     output:
-        binders = join(dir_IC50, "IC50_filtered_peptides/{Peptide_file}.csv.gz")
+        binders = join(dir_IC50, "IC50_filtered_peptides/{Peptide_file}.csv.gz"),
+        IC50_filter_stats = join(dir_IC50, "Seq_stats/{Peptide_file}.csv")
     benchmark: 
         join(benchmarks, "Predict_MHC_affinity_{Peptide_file}.json")
     log: 
@@ -80,6 +83,7 @@ rule predict_MHC_affinity:
         "R_env.yaml"
     resources: # 1 per node at the time
         load = 100 
+    container: None
     params:
         dir_IC50=dir_IC50
     script:

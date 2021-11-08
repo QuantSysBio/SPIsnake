@@ -9,6 +9,7 @@ DB:
     max_variable_PTM: 2
     AA_index_length: 1
     replace_I_with_L: FALSE
+    informative_headers: TRUE
 
 RT_filter:
     # achrom or AutoRT

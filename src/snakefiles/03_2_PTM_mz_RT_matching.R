@@ -206,7 +206,7 @@ if (nrow(peptide_chunks) == 0) {
   
   peptides <- as.list(peptide_chunks$value)
   names(peptides) <- peptide_chunks$file
-  peptides <- peptides[1:60]
+  # peptides <- peptides[1:60]
   
   # PCP
   if (length(peptides[str_detect(peptides, "/PCP_")]) > 0) {

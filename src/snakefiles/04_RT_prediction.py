@@ -1,21 +1,5 @@
-rule clone_AutoRT:
-    output:
-        AutoRT = "bin/AutoRT/autort.py"
-    benchmark: 
-        join(benchmarks, "clone_AutoRT.json")
-    log: 
-        join(logs, "clone_AutoRT.txt")
-    conda: 
-        "R_env_reticulate.yaml"
-    params:
-        url = "https://github.com/bzhanglab/AutoRT"
-    shell:
-        "git clone {params.url} bin/AutoRT"
-
-
 rule Define_RT_train:
     input:
-        AutoRT = "bin/AutoRT/autort.py",
         Experiment_design = features["Experiment_design"]
     output:
         cmd_RT_train = join(dir_RT_prediction, "cmd_RT_train.csv"),

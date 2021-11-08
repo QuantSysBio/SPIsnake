@@ -40,11 +40,17 @@ cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
 
 ### ---------------------------- (1) Read inputs ----------------------------
+# AutoRT
+method = as.character(snakemake@params[["method"]])
+url = as.character(snakemake@params[["url"]])
+if (method == "AutoRT") {
+system(paste("git clone", url, "bin/AutoRT"))
+}
+
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
 
 # train/test split
-method = as.character(snakemake@params[["method"]])
 n_folds = as.integer(snakemake@params[["n_folds"]])
 proportion_train = as.numeric(snakemake@params[["proportion_train"]])
 dir_RT_calibration = snakemake@params[["dir_RT_calibration"]]
