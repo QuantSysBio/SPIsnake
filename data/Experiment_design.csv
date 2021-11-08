@@ -1,3 +1,6 @@
-Filename,Biological_group,Technical_replicate,Precursor_mass_tolerance_ppm
-masslist_MeV_GRLCL_allFractions,1,1,6
-masslist_MeV_BLCL_allFractions,1,1,6
+Filename,Biological_group,Precursor_mass_tolerance_ppm,MHC-I_alleles,Affinity_threshold
+MeV_BLCL_allFractions,1,6,H-2-Kb | H-2-Db,500 | 300
+MeV_GRLCL_allFractions,1,6,H-2-Kb | H-2-Db,500 | 300
+MeV_MA0009-BE08_allFractions,1,6,H-2-Kb | H-2-Db,500 | 300
+MeV_MA0009-BE09_allFractions,1,6,H-2-Db,300
+MeV_MB211_KCL_allFractions,1,6,H-2-Kb,500
