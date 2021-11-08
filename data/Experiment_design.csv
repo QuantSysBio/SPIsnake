@@ -1,6 +1,6 @@
 Filename,Biological_group,Precursor_mass_tolerance_ppm,MHC-I_alleles,Affinity_threshold
-MeV_BLCL_allFractions,1,6,H-2-Kb | H-2-Db,500 | 300
-MeV_GRLCL_allFractions,1,6,H-2-Kb | H-2-Db,500 | 300
-MeV_MA0009-BE08_allFractions,1,6,H-2-Kb | H-2-Db,500 | 300
-MeV_MA0009-BE09_allFractions,1,6,H-2-Db,300
-MeV_MB211_KCL_allFractions,1,6,H-2-Kb,500
+MeV_BLCL_allFractions,1,6,HLA-A01:01 | HLA-A24:02 | HLA-B08:01 | HLA-B40:01 | HLA-C03:04 | HLA-C07:01,1000
+MeV_GRLCL_allFractions,1,6,HLA-A01:01 | HLA-A03:01 | HLA-B07:02 | HLA-B27:05 | HLA-C02:02 | HLA-C07:02,1000
+MeV_MA0009-BE08_allFractions,1,6,HLA-A01:01 | HLA-A02:01 | HLA-B08:01 | HLA-B15:01 | HLA-C04:02 | HLA-C07:01,1000
+MeV_MA0009-BE09_allFractions,1,6,HLA-A01:01 | HLA-A02:01 | HLA-B08:01 | HLA-B15:01 | HLA-C04:02 | HLA-C07:01,1000
+MeV_MB211_KCL_allFractions,1,6,HLA-A01:01 | HLA-A24:02 | HLA-B08:01 | HLA-B40:01 | HLA-C03:04 | HLA-C07:01,1000
