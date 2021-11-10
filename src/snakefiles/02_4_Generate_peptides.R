@@ -21,6 +21,7 @@ suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(stringi))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
@@ -29,18 +30,13 @@ suppressPackageStartupMessages(library(vroom))
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 
-# Functions
-seq_list_to_dt <- function(seq_list){
-  rbindlist(lapply(seq_list, as.data.table), idcol = "id")
-}
-
 # Manual startup
 {
   # ##setwd("/home/yhorokh/Snakemake/SPIsnake-main")
   # directory = "results/DB_exhaustive/"
   # dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
   # Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-  # filename = "results/DB_exhaustive/Seq_stats/8_cis-cis-PSP_Unimod_25_proteome_expressed_gencode_18568_19192.fasta.csv.gz"
+  # filename = "results/DB_exhaustive/Seq_stats/8_cis-PSP_Unimod_25_Measles_CDS_6_frame_1_48.fasta.csv.gz"
   # index_length = 1
   # max_protein_length = 100
   # 
@@ -179,58 +175,38 @@ print("Saved sequence stats")
 print(Sys.time())
 
 
-### ------------------------------------------ (4) Save all unique peptides ------------------------------------------
-PCP %>%
-  lazy_dt() %>%
-  select(peptide) %>%
-  mutate(index = str_sub(peptide, 1, index_length)) %>%
-  group_by(index) %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
-  unique() %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PCP_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu))
-print("Saved unique PCP")
-
-PSP %>%
-  lazy_dt() %>%
-  select(peptide) %>%
-  mutate(index = str_sub(peptide, 1, index_length)) %>%
-  group_by(index) %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
-  unique() %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PSP_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu))
-print("Saved unique PSP")
-
-
-### ------------------------------------------ (5) Save Protein-peptide mapping ------------------------------------------
+### ------------------------------------------ (4) Save peptides and mapping ------------------------------------------
 PCP %>%
   lazy_dt() %>%
   mutate(index = str_sub(peptide, 1, index_length)) %>%
   group_by(index) %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
+  filter(!(str_detect(peptide, exclusion_pattern) | 
+             !str_length(peptide) == Nmers)) %>%
   unique() %>%
   group_walk(~ vroom_write(.x, 
                            pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PCP_map_",.y$index, "_", filename, ".csv.gz"))),
+                           delim = ",", num_threads = Ncpu)) %>%
+  select(peptide) %>%
+  group_walk(~ vroom_write(.x, 
+                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PCP_",.y$index, "_", filename, ".csv.gz"))),
                            delim = ",", num_threads = Ncpu))
-print("Saved PCP protein-peptide mapping")
+print("Saved PCP")
 
 
 PSP %>%
   lazy_dt() %>%
   mutate(index = str_sub(peptide, 1, index_length)) %>%
   group_by(index) %>%
-  filter(!(grepl(pattern = exclusion_pattern, peptide) | 
-             nchar(peptide) == 0)) %>%
+  filter(!(str_detect(peptide, exclusion_pattern) | 
+             !str_length(peptide) == Nmers)) %>%
   unique() %>%
   group_walk(~ vroom_write(.x, 
                            pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PSP_map_",.y$index, "_", filename, ".csv.gz"))),
+                           delim = ",", num_threads = Ncpu)) %>%
+  select(peptide) %>%
+  group_walk(~ vroom_write(.x, 
+                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PSP_",.y$index, "_", filename, ".csv.gz"))),
                            delim = ",", num_threads = Ncpu))
 
-print("Saved PSP protein-peptide mapping")
+print("Saved PSP")
 print(Sys.time())

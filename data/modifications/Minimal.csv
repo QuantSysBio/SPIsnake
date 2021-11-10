@@ -1,0 +1,5 @@
+Id,UnimodId,Name,Description,Composition,AvgMass,MonoMass,Site,Position,Classification,SpecGroup,NeutralLoss,LastModified,Approved,Hidden
+Deamidated:Q,7,Deamidated,Deamidation,H(-1) N(-1) O,0.9848,0.984016,Q,Anywhere,Artefact,1,FALSE,2011-05-12 08:53:06,FALSE,FALSE
+Deamidated:N,7,Deamidated,Deamidation,H(-1) N(-1) O,0.9848,0.984016,N,Anywhere,Artefact,1,FALSE,2011-05-12 08:53:06,FALSE,FALSE
+Carbamidomethyl:C,4,Carbamidomethyl,Iodoacetamide derivative,H(3) C(2) N O,57.0513,57.021464,C,Anywhere,Chemical derivative,1,FALSE,2017-10-09 10:27:10,TRUE,FALSE
+Oxidation:M,35,Oxidation,Oxidation or Hydroxylation,O,15.9994,15.994915,M,Anywhere,Artefact,8,FALSE,2017-10-06 17:05:11,FALSE,FALSE

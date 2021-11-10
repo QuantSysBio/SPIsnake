@@ -42,7 +42,7 @@ rule Cluster_proteome:
         dir_cluster_proteome=join(dir_cluster, "{proteome}/{proteome}"),
         dir_tmp=join(dir_cluster, "{proteome}/tmp")
     shell:
-        "mmseqs easy-linclust -e Inf -c 0.01 \
+        "mmseqs easy-linclust -e 1.000E-03 \
         --spaced-kmer-mode 1 --spaced-kmer-pattern 110101 \
         {input.proteome} {params.dir_cluster_proteome} {params.dir_tmp} \
          &> {log}"
@@ -71,6 +71,7 @@ rule Split_proteome_chunks:
         n=config["max_cores"],
         min_protein_length = features["DB"]["min_protein_length"],
         max_protein_length = features["DB"]["max_protein_length"],
+        replace_I_with_L = features["DB"]["replace_I_with_L"],
         directory=dir_DB_Fasta_chunks
     script:
         "02_1_Split_proteome_chunks.R"
@@ -85,8 +86,6 @@ rule Expand_Master_table:
         Master_table = features["Master_table"]
     output:
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
-### Potential feature
-#        PCP_indices = join(dir_DB_exhaustive, "PCP_indices.csv"),
         PSP_indices = join(dir_DB_exhaustive, "PSP_indices.csv")
     benchmark: 
         join(benchmarks, "Expand_Master_table.json")
