@@ -1,11 +1,13 @@
-### ---------------------------------------------- Define RT train  ----------------------------------------------
+### ---------------------------------------------- Aggregate IC50  ----------------------------------------------
 # description:
 #               
-# input:        1. RT calibration datasets: sequence + time (seconds)
-#               2. Parameters: n_folds, train_proportion
-# output:       
-#               A table with a single line per combination of parameters across calibration datasets. 
-#               Data split into train/test sets
+# input:        1. metadata: Master_table_expanded, cmd_netMHCpan
+#               2. Candidate peptide binders filtered from netMHCpan output
+#               
+# output:       FASTA file per Biological group
+#               multimappers 
+#                
+#               
 #               
 # author:       YH
 
@@ -27,6 +29,7 @@ suppressPackageStartupMessages(library(vroom))
 # {
 #   setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
 #   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv", show_col_types = FALSE)
+#    Master_table_expanded <- vroom("/home/yhorokh/Downloads/Master_table_expanded.csv")
 #   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
 #   Experiment_design$Biological_group <- c(1,2,rep(3,3))
 #   dir_DB_exhaustive = "results/DB_exhaustive/"
@@ -78,30 +81,52 @@ peptides <- as.list(peptide_chunks$value)
 names(peptides) <- peptide_chunks$Peptide_file
 if (length(peptides) > 0) {
   peptide_list <- peptides[lapply(peptides, file.size) > 40]
+  peptide_chunks <- peptide_chunks %>% filter(Peptide_file %in% names(peptide_list))
   print("Detected non-empty peptide sequences")
 }
 
 # Peptide mapping
 pep_map <- list.files(paste0(dir_DB_exhaustive, "/peptide_mapping"), pattern = ".csv.gz", full.names = F)
-pep_map <- pep_map[str_starts(pep_map, pattern = str_c(unique(peptide_chunks$mapping_prefix), collapse = "|"))] %>%
-  as.list()
+mapping_prefices <- str_c(unique(peptide_chunks$mapping_prefix), collapse = "|")
+pep_map <- pep_map[str_starts(pep_map, pattern = mapping_prefices)] %>%
+  as.data.table() %>%
+  rename(value = ".") %>%
+  as.data.table()
+pep_map$mapping_prefix <- str_split(pep_map$value, "_", 5, simplify = T) %>%
+  as_tibble() %>%
+  mutate(mapping_prefix = paste(V1, V2, V3, V4, sep="_")) %>%
+  pull(mapping_prefix)
+pep_map <- split(pep_map, by="mapping_prefix", drop=T, keep.by=T) %>%
+  lapply(as_tibble)
 
 ### ---------------------------- (3) Informative headers and FASTA export --------------------------------------
-Biological_groups <- unique(cmd_netMHCpan$Biological_group)
-
 mclapply(pep_map, mc.cores = Ncpu, FUN = function(x){
-  # Identify source proteome
-  stratum <- ifelse(str_ends(x, ".csv.gz"), str_sub(x, end = -nchar(".csv.gz")-1), x)
-  Splice_type <- Master_table_expanded$Splice_type[str_ends(stratum, Master_table_expanded$filename)]
-  stratum <- Master_table_expanded$Proteome[str_ends(stratum, Master_table_expanded$filename)]
+  
+  # Identify source proteome and splice type
+  df_map <- x %>%
+    mutate(Splice_type = ifelse(str_starts(mapping_prefix, "PSP_map_"), "PSP", "PCP")) %>%
+    mutate(filename = ifelse(str_ends(value, ".csv.gz"), str_sub(value, end = -nchar(".csv.gz")-1), value)) %>%
+    mutate(filename = str_sub(filename, str_length(mapping_prefix)-1)) %>%
+    mutate(filename = ifelse(str_starts(filename, "_"), str_sub(filename, start = 2), filename)) 
+  
+  mt <- Master_table_expanded %>%
+    filter(filename %in% df_map$filename) %>%
+    select(filename, Proteome) %>%
+    unique()
+  df_map <- left_join(df_map, mt)
+  
+  files_map <- paste0(dir_DB_exhaustive, "/peptide_mapping/", df_map$value) %>% as.list()
+  names(files_map) <- paste(df_map$Proteome, df_map$Splice_type, sep = "|")
   
   # Read in peptide map and remove chunk info from the header
-  peptide_mapping <- vroom(file = paste0(dir_DB_exhaustive, "/peptide_mapping/", x), show_col_types = F, num_threads = 1, delim = ",") %>%
-    mutate(protein = str_split_fixed(protein, "\\|chunk:", 2)[,1]) %>%
-    mutate(protein = str_c(stratum, Splice_type, protein, sep="|"))
+  peptide_mapping <- lapply(files_map, vroom, show_col_types = F, num_threads = 1, delim = ",") %>%
+    rbindlist(idcol="file")
+  peptide_mapping$protein = str_split_fixed(peptide_mapping$protein, "\\|chunk:", 2)[,1]
+  peptide_mapping$protein = str_c(peptide_mapping$file, peptide_mapping$protein, sep="|")
+  peptide_mapping$file <- NULL
   
   # Predicted binders
-  keep_pep <- peptide_chunks$Peptide_file[str_detect(x, peptide_chunks$mapping_prefix)]
+  keep_pep <- peptide_chunks$Peptide_file[str_detect(unique(df_map$mapping_prefix), peptide_chunks$mapping_prefix)]
   keep_pep <- peptide_list[names(peptide_list) %in% keep_pep]
   
   # Match predicted binders to mappings for every biological group
