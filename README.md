@@ -14,7 +14,8 @@ conda install -c conda-forge singularity
 N-mers separated by underscores will give rise to a full range of peptide sequences. Redundancies are removed internally. 
 Place proteome `.fasta` files in `data/reference`
 Place PTM tables `.csv` files in `data/modifications`
-3. Specify datasets and corresponding tolerances to be used for m/z matching in `/data/Experiment_design.csv` and place the corresponding `.txt` files in `/data/MS_mass_lists`
+3. Specify datasets and corresponding tolerances to be used for MW filtering in `/data/Experiment_design.csv`; place the corresponding `.txt` files in `/data/MS_mass_lists`
+4. Download netMHCpan from `data16040/USERS/Yehor/DB_size/netMHCpan.tar.gz`. Extract archive into the main workflow directory.
 
 
 ## Execution
