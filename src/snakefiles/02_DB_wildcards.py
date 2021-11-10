@@ -86,8 +86,6 @@ rule Expand_Master_table:
         Master_table = features["Master_table"]
     output:
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
-### Potential feature
-#        PCP_indices = join(dir_DB_exhaustive, "PCP_indices.csv"),
         PSP_indices = join(dir_DB_exhaustive, "PSP_indices.csv")
     benchmark: 
         join(benchmarks, "Expand_Master_table.json")

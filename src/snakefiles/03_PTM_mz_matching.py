@@ -57,7 +57,7 @@ rule aggregate_chunks:
         touch(join(dir_DB_PTM_mz, ".Aggregate_peptides.done"))
 
 
-rule PTM_mz_matching:
+rule PTM_mz_RT_matching:
     input: 
         Peptide_aggregation_table = join(dir_DB_PTM_mz, "Peptide_aggregation_table.csv"),
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
@@ -76,6 +76,9 @@ rule PTM_mz_matching:
     params:
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_DB_PTM_mz=dir_DB_PTM_mz,
-        method=features["RT_filter"]["method"]
+        method=features["RT_filter"]["method"],
+        netMHCpan_chunk=features["DB"]["netMHCpan_chunk"],
+        max_variable_PTM=features["DB"]["max_variable_PTM"],
+        generate_spliced_PTMs=features["DB"]["generate_spliced_PTMs"]
     script:
         "03_2_PTM_mz_RT_matching.R"

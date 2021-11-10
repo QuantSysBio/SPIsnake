@@ -30,11 +30,6 @@ suppressPackageStartupMessages(library(vroom))
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 
-# Functions
-seq_list_to_dt <- function(seq_list){
-  rbindlist(lapply(seq_list, as.data.table), idcol = "id")
-}
-
 # Manual startup
 {
   # ##setwd("/home/yhorokh/Snakemake/SPIsnake-main")

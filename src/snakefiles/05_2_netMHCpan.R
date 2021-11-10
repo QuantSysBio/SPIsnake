@@ -25,7 +25,6 @@ suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(parallelly))
-suppressPackageStartupMessages(library(readr))
 suppressPackageStartupMessages(library(vroom))
 
 source("src/snakefiles/functions.R")
@@ -35,8 +34,8 @@ source("src/snakefiles/functions.R")
   # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
   # dir_IC50 = "results/IC50/"
   # cmd_netMHCpan <- vroom(paste0(dir_IC50, "cmd_netMHCpan.csv"), show_col_types = FALSE)
-  # 
-  # binders = "results/IC50/IC50_filtered_peptides/PCP_T_15_MeV_MA0009-BE08_allFractions_H-2-Kb.csv.gz"
+  # binders = "results/IC50/IC50_filtered_peptides/PSP_A_11_MeV_BLCL_allFractions_HLA-C07:01.csv.gz"
+  # binders = "results/IC50/IC50_filtered_peptides/PSP_L_14_MeV_MA0009-BE08_allFractions_HLA-C07:01.csv.gz"
 }
 
 # Experiment_design
@@ -49,6 +48,10 @@ binders <- snakemake@output[[1]]
 dir_IC50 = snakemake@params[["dir_IC50"]]
 
 ### ---------------------------------------------- Predict binding --------------------------------------------------
+# CPU
+Ncpu = availableCores()
+setDTthreads(Ncpu)
+
 # Parameters
 Affinity_threshold <- cmd_netMHCpan$Affinity_threshold[str_detect(binders, cmd_netMHCpan$Peptide_file)]
 
@@ -58,29 +61,32 @@ print(cmd)
 system(cmd, intern = T)
 print("Predicted MHC affinity")
 
-suppressWarnings(
-  netMHCpan_out <- read_delim(
-    file = paste0(dir_IC50, "/netMHCpan_output/", cmd_netMHCpan$Peptide_file[str_detect(binders, cmd_netMHCpan$Peptide_file)], ".txt"),
-    trim_ws = TRUE,
-    delim = " ", 
-    quote = "#", 
-    skip = 55, 
-    col_names = c("Pos", "MHC", "Peptide", "Core", 
-                  "Of", "Gp", "Gl", "Ip", "Il", "Icore", "Identity", 
-                  "Score_EL", "Perc_Rank", "Score_BA", "Perc_Rank_BA", "Aff(nM)", "BindLevel2", "BindLevel"),
-    show_col_types = FALSE) %>%
+### ---------------------------------------------- Select MHC-I binders --------------------------------------------------
+netMHCpan_out <- paste0(dir_IC50, "/netMHCpan_output/", cmd_netMHCpan$Peptide_file[str_detect(binders, cmd_netMHCpan$Peptide_file)], ".txt")
+print(file.exists(netMHCpan_out))
+binders_df <- vroom_lines(file = netMHCpan_out, 
+                          num_threads = Ncpu,
+                          skip_empty_rows = TRUE,
+                          skip = 55)
+if (length(binders_df) > 0) {
+  binders_df <- binders_df %>%
+    str_replace_all(pattern = "[[:space:]]+", " ") %>%
+    str_split_fixed(pattern = " ", n = Inf) %>%
+    as.data.table() %>%
+    lazy_dt() %>%
+    rename(MHC = V3, Peptide = V4, `Aff(nM)` = V17) %>%
     select(MHC, Peptide, `Aff(nM)`) %>%
     mutate(`Aff(nM)` = as.numeric(`Aff(nM)`)) %>%
-    filter(!MHC %in% c("PEPLIST","PEPLIST.")) %>%
-    filter(!is.na(MHC))
-)
-print(head(netMHCpan_out))
-
-### ---------------------------------------------- Select MHC-I binders --------------------------------------------------
-binders_df <- netMHCpan_out %>%
-  select(-MHC) %>%
-  filter(`Aff(nM)` <= Affinity_threshold)
-print(head(binders_df))
+    filter((!is.na(`Aff(nM)`)) & `Aff(nM)` <= Affinity_threshold) %>%
+    as.data.table()
+  print(head(binders_df))
+} else {
+  binders_df = data.table(MHC = character(),
+                          Peptide = character(),
+                          `Aff(nM)` = numeric())
+  print("Warning: empty input!")
+  print("Make sure that allele is present in netMHCpan-4.1/data/allelenames")
+}
 
 IC50_filter_stats <- cmd_netMHCpan[str_detect(binders, cmd_netMHCpan$Peptide_file),] %>%
   mutate(IC50_filtered_peptides = nrow(binders_df))
@@ -88,10 +94,9 @@ print(head(IC50_filter_stats))
 
 ### ---------------------------------------------- (4) Export --------------------------------------------------
 IC50_filter_stats %>%
-  vroom_write(delim = ",", append = FALSE, col_names = TRUE,
+  vroom_write(append = FALSE, col_names = TRUE, delim = ",",
               file = unlist(snakemake@output[["IC50_filter_stats"]]))
 
 binders_df %>%
-  vroom_write(delim = ",", append = FALSE, col_names = TRUE,
+  vroom_write(append = FALSE, col_names = TRUE, delim = ",",
               file = unlist(snakemake@output[["binders"]]))
-

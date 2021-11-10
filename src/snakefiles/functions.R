@@ -7,6 +7,9 @@ stop_quietly <- function() {
 }
 
 ### ---------------------------- Proteome pre-processing ----------------------------
+seq_list_to_dt <- function(seq_list){
+  rbindlist(lapply(seq_list, as.data.table), idcol = "id")
+}
 
 splitWithOverlap <- function(seq, max_length, overlap_length) {
   start = seq(1, length(seq), by=max_length-overlap_length)
@@ -443,15 +446,21 @@ removeCPfromSP_seq <- function(x,z){
 
 ### ---------------------------- MW and PTMs ----------------------------
 
-mixANDmatch3 <- function(mzMin, mzMax, MW0){
-  ## object recycling is intentional
-  if(length(mzMin) < length(MW0)){
-    X = data.table(a=MW0, b=mzMin, c=mzMax)
-    index = which(data.table::inrange(X$a, X$b, X$c, incbounds=TRUE))
-  } else {
-    ind = vapply(MW0,function(x) any((x>mzMin)&(x<mzMax)), 1)
-    index = which(ind>0)
-  }
+read_MW_file <- function(file, num_threads){
+  vroom(file = file, 
+        delim = " ", num_threads = num_threads, 
+        col_names = c("Precursor_mass","RT"),
+        show_col_types = FALSE) %>%
+    lazy_dt() %>%
+    mutate(MW_Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
+    mutate(MW_Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
+    # Min/sec for RT
+    # mutate(RT = RT / 60) %>%
+    mutate(RT_Min = RT - RT_tolerance) %>%
+    mutate(RT_Max = RT + RT_tolerance) %>%
+    select(-Precursor_mass)  %>%
+    unique() %>%
+    as.data.table()
 }
 
 computeMZ_biostrings <- function(seq){
@@ -482,7 +491,6 @@ computeMZ_biostrings <- function(seq){
   return(MW)
 }
 
-
 ### ---------------------------- RT filtering ----------------------------
 regression_stats <- function(obs, pred){
   # lm
@@ -507,4 +515,64 @@ regression_stats <- function(obs, pred){
   names(all.metrics) = c("Rsquared", "PCC", "MSE", "RMSE", "MAE")
   
   return(all.metrics)
+}
+
+
+### ---------------------------- PTM generation ----------------------------
+
+getPTMcombinations_fast <- function(input,NmaxMod,mods_input=mods){
+  s = as.vector(input[1])
+  m = as.numeric(as.vector(input[2]))
+  
+  aa = strsplit(s,split="")[[1]]
+  
+  kn = which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term")
+  kc = which(mods_input$Site=="C-term" & mods_input$Position=="Any C-term")
+  
+  ka = list()
+  for(i in 1:length(aa)){
+    ka[[i]] = which(mods_input$Site%in%aa[i] & mods_input$Position=="Anywhere")
+  }
+  ka = unlist(ka)
+  
+  modIndex = c(kn,kc,ka)
+  modId = mods_input$Id[modIndex]
+  modSite = mods_input$Site[modIndex]
+  modPos = mods_input$Position[modIndex]
+  modDelta = as.numeric(as.vector(mods_input$MonoMass[modIndex]))
+  
+  # get all combinations of NmaxMod modifications
+  combi = list()
+  combi[[1]] = c(1:length(modIndex))
+  
+  if(NmaxMod>1 & length(modIndex)>1){
+    for(i in 2:min(NmaxMod,length(modIndex))){
+      combi[[i]] <- arrangements::combinations(c(1:length(modIndex)),i)
+    }
+  }
+  
+  deltaMass = list()
+  IDs = list()
+  deltaMass[[1]] = modDelta[combi[[1]]]
+  IDs[[1]] = modId[combi[[1]]]
+  
+  if(NmaxMod>1 & length(modIndex)>1){
+    for(i in 2:min(NmaxMod,length(modIndex))){
+      
+      matx <- matrix(modDelta[combi[[i]]],dim(combi[[i]])[1],i)
+      deltaMass[[i]] <- rowSums(matx)
+      
+      IDs[[i]] = matrix(modId[combi[[i]]],dim(combi[[i]])[1],i)
+      IDs[[i]] <- do.call(stringi::stri_join, c(input=as.data.frame(IDs[[i]], stringsAsFactors = F), sep=";"))
+    }
+  }
+  
+  # generate final mod sequences with delta Masses
+  peptide = rep(s,sum(unlist(lapply(deltaMass,length)))) ## length of the peptide and
+  ids = unlist(IDs)
+  deltaMW = unlist(deltaMass)
+  finalMW = m+deltaMW
+  
+  res = data.table(peptide,ids,MW=finalMW)
+  return(res)
 }

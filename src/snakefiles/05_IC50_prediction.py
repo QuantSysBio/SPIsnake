@@ -49,7 +49,9 @@ class Checkpoint_IC50:
 
 rule aggregate_IC50_prediction:
     input:
-        checkpoint = Checkpoint_IC50(join(dir_IC50, "IC50_filtered_peptides/{Peptide_file}.csv.gz"))
+        checkpoint = Checkpoint_IC50(join(dir_IC50, "IC50_filtered_peptides/{Peptide_file}.csv.gz")),
+        Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
+        cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv")
     output:
         Summary_stats = join(dir_DB_out, "Stats.csv")
     benchmark: 
@@ -61,9 +63,9 @@ rule aggregate_IC50_prediction:
     resources: # 1 per node at the time
         load = 100
     params:
+        dir_DB_exhaustive=dir_DB_exhaustive,
         dir_IC50=dir_IC50,
-        dir_DB_out=dir_DB_out,
-        informative_headers=features["DB"]["informative_headers"]
+        dir_DB_out=dir_DB_out
     script:
         "05_3_aggregate_IC50.R"
 

@@ -28,47 +28,53 @@ suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(reticulate))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(vroom))
+suppressPackageStartupMessages(library(arrangements))
 
 source("src/snakefiles/functions.R")
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
-# {
-#   ### Manual setup
-#   setwd("/home/yhorokh/Snakemake/SPIsnake")
-# 
-#   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
-#   Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
-#   Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
-#   dir_DB_exhaustive = "/home/yhorokh/Snakemake/SPIsnake/results/DB_exhaustive"
-#   dir_DB_PTM_mz = "/home/yhorokh/Snakemake/SPIsnake/results/DB_PTM_mz"
-#   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
-# 
-#   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/V_11.csv"
-#   filename <- filename %>%
-#    str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
-#   filename <- filename[,2] %>%
-#    str_remove(pattern = ".csv")
-#   print(filename)
-# 
-#   # Calibration
-#   MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
-#    as_tibble() %>%
-#    mutate(file = str_remove_all(value, ".txt"))
-#   RT_Performance_df <- vroom("results/RT_prediction/RT_Performance.csv", delim = ",", show_col_types = FALSE)
-# 
-#   ### CPUs
-#   Ncpu = availableCores()
-#   cl <- parallel::makeForkCluster(Ncpu)
-#   cl <- parallelly::autoStopCluster(cl)
-#   setDTthreads(Ncpu)
-# 
-#   # Save into chunks according to first N letters
-#   index_length = 1
-# 
-#   # RT prediction method
-#   method = as.character("achrom")
-# }
+{
+  # ### Manual setup
+  # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+  # 
+  # Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
+  # Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
+  # Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
+  # dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake/results/DB_exhaustive"
+  # dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake/results/DB_PTM_mz"
+  # suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
+  # 
+  # # Wildcard
+  # filename = "results/DB_PTM_mz/chunk_aggregation_status/V_11.csv"
+  # filename <- filename %>%
+  #   str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
+  # filename <- filename[,2] %>%
+  #   str_remove(pattern = ".csv")
+  # print(filename)
+  # 
+  # # Calibration
+  # MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
+  #   as_tibble() %>%
+  #   mutate(file = str_remove_all(value, ".txt"))
+  # RT_Performance_df <- vroom("results/RT_prediction/RT_Performance.csv", delim = ",", show_col_types = FALSE)
+  # 
+  # ### CPUs
+  # Ncpu = availableCores()
+  # cl <- parallel::makeForkCluster(Ncpu)
+  # cl <- parallelly::autoStopCluster(cl)
+  # setDTthreads(Ncpu)
+  # 
+  # # Save into chunks according to first N letters
+  # index_length = 1
+  # netMHCpan_chunk = 10^5
+  # 
+  # # RT prediction method
+  # method = as.character("achrom")
+  # 
+  # # PTMs
+  # max_variable_PTM = 2
+  # generate_spliced_PTMs = FALSE
+}
 
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
@@ -92,8 +98,9 @@ filename <- filename[,2] %>%
   str_remove(pattern = ".csv")
 print(filename)
 
-# Save into chunks according to first N letters
+# Save into chunks according to first N letters and max netMHCpan input size
 index_length = as.integer(snakemake@params[["AA_index_length"]])
+netMHCpan_chunk = as.integer(snakemake@params[["netMHCpan_chunk"]])
 
 ### RT calibration data
 RT_Performance_df <- vroom(snakemake@input[["RT_Performance_df"]], delim = ",", show_col_types = FALSE)
@@ -101,6 +108,10 @@ RT_Performance_df <- vroom(snakemake@input[["RT_Performance_df"]], delim = ",", 
 # RT prediction method
 method = as.character(snakemake@params[["method"]])
 
+# PTMs
+max_variable_PTM = as.integer(snakemake@params[["max_variable_PTM"]])
+generate_spliced_PTMs = as.logical(snakemake@params[["generate_spliced_PTMs"]])
+  
 ### ---------------------------- End user variables ----------------------------
 # Proteinogenic AAs
 AA = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
@@ -133,19 +144,8 @@ suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matche
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/")))
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_status/")))
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched/")))
-
-if (method == "achrom") {
-use_condaenv("R_env_reticulate")
-pyteomics <- import("pyteomics")
-  
-  py_run_string("
-import glob
-import pandas as pd
-from pyteomics import achrom
-import numpy
-rcond = None
-")  
-}
+suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/")))
+suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/stats_PTM/")))
 
 # Check if there exist previous outputs to be updated:
 processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory"), pattern = paste0(filename, ".csv"))
@@ -260,7 +260,20 @@ if (nrow(peptide_chunks) == 0) {
     print("MW PSP: Done")
   }
   
-  ### ---------------------------- (5) m/z matching --------------------------------------
+  ### ---------------------------- (5) MW & RT matching --------------------------------------
+  if (method == "achrom") {
+    use_condaenv("R_env_reticulate")
+    pyteomics <- import("pyteomics")
+    
+    py_run_string("
+import glob
+import pandas as pd
+from pyteomics import achrom
+import numpy
+rcond = None
+")  
+  }
+  
   mz_nomod <- list()
   mz_stats <- tibble()
   for (i in pep_types) {
@@ -275,20 +288,7 @@ if (nrow(peptide_chunks) == 0) {
       RT_tolerance = as.numeric(RT_Performance_df$mean_value[RT_Performance_df$dataset == MS_mass_list & RT_Performance_df$metric == "MAE"])
       
       # Calibration input
-      mzList = vroom(file = paste0("data/MS_mass_lists/", MS_mass_lists$mass_list_file[j]), 
-                     delim = " ", num_threads = Ncpu, 
-                     col_names = c("Precursor_mass","RT"),
-                     show_col_types = FALSE) %>%
-        lazy_dt() %>%
-        mutate(MW_Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
-        mutate(MW_Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
-        # Min/sec for RT
-        # mutate(RT = RT / 60) %>%
-        mutate(RT_Min = RT - RT_tolerance) %>%
-        mutate(RT_Max = RT + RT_tolerance) %>%
-        select(-Precursor_mass)  %>%
-        unique() %>%
-        as.data.table()
+      mzList = read_MW_file(file = paste0("data/MS_mass_lists/", MS_mass_lists$mass_list_file[j]), num_threads = Ncpu)
       
       # Which peptide sequences pass the MW filter
         mz_nomod[[i]][[MS_mass_list]] <- input %>%
@@ -398,19 +398,109 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   }
   
   ### ---------------------------- (6) Generate PTMs --------------------------------------
-  # to be implemented by @Kamil
+  # Define PTM generation jobs
+  {
+    tmp <- Master_table_expanded %>%
+      mutate(Proteome_PTM = paste(PTMs, Min_Interv_length, chunk, sep = "_")) %>%
+      select(-Splice_type) 
+    
+    Master_table_expanded_PTM <- peptide_chunks %>%
+      mutate(Proteome_PTM = str_split_fixed(file, pattern = AA_length, 2)[,2]) %>%
+      mutate(Proteome_PTM = ifelse(str_starts(Proteome_PTM, "_"), str_sub(Proteome_PTM, 2), Proteome_PTM)) %>%
+      left_join(tmp)
+    Master_table_expanded_PTM[1,] %>% t()
+    
+    PTM_list <- Master_table_expanded_PTM$PTMs %>%
+      unique() %>%
+      na.omit()
+    print(paste("Starting PTM generation for the following PTMs:", str_flatten(PTM_list, collapse = ", ")))
+  }
   
-  
-  
+  if (length(PTM_list) > 0) {
+    for (PTM in PTM_list) {
+      # Load PTM table
+      df <- Master_table_expanded_PTM %>%
+        filter(PTMs == PTM)
+      mods <- vroom(paste0("data/modifications/", PTM, ".csv"), show_col_types = F) 
+      
+      # Which peptide types undergo PTM generation
+      pep_types_PTM <- c()
+      if (length(PCP_list[unique(df$file)]) > 0) {
+        pep_types_PTM <- c(pep_types_PTM, "PCP")
+      }
+      
+      # Whether to generate PTMs for spliced peptides
+      if (generate_spliced_PTMs == TRUE) {
+        if (length(PSP_list[unique(df$file)]) > 0) {
+          pep_types_PTM <- c(pep_types_PTM, "PSP")
+        }
+      }
+      
+      for (i in pep_types_PTM) {
+        
+        # Prepare all relevant proteomes
+        input <- get(paste0(i, "_list"))[unique(df$file)] %>%
+          rbindlist()
+        input$index <- str_sub(input$peptide, index_length + 1, index_length + 1)
+        input <- input %>%
+          split(by = "index", drop = T) %>%
+          mclapply(mc.cores = Ncpu, FUN = function(x){
+            x %>%
+              lazy_dt() %>%
+              unique() %>%
+              mutate(MW=computeMZ_biostrings(peptide)) %>%
+              as.data.table()
+          }) %>%
+          rbindlist() %>%
+          split(by = "peptide", drop = T)
+        
+        for (j in 1:nrow(MS_mass_lists)) {
+          print(MS_mass_lists$mass_list[j])
+          MS_mass_list <- MS_mass_lists$mass_list[j]
+          tolerance = as.numeric(Experiment_design$Precursor_mass_tolerance_ppm[Experiment_design$Filename == MS_mass_list])
+          
+          # MW input
+          mzList = read_MW_file(file = paste0("data/MS_mass_lists/", MS_mass_lists$mass_list_file[j]), num_threads = Ncpu)
+          
+          # PTM generation and MW filtering per peptide
+          tmp = input %>%
+            mclapply(mc.cores = Ncpu, FUN = function(x){
+              PTMcombinations = getPTMcombinations_fast(c(x$peptide, x$MW), NmaxMod = max_variable_PTM, mods_input = mods)
+              y = PTMcombinations[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
+              PTM_pep_stats = tibble(peptide = x$peptide,
+                                     All_PTM = nrow(PTMcombinations),
+                                     MW_filtered_PTM = nrow(y))
+              return(list(pep = y,
+                          PTM_pep_stats = PTM_pep_stats))
+            })
+          
+          # Save modified peptides
+          rbindlist(lapply(tmp, `[[`, 1)) %>%
+            vroom_write(file = paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/", i, "_", filename, "_", PTM, "_", MS_mass_list, ".csv.gz"),
+                        delim = ",", num_threads = Ncpu, append = FALSE)
+          
+          # Save PTM generation stats
+          rbindlist(lapply(tmp, `[[`, 2)) %>%
+            vroom_write(file = paste0(dir_DB_PTM_mz, "/stats_PTM/", i, "_", filename, "_", PTM, "_", MS_mass_list, ".csv.gz"),
+                        delim = ",", num_threads = Ncpu, append = FALSE)
+          rm(tmp)
+        }
+      }
+    }
+  }
   
   ### ---------------------------- (7) Peptide sequence export --------------------------------------
-  # Unmodified m/z matched sequences
+  # Unmodified m/z & RT matched sequences
   # No compression is done to facilitate read-in by NetMHCPan
   for (i in seq_along(mz_nomod)) {
     for (j in seq_along(mz_nomod[[i]])) {
       mz_nomod[[i]][[j]] %>%
-        vroom_write(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", names(mz_nomod)[i], "_", filename, "_", names(mz_nomod[[i]])[j], ".tsv"),
-                    delim = "\t", num_threads = Ncpu, append = TRUE)
+        lazy_dt() %>%
+        mutate(netMHCpan_split = ceiling(seq_along(peptide)/netMHCpan_chunk)) %>%
+        group_by(netMHCpan_split) %>%
+        group_walk(~ vroom_write(.x, 
+          file = paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", names(mz_nomod)[i], "_", filename, "_", names(mz_nomod[[i]])[j], "_ch_", .y$netMHCpan_split ,".tsv"),
+                    delim = "\t", num_threads = Ncpu, append = TRUE))
     }
   }
   

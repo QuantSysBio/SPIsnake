@@ -39,6 +39,12 @@ cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
 
+### Future scripts require this package
+if("arrangements" %in% rownames(installed.packages()) == FALSE) {
+  install.packages("arrangements", repos = "http://cran.us.r-project.org")
+} 
+require("arrangements")
+
 ### ---------------------------- (1) Read inputs ----------------------------
 # AutoRT
 method = as.character(snakemake@params[["method"]])

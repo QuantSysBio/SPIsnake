@@ -24,8 +24,8 @@ suppressPackageStartupMessages(library(vroom))
 #   setwd("/home/yhorokh/Snakemake/SPIsnake/")
 #   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
 #   netMHCpan = "/bin/netMHCpan-4.1/netMHCpan"
-#   dir_DB_PTM_mz = "results/DB_PTM_mz/"
-#   dir_IC50 = "results/IC50/"
+  # dir_DB_PTM_mz = "results/DB_PTM_mz/"
+  # dir_IC50 = "results/IC50/"
 # }
 
 source("src/snakefiles/functions.R")
@@ -49,7 +49,8 @@ dir_DB_PTM_mz = snakemake@params[["dir_DB_PTM_mz"]]
 # RT-filtered peptides
 peptides <- tibble(file = list.files(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched"))) %>%
   mutate(N_mer = str_split_fixed(file, "_", Inf)[,3]) %>%
-  mutate(Filename = str_remove_all(str_split_fixed(file, "_", 4)[,4], pattern = ".tsv"))
+  mutate(Filename_chunked = str_remove_all(str_split_fixed(file, "_", 4)[,4], pattern = ".tsv")) %>%
+  mutate(Filename = str_split_fixed(Filename_chunked, "_ch_", 2)[,1])
 peptides
 
 {
@@ -79,7 +80,6 @@ IC50_aggregation_table
 cmds <- IC50_aggregation_table %>%
   left_join(peptides) %>%
   mutate(Peptide_file = str_replace_all(file, ".tsv", paste0("_",`MHC-I_alleles`)))
-head(cmds$Peptide_file)
 
 cmds$cmds <- paste(netMHCpan,
                    "-BA", "-inptype 1",
@@ -88,18 +88,19 @@ cmds$cmds <- paste(netMHCpan,
                    "-p -f", paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", cmds$file),
                    ">", paste0("results/IC50/netMHCpan_output/", cmds$Peptide_file, ".txt"),
                    "-v")
+t(cmds[1,])
 
 ### ---------------------------- (4) Export --------------------------------------
 # Peptide_file - column for wildcards
-{
-  IC50_aggregation_table  %>%
-    vroom_write(delim = ",", append = FALSE, col_names = TRUE,
-                file = paste0(dir_IC50, "/IC50_aggregation_table.csv"))
-  
-  cmds %>%
-    vroom_write(delim = ",", append = FALSE, col_names = TRUE,
-                file = paste0(dir_IC50, "/cmd_netMHCpan.csv"))
-}
+# {
+#   IC50_aggregation_table  %>%
+#     vroom_write(delim = ",", append = FALSE, col_names = TRUE,
+#                 file = paste0(dir_IC50, "/IC50_aggregation_table.csv"))
+#   
+#   cmds %>%
+#     vroom_write(delim = ",", append = FALSE, col_names = TRUE,
+#                 file = paste0(dir_IC50, "/cmd_netMHCpan.csv"))
+# }
 
 IC50_aggregation_table  %>%
   vroom_write(delim = ",", append = FALSE, col_names = TRUE,

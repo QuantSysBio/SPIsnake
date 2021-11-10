@@ -7,14 +7,15 @@ DB:
     min_protein_length: 9
     max_protein_length: 1000
     max_variable_PTM: 2
+    generate_spliced_PTMs: FALSE
     AA_index_length: 1
     replace_I_with_L: FALSE
-    informative_headers: TRUE
+    netMHCpan_chunk: 1000000
 
 RT_filter:
     # achrom or AutoRT
     method: achrom
-    n_folds: 3
+    n_folds: 10
     proportion_train: 0.9
 
 ...
