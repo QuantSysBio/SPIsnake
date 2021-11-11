@@ -92,10 +92,13 @@ pep_map <- pep_map[str_starts(pep_map, pattern = mapping_prefices)] %>%
   as.data.table() %>%
   rename(value = ".") %>%
   as.data.table()
+
 pep_map$mapping_prefix <- str_split(pep_map$value, "_", 5, simplify = T) %>%
   as_tibble() %>%
   mutate(mapping_prefix = paste(V1, V2, V3, V4, sep="_")) %>%
   pull(mapping_prefix)
+
+pep_map$pep_length <- str_split_fixed(pep_map$mapping_prefix, "_", 4)[,4] %>% str_length()
 pep_map <- split(pep_map, by="mapping_prefix", drop=T, keep.by=T) %>%
   lapply(as_tibble)
 
@@ -106,8 +109,7 @@ mclapply(pep_map, mc.cores = Ncpu, FUN = function(x){
   df_map <- x %>%
     mutate(Splice_type = ifelse(str_starts(mapping_prefix, "PSP_map_"), "PSP", "PCP")) %>%
     mutate(filename = ifelse(str_ends(value, ".csv.gz"), str_sub(value, end = -nchar(".csv.gz")-1), value)) %>%
-    mutate(filename = str_sub(filename, str_length(mapping_prefix)-1)) %>%
-    mutate(filename = ifelse(str_starts(filename, "_"), str_sub(filename, start = 2), filename)) 
+    mutate(filename = str_sub(filename, str_length(mapping_prefix) - pep_length + 1))  
   
   mt <- Master_table_expanded %>%
     filter(filename %in% df_map$filename) %>%
