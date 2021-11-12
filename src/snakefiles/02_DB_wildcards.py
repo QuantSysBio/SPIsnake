@@ -43,7 +43,7 @@ rule Cluster_proteome:
         dir_tmp=join(dir_cluster, "{proteome}/tmp")
     shell:
         "mmseqs easy-linclust -e 1.000E-03 \
-        --spaced-kmer-mode 1 --spaced-kmer-pattern 110101 --write-lookup 1 \
+        --spaced-kmer-mode 1 --spaced-kmer-pattern 110101 \
         {input.proteome} {params.dir_cluster_proteome} {params.dir_tmp} \
          &> {log}"
 
