@@ -41,6 +41,7 @@ Enter `git clone https://github.com/QuantSysBio/SPIsnake` to retrieve the latest
 If necessary, deposit your data in the correct directory using `sftp`, `scp` or `rsync`. Instructions can be found in the [QSB getting started](https://pad.gwdg.de/s/JlkAOXJ2f#) document.
 
 ### Cluster execution
+- You should be at `/data/SPIsnake/`. NetMHCpan is deployed in `/data/SPIsnake/bin/`. Copy NetMHCpan into the current SPIsnake directory: `cp -rf bin/ SPIsnake/`. Change the directory to ``/data/SPIsnake/SPIsnake``
 - Make sure you are in the correct directory (`data/SPIsnake/SPIsnake`) and on the correct node (`s1604-fs01`)
 - Snakemake is executed from a Bash screen session that prevents the job from crashing once you disconnect from `ssh`. Therefore, enter:
 `screen -S spisnake`
