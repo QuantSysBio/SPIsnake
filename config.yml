@@ -1,2 +1,3 @@
 max_cpus: 72
 max_mem: 200G
+min_mem: 3G

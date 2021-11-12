@@ -91,7 +91,7 @@ rule predict_MHC_affinity:
     resources: # 1 per node at the time
         load = 100,
         ncpus = 1,
-        mem = 3G
+        mem = config["min_mem"]
     container: None
     params:
         dir_IC50=dir_IC50

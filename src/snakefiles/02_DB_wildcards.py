@@ -207,7 +207,7 @@ rule make_all_files:
         touch(join(dir_DB_exhaustive, ".Generate_peptides.done"))
     resources:
         ncpus = 1,
-        mem = 5G
+        mem = config["min_mem"]
 
 
 rule Generate_peptides:

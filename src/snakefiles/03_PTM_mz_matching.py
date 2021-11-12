@@ -60,7 +60,7 @@ rule aggregate_chunks:
         touch(join(dir_DB_PTM_mz, ".Aggregate_peptides.done"))
     resources:
         ncpus = 1,
-        mem = 5G
+        mem = config["min_mem"]
 
 
 rule PTM_mz_RT_matching:
