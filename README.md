@@ -37,7 +37,7 @@ Enter `bash Miniconda3-latest-Linux-x86_64.sh` and follow the instructions.
 After that, create the SPIsnake environment as described under **Installation**.
 
 ### Clone repo + upload data
-Enter `git clone https://github.com/QuantSysBio/SPIsnake` to retrieve the latest code.
+Enter `git clone https://github.com/QuantSysBio/SPIsnake` to retrieve the latest code. You might need to [generate a token](https://github.blog/2020-12-15-token-authentication-requirements-for-git-operations/) since GitHub recently removed the password authentication.
 If necessary, deposit your data in the correct directory using `sftp`, `scp` or `rsync`. Instructions can be found in the [QSB getting started](https://pad.gwdg.de/s/JlkAOXJ2f#) document.
 
 ### Cluster execution
