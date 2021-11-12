@@ -74,7 +74,6 @@ rule Split_proteome_chunks:
         ncpus = 1,
         mem = config["max_mem"]
     params:
-        n=config["max_cores"],
         min_protein_length = features["DB"]["min_protein_length"],
         max_protein_length = features["DB"]["max_protein_length"],
         replace_I_with_L = features["DB"]["replace_I_with_L"],
