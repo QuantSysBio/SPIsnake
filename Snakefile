@@ -13,7 +13,6 @@ config = yaml.load(open("config.yml", "r"), Loader=yaml.FullLoader)
 features = yaml.load(open("features.yaml", "r"), Loader=yaml.FullLoader)
 
 snakefiles = "src/snakefiles/"
-include: snakefiles + "00_functions.py"
 include: snakefiles + "01_folders.py"
 include: snakefiles + "02_DB_wildcards.py"
 include: snakefiles + "03_PTM_mz_matching.py"
