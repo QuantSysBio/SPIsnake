@@ -30,8 +30,8 @@ print("Loaded functions. Loading the data")
 # filename = "results/DB_exhaustive/PSP_indices/10_25.rds"
 filename = snakemake@output[[1]]
 filename <- str_remove(filename, ".rds") %>%
-  str_split_fixed(pattern = fixed("DB_exhaustive/PSP_indices/"), n = Inf)
-params <- filename[,2] %>%
+  str_split_fixed(pattern = fixed("/"), n = Inf)
+params <- filename[,4] %>%
   as.data.frame() %>%
   as_tibble() %>%
   separate(col = ".", into = c("Nmers", "MiSl"), sep = "_")
