@@ -38,7 +38,7 @@ After that, create the SPIsnake environment as described under **Installation**.
 
 ### Clone repo + upload data
 Enter `git clone https://github.com/QuantSysBio/SPIsnake` to retrieve the latest code.
-If necessary, deposit your data in the correct directory using `sftp`. Instructions for using `sftp` can be found in the QSB getting started document.
+If necessary, deposit your data in the correct directory using `sftp`, `scp` or `rsync`. Instructions can be found in the [QSB getting started](https://pad.gwdg.de/s/JlkAOXJ2f#) document.
 
 ### Cluster execution
 - Make sure you are in the correct directory (`data/SPIsnake/SPIsnake`) and on the correct node (`s1604-fs01`)
