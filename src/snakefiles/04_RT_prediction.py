@@ -10,6 +10,9 @@ rule Define_RT_train:
         join(logs, "Define_RT_train.txt")
     conda: 
         "R_env_reticulate.yaml"
+    resources: # 1 per node at the time
+        ncpus = 1,
+        mem = config["max_mem"] 
     params:
         method=features["RT_filter"]["method"],
         n_folds=features["RT_filter"]["n_folds"],
@@ -65,7 +68,9 @@ rule aggregate_RT:
     conda: 
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
-        load = 100 
+        load = 100,
+        ncpus = 1,
+        mem = config["max_mem"] 
     params:
         method=features["RT_filter"]["method"]
     script:
@@ -84,7 +89,9 @@ rule RT_train:
     conda: 
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
-        load = 100 
+        load = 100,
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"] 
     script:
         "04_2_RT_train.R"
 

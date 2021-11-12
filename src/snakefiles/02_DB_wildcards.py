@@ -38,6 +38,9 @@ rule Cluster_proteome:
         join(logs, "Cluster_proteome_{proteome}.txt")
     conda: 
         "mmseqs.yaml"
+    resources:
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"]
     params:
         dir_cluster_proteome=join(dir_cluster, "{proteome}/{proteome}"),
         dir_tmp=join(dir_cluster, "{proteome}/tmp")
@@ -67,6 +70,9 @@ rule Split_proteome_chunks:
         join(logs, "Split_proteome_chunks_{proteome}.txt")
     conda: 
         "R_env.yaml"
+    resources:
+        ncpus = 1,
+        mem = config["max_mem"]
     params:
         n=config["max_cores"],
         min_protein_length = features["DB"]["min_protein_length"],
@@ -93,6 +99,9 @@ rule Expand_Master_table:
         join(logs, "Expand_Master_table.txt")
     conda: 
         "R_env.yaml"
+    resources:
+        ncpus = 1,
+        mem = config["max_mem"]
     params:
         directory=dir_DB_exhaustive
     script:
@@ -148,7 +157,9 @@ rule Generate_PSP_indices:
     conda: 
         "R_env.yaml"
     resources: # 1 per node at the time
-        load = 100 
+        load = 100,
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"]
     params:
         directory=dir_DB_exhaustive,
         AA_index_length=features["DB"]["AA_index_length"],
@@ -194,6 +205,9 @@ rule make_all_files:
         Checkpoint_Master_table_expanded(join(dir_DB_exhaustive, "Seq_stats/{filename}.csv.gz"))
     output:
         touch(join(dir_DB_exhaustive, ".Generate_peptides.done"))
+    resources:
+        ncpus = 1,
+        mem = 5G
 
 
 rule Generate_peptides:
@@ -209,7 +223,9 @@ rule Generate_peptides:
     conda: 
         "R_env.yaml"
     resources: # 1 per node at the time
-        load = 100 
+        load = 100,
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"] 
     params:
         directory=dir_DB_exhaustive,
         dir_DB_Fasta_chunks=dir_DB_Fasta_chunks,

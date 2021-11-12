@@ -10,6 +10,9 @@ rule Define_peptide_aggregation:
         join(logs, "Define_peptide_processing.txt")
     conda: 
         "R_env.yaml"
+    resources:
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"] 
     params:
         AA_index_length=features["DB"]["AA_index_length"],
         dir_DB_exhaustive=dir_DB_exhaustive,
@@ -55,6 +58,9 @@ rule aggregate_chunks:
         Checkpoint_Peptide_aggregation(join(dir_DB_PTM_mz, "chunk_aggregation_status/{AA_length}.csv"))        
     output:
         touch(join(dir_DB_PTM_mz, ".Aggregate_peptides.done"))
+    resources:
+        ncpus = 1,
+        mem = 5G
 
 
 rule PTM_mz_RT_matching:
@@ -72,7 +78,9 @@ rule PTM_mz_RT_matching:
     conda: 
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
-        load = 100 
+        load = 100,
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"] 
     params:
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_DB_PTM_mz=dir_DB_PTM_mz,

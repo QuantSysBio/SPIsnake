@@ -1,2 +1,2 @@
-max_cores:  27
-mem_mb: 28000
+max_cpus: 72
+max_mem: 200G

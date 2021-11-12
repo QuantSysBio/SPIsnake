@@ -12,6 +12,9 @@ rule Define_IC50:
         join(logs, "Define_IC50.txt")
     conda: 
         "R_env.yaml"
+    resources:
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"] 
     params:
         dir_IC50=dir_IC50,
         dir_DB_PTM_mz=dir_DB_PTM_mz
@@ -61,7 +64,9 @@ rule aggregate_IC50_prediction:
     conda: 
         "R_env.yaml"
     resources: # 1 per node at the time
-        load = 100
+        load = 100,
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"] 
     params:
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_IC50=dir_IC50,
@@ -84,7 +89,9 @@ rule predict_MHC_affinity:
     conda: 
         "R_env.yaml"
     resources: # 1 per node at the time
-        load = 100 
+        load = 100,
+        ncpus = 1,
+        mem = 3G 
     container: None
     params:
         dir_IC50=dir_IC50
