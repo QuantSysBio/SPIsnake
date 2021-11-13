@@ -111,7 +111,7 @@ method = as.character(snakemake@params[["method"]])
 # PTMs
 max_variable_PTM = as.integer(snakemake@params[["max_variable_PTM"]])
 generate_spliced_PTMs = as.logical(snakemake@params[["generate_spliced_PTMs"]])
-  
+
 ### ---------------------------- End user variables ----------------------------
 # Proteinogenic AAs
 AA = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
@@ -206,7 +206,7 @@ if (nrow(peptide_chunks) == 0) {
   
   peptides <- as.list(peptide_chunks$value)
   names(peptides) <- peptide_chunks$file
-  # peptides <- peptides[1:60]
+  peptides <- peptides[1:60]
   
   # PCP
   if (length(peptides[str_detect(peptides, "/PCP_")]) > 0) {
@@ -228,6 +228,7 @@ if (nrow(peptide_chunks) == 0) {
     PCP <- PCP_list %>%
       rbindlist()
     PCP$index <- str_sub(PCP$peptide, index_length + 1, index_length + 1)
+    PCP <- setorder(PCP, index)
     
     PCP <- PCP %>%
       split(by = "index", drop = T) %>%
@@ -246,6 +247,7 @@ if (nrow(peptide_chunks) == 0) {
     PSP <- PSP_list %>%
       rbindlist() 
     PSP$index <- str_sub(PSP$peptide, index_length + 1, index_length + 1)
+    PSP <- setorder(PSP, index)
     
     PSP <- PSP %>%
       split(by = "index", drop = T) %>%
@@ -291,7 +293,7 @@ rcond = None
       mzList = read_MW_file(file = paste0("data/MS_mass_lists/", MS_mass_lists$mass_list_file[j]), num_threads = Ncpu)
       
       # Which peptide sequences pass the MW filter
-        mz_nomod[[i]][[MS_mass_list]] <- input %>%
+      mz_nomod[[i]][[MS_mass_list]] <- input %>%
         mclapply(mc.cores = Ncpu, FUN = function(x){
           x[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
         }) %>%
@@ -346,10 +348,10 @@ rcond = None
             filter(!str_detect(peptide, exclusion_pattern)) %>%
             as.data.table()
         }
-
+        
         if (!is.na(nrow(mz_nomod[[i]][[MS_mass_list]])) == FALSE) {
           ### Predict
-        py_calls <- py_run_string("
+          py_calls <- py_run_string("
 def achrom_calculate_RT(x, RCs, raise_no_mod):
   x = pd.DataFrame({'sequences': x})
   out = x['sequences'].apply(
@@ -357,37 +359,37 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   )
   return out
 ")
-        mz_nomod[[i]][[MS_mass_list]]$RT_pred <- mz_nomod[[i]][[MS_mass_list]] %>%
+          mz_nomod[[i]][[MS_mass_list]]$RT_pred <- mz_nomod[[i]][[MS_mass_list]] %>%
+            split(by = c("index"), drop = T) %>%
+            mclapply(mc.cores = Ncpu, FUN = function(x){
+              x = x %>%
+                lazy_dt() %>%
+                select(-index) %>%
+                pull(peptide) %>%
+                r_to_py()
+              x = data.table(RT = py_calls$achrom_calculate_RT(x, RCs, r_to_py(FALSE)))
+              return(x)
+            }) %>%
+            rbindlist() %>%
+            pull(RT)
+        }
+      }
+      print("RT prediction: Done")
+      
+      ### 2D filter: MW & RT
+      if (!is.na(nrow(mz_nomod[[i]][[MS_mass_list]])) == FALSE) {
+        
+        mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]] %>%
           split(by = c("index"), drop = T) %>%
           mclapply(mc.cores = Ncpu, FUN = function(x){
             x = x %>%
               lazy_dt() %>%
               select(-index) %>%
-              pull(peptide) %>%
-              r_to_py()
-            x = data.table(RT = py_calls$achrom_calculate_RT(x, RCs, r_to_py(FALSE)))
+              as.data.table()
+            x = x[MW %inrange% mzList[,c("MW_Min", "MW_Max")] & RT_pred %inrange% mzList[,c("RT_Min", "RT_Max")]]
             return(x)
           }) %>%
-          rbindlist() %>%
-          pull(RT)
-      }
-        }
-      print("RT prediction: Done")
-      
-      ### 2D filter: MW & RT
-      if (!is.na(nrow(mz_nomod[[i]][[MS_mass_list]])) == FALSE) {
-
-        mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]] %>%
-        split(by = c("index"), drop = T) %>%
-        mclapply(mc.cores = Ncpu, FUN = function(x){
-          x = x %>%
-            lazy_dt() %>%
-            select(-index) %>%
-            as.data.table()
-          x = x[MW %inrange% mzList[,c("MW_Min", "MW_Max")] & RT_pred %inrange% mzList[,c("RT_Min", "RT_Max")]]
-          return(x)
-        }) %>%
-        rbindlist()
+          rbindlist()
       }
       print("2D MW/RT filter: Done")
       
@@ -499,8 +501,8 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
         mutate(netMHCpan_split = ceiling(seq_along(peptide)/netMHCpan_chunk)) %>%
         group_by(netMHCpan_split) %>%
         group_walk(~ vroom_write(.x, 
-          file = paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", names(mz_nomod)[i], "_", filename, "_", names(mz_nomod[[i]])[j], "_ch_", .y$netMHCpan_split ,".tsv"),
-                    delim = "\t", num_threads = Ncpu, append = TRUE))
+                                 file = paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", names(mz_nomod)[i], "_", filename, "_", names(mz_nomod[[i]])[j], "_ch_", .y$netMHCpan_split ,".tsv"),
+                                 delim = "\t", num_threads = Ncpu, append = TRUE))
     }
   }
   
