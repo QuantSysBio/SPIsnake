@@ -1,3 +1,3 @@
 Proteome,Splice_type,N_mers,Min_Interv_length,MaxE,PTMs
 Measles_CDS_6_frame,cis-PSP,8_15,25,76595700,Minimal
-SwissProt_UP000005640,PSP,8_15,25,146595700,
+SwissProt_UP000005640,PSP,8_10,25,76595700,
