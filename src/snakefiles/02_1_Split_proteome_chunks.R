@@ -69,7 +69,7 @@ proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
 prot_cluster <- vroom(snakemake@input[["prot_cluster"]], col_names = c("V1", "V2"), delim = "\t", show_col_types = FALSE)
 
 # Master table
-Master_table <- read.csv("Master_table.csv") %>%
+Master_table <- read.csv(snakemake@input[["Master_table"]]) %>%
  as_tibble()  %>%
  filter(Proteome == proteome) %>%
  select(Proteome, MaxE, Min_Interv_length)
