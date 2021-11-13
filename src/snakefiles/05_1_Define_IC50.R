@@ -21,11 +21,12 @@ suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(vroom))
 
 # {
-#   setwd("/home/yhorokh/Snakemake/SPIsnake/")
+  # setwd("/home/yhorokh/Desktop/wd/tmp/SPIsnake")
 #   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
 #   netMHCpan = "/bin/netMHCpan-4.1/netMHCpan"
-  # dir_DB_PTM_mz = "results/DB_PTM_mz/"
-  # dir_IC50 = "results/IC50/"
+#   dir_DB_PTM_mz = "results/DB_PTM_mz/"
+#   dir_IC50 = "results/IC50/"
+#   n_netMHCpan_blocks = 30
 # }
 
 source("src/snakefiles/functions.R")
@@ -41,6 +42,7 @@ setDTthreads(Ncpu)
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
 netMHCpan <- snakemake@input[["netMHCpan"]]
+n_netMHCpan_blocks <- snakemake@params[["n_netMHCpan_blocks"]]
 
 # Output dirs
 dir_IC50 = snakemake@params[["dir_IC50"]]
@@ -79,7 +81,8 @@ IC50_aggregation_table
 ### ---------------------------- (3) Define cmds: netMHCpan prediction --------------------------------------
 cmds <- IC50_aggregation_table %>%
   left_join(peptides) %>%
-  mutate(Peptide_file = str_replace_all(file, ".tsv", paste0("_",`MHC-I_alleles`)))
+  mutate(Peptide_file = str_replace_all(file, ".tsv", paste0("_",`MHC-I_alleles`))) %>%
+  mutate(cmd_block = ceiling(seq_along(file)/round(nrow(.)/n_netMHCpan_blocks)))
 
 cmds$cmds <- paste(netMHCpan,
                    "-BA", "-inptype 1",
@@ -91,12 +94,12 @@ cmds$cmds <- paste(netMHCpan,
 t(cmds[1,])
 
 ### ---------------------------- (4) Export --------------------------------------
-# Peptide_file - column for wildcards
+### Peptide_file - column for wildcards
 # {
 #   IC50_aggregation_table  %>%
 #     vroom_write(delim = ",", append = FALSE, col_names = TRUE,
 #                 file = paste0(dir_IC50, "/IC50_aggregation_table.csv"))
-#   
+# 
 #   cmds %>%
 #     vroom_write(delim = ",", append = FALSE, col_names = TRUE,
 #                 file = paste0(dir_IC50, "/cmd_netMHCpan.csv"))

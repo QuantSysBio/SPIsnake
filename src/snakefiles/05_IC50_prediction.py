@@ -17,7 +17,8 @@ rule Define_IC50:
         mem = config["max_mem"] 
     params:
         dir_IC50=dir_IC50,
-        dir_DB_PTM_mz=dir_DB_PTM_mz
+        dir_DB_PTM_mz=dir_DB_PTM_mz,
+        n_netMHCpan_blocks = features["DB"]["n_netMHCpan_blocks"]
     script:
         "05_1_Define_IC50.R"
 
@@ -37,22 +38,22 @@ class Checkpoint_IC50:
 
     def get_filename(netMHCpan_table) :
         netMHCpan_table = pd.read_csv(join(dir_IC50, "cmd_netMHCpan.csv"), sep=',')
-        Peptide_file = netMHCpan_table["Peptide_file"]
-        return(Peptide_file)
+        cmd_block = netMHCpan_table["cmd_block"].unique()
+        return(cmd_block)
 
     def __call__(self, w):
         global checkpoints
 
         checkpoints.check_IC50.get(**w)
-        Peptide_file = self.get_filename()
+        cmd_block = self.get_filename()
 
-        pattern = expand(self.pattern, Peptide_file=Peptide_file, **w)
+        pattern = expand(self.pattern, cmd_block=cmd_block, **w)
         return pattern
 
 
 rule aggregate_IC50_prediction:
     input:
-        checkpoint = Checkpoint_IC50(join(dir_IC50, "IC50_filtered_peptides/{Peptide_file}.csv.gz")),
+        checkpoint = Checkpoint_IC50(join(dir_IC50, "Seq_stats/{cmd_block}.csv")),
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
         cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv")
     output:
@@ -80,18 +81,17 @@ rule predict_MHC_affinity:
         cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv"),
         netMHCpan = "bin/netMHCpan-4.1/netMHCpan"
     output:
-        binders = join(dir_IC50, "IC50_filtered_peptides/{Peptide_file}.csv.gz"),
-        IC50_filter_stats = join(dir_IC50, "Seq_stats/{Peptide_file}.csv")
+        IC50_filter_stats = join(dir_IC50, "Seq_stats/{cmd_block}.csv")
     benchmark: 
-        join(benchmarks, "Predict_MHC_affinity_{Peptide_file}.json")
+        join(benchmarks, "Predict_MHC_affinity_{cmd_block}.json")
     log: 
-        join(logs, "Predict_MHC_affinity_{Peptide_file}.txt")
+        join(logs, "Predict_MHC_affinity_{cmd_block}.txt")
     conda: 
         "R_env.yaml"
     resources: # 1 per node at the time
         load = 100,
-        ncpus = 1,
-        mem = config["min_mem"]
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"] 
     container: None
     params:
         dir_IC50=dir_IC50

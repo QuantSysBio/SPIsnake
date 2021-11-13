@@ -174,6 +174,7 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
       #print(paste("CP without doubles:",length(CPseqClean)))
       
       SPseqClean = unique(SPseq)
+      l_SPseqClean = length(SPseqClean)
       #print(paste("SP without doubles:",length(SPseqClean)))
       
       #print("SPseqClean")
@@ -186,7 +187,7 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
                                all_PCP = length(CPseq),
                                all_PSP = length(SPseq),
                                unique_PCP = length(CPseqClean),
-                               unique_PSP = length(SPseqClean),
+                               unique_PSP = l_SPseqClean,
                                unique_PSP_noPCP = length(SPseqClean)
       )
     }
