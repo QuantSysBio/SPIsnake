@@ -89,7 +89,7 @@ cmds$cmds <- paste(netMHCpan,
                    "-a", cmds$`MHC-I_alleles`,
                    "-l", cmds$N_mer, 
                    "-p -f", paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", cmds$file),
-                   ">", paste0("results/IC50/netMHCpan_output/", cmds$Peptide_file, ".txt"),
+                   ">", paste0(dir_IC50,"/netMHCpan_output/", cmds$Peptide_file, ".txt"),
                    "-v")
 t(cmds[1,])
 
