@@ -45,10 +45,12 @@ MiSl = as.numeric(params$MiSl)
 
 # CPUs
 # Ncpu = availableCores(27)
-Ncpu = availableCores()
+Ncpu = availableCores(methods = "Slurm")
 cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 data.table::setDTthreads(Ncpu)
+
+print(paste0("number of CPUs: ", Ncpu))
 
 # Save into chunks according to first N letters
 max_protein_length = as.integer(snakemake@params[["max_protein_length"]])

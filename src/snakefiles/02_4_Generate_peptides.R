@@ -100,10 +100,12 @@ Splice_type = as.character(params$Splice_type)
 
 # CPUs
 # Ncpu = availableCores(27)
-Ncpu = availableCores()
+Ncpu = availableCores(methods = "Slurm")
 cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 data.table::setDTthreads(Ncpu)
+
+print(paste0("number of CPUs: ", Ncpu))
 
 # Exclusion pattern: peptides with these letters will be omitted
 exclusion_pattern <- "(U|X|\\*)"
