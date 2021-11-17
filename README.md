@@ -54,7 +54,7 @@ snakemake --use-conda --use-singularity --cluster-config src/cluster.yaml --clus
 - Detach from the screen session by pressing `Ctrl+a+d`. You can resume to the session to check the progress via `screen -r spisnake`
 
 ### troubleshooting
-In case you encounter an error with singularity that says `Write on output file failed because No space left on device`, go to the `/tmp` directory on `s1604-fs01` and remove the directory `conda/`. Then, try again.
+In case you encounter an error with singularity that says `Write on output file failed because No space left on device`, go to the `/tmp` directory on `s1604-fs01`. Remove the directory `conda/` **after making sure that is was created by yourself and modified recently**. Then, try again.
 
 ### Check job status
 Enter `squeue` on any of the nodes except the Mascot server to check which jobs are currently running.
