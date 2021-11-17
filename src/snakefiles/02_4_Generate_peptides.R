@@ -137,6 +137,7 @@ if (grepl("cis-PSP", Splice_type)==T) {
                        mc.cores = Ncpu,
                        CutAndPaste_seq_from_big_sp_fast, 
                        big_sp_input=index_list_result,
+                       mc.cleanup=F,
                        nmer = Nmers, 
                        MiSl=MiSl)
   print(Sys.time())
@@ -144,7 +145,7 @@ if (grepl("cis-PSP", Splice_type)==T) {
 } else if (Splice_type == "PCP") {
   print("Computing PCP only")
   
-  Pep_list <- mclapply(dat_sort, mc.cores = Ncpu, CutAndPaste_seq_PCP, nmer = Nmers)
+  Pep_list <- mclapply(dat_sort, mc.cores = Ncpu, CutAndPaste_seq_PCP, nmer = Nmers, mc.cleanup=F)
   print(Sys.time())
   print("Computed PCP")
 } else if (!exists("Pep_list")) {

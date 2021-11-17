@@ -84,7 +84,7 @@ suppressWarnings(
   index_list <- sample(index_list) 
   ncharz <- sapply(index_list,nchar) ## this will later allow us to reorder the sample
   
-  index_list_result <- mclapply(index_list, mc.preschedule=T, mc.cores = Ncpu,
+  index_list_result <- mclapply(index_list, mc.preschedule=T, mc.cores = Ncpu, mc.cleanup=F,
                                 CutAndPaste_seq_return_sp, nmer = Nmers, MiSl=MiSl)
   
   index_list_result <- index_list_result[order(ncharz)]
