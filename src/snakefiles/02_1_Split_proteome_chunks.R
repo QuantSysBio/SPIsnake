@@ -111,18 +111,8 @@ suppressWarnings(
   dir.create(directory)
 )
 
-### ----------------------------- (2) Estimate number of PSPs -------------------------------------
-# according to Liepe et al., PLOS CompBio 2012
 
-numPSPs = function(L, Lext=1) {
-  
-  n = 1/4*((L-Lext+1)^2)*((L-Lext+2)^2)
-  return(n)
-  
-}
-
-
-### ---------------------------- (3) Proteome pre-processing --------------------------------------
+### ---------------------------- (2) Proteome pre-processing --------------------------------------
 # Filter by minimal length and re-order by similarity from clustering
 dat <- dat[which(lapply(dat, nchar) >= min_protein_length)]
 
@@ -155,13 +145,16 @@ for (i in 1:nrow(Master_table)) {
   {
     orderedProteomeEntries <- names(dat)
     
+    
     L = unlist(lapply(dat, nchar))
-    numPSP = numPSPs(L)
+    # empirically derived for proteins > 300 aa
+    numPSP = L*714
+    
     cumNum = rep(NA,length(L))
     cumNum[1] = numPSP[1]
-    for(i in 2:length(L)){
+    for(j in 2:length(L)){
       
-      cumNum[i] = cumNum[i-1]+numPSP[i]
+      cumNum[j] = cumNum[j-1]+numPSP[j]
     }
     
     # find intervals for this Nmer Pi
