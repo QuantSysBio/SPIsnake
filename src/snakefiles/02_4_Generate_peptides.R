@@ -106,6 +106,8 @@ cl <- parallelly::autoStopCluster(cl, debug=T)
 data.table::setDTthreads(Ncpu)
 
 print(paste0("number of CPUs: ", Ncpu))
+print("----- available memory: -----")
+print(system("free -h"))
 
 # Exclusion pattern: peptides with these letters will be omitted
 exclusion_pattern <- "(U|X|\\*)"
@@ -214,3 +216,16 @@ PSP %>%
 
 print("Saved PSP")
 print(Sys.time())
+
+
+print("----- connections -----")
+print(showConnections())
+
+print("----- removing cluster -----")
+print(cl)
+rm(list = "cl")
+gc()
+
+print("----- available memory: -----")
+print(system("free -h"))
+

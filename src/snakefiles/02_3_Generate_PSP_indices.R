@@ -51,6 +51,8 @@ cl <- parallelly::autoStopCluster(cl, debug=T)
 data.table::setDTthreads(Ncpu)
 
 print(paste0("number of CPUs: ", Ncpu))
+print("----- available memory: -----")
+print(system("free -h"))
 
 # Save into chunks according to first N letters
 max_protein_length = as.integer(snakemake@params[["max_protein_length"]])
@@ -93,3 +95,14 @@ suppressWarnings(
 ### ---------------------------- (3) Export --------------------------------------
 
 save(index_list_result, file = unlist(snakemake@output[["PSP_index"]]))
+
+print("----- connections -----")
+print(showConnections())
+
+print("----- removing cluster -----")
+print(cl)
+rm(list = "cl")
+gc()
+
+print("----- available memory: -----")
+print(system("free -h"))
