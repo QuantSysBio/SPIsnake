@@ -7,7 +7,7 @@
 # output:       
 #               - Proteome spit into chunks of fixed size, similar sequences stored together
 #               
-# author:       YH, JL
+# author:       YH, JL, HR
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
@@ -111,7 +111,18 @@ suppressWarnings(
   dir.create(directory)
 )
 
-### ---------------------------- (2) Proteome pre-processing --------------------------------------
+### ----------------------------- (2) Estimate number of PSPs -------------------------------------
+# according to Liepe et al., PLOS CompBio 2012
+
+numPSPs = function(L, Lext=1) {
+  
+  n = 1/4*((L-Lext+1)^2)*((L-Lext+2)^2)
+  return(n)
+  
+}
+
+
+### ---------------------------- (3) Proteome pre-processing --------------------------------------
 # Filter by minimal length and re-order by similarity from clustering
 dat <- dat[which(lapply(dat, nchar) >= min_protein_length)]
 
@@ -145,7 +156,7 @@ for (i in 1:nrow(Master_table)) {
     orderedProteomeEntries <- names(dat)
     
     L = unlist(lapply(dat, nchar))
-    numPSP = L*350
+    numPSP = numPSPs(L)
     cumNum = rep(NA,length(L))
     cumNum[1] = numPSP[1]
     for(i in 2:length(L)){

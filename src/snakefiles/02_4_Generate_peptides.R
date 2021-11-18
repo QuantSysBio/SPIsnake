@@ -102,7 +102,7 @@ Splice_type = as.character(params$Splice_type)
 # Ncpu = availableCores(27)
 Ncpu = availableCores(methods = "Slurm")
 cl <- parallel::makeForkCluster(Ncpu)
-cl <- parallelly::autoStopCluster(cl)
+cl <- parallelly::autoStopCluster(cl, debug=T)
 data.table::setDTthreads(Ncpu)
 
 print(paste0("number of CPUs: ", Ncpu))
@@ -135,8 +135,7 @@ if (grepl("cis-PSP", Splice_type)==T) {
   
   Pep_list <- mclapply(dat_sort, 
                        mc.cores = Ncpu,
-                       mc.cleanup=F,
-                       mc.preschedule=F,
+                       mc.cleanup=T, mc.preschedule=F,
                        CutAndPaste_seq_from_big_sp_fast, 
                        big_sp_input=index_list_result,
                        nmer = Nmers, 
@@ -146,7 +145,7 @@ if (grepl("cis-PSP", Splice_type)==T) {
 } else if (Splice_type == "PCP") {
   print("Computing PCP only")
   
-  Pep_list <- mclapply(dat_sort, mc.cores = Ncpu,  mc.cleanup=F, mc.preschedule=F,
+  Pep_list <- mclapply(dat_sort, mc.cores = Ncpu,  mc.cleanup=T, mc.preschedule=F,
                         CutAndPaste_seq_PCP, nmer = Nmers)
   print(Sys.time())
   print("Computed PCP")
