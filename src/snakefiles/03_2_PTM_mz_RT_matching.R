@@ -368,12 +368,17 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
           mz_nomod[[i]][[MS_mass_list]]$RT_pred <- mz_nomod[[i]][[MS_mass_list]] %>%
             split(by = c("index"), drop = T) %>%
             mclapply(mc.cores = Ncpu, FUN = function(x){
-              x = x %>%
+              pep = x %>%
                 lazy_dt() %>%
                 select(-index) %>%
-                pull(peptide) %>%
-                r_to_py()
-              x = data.table(RT = py_calls$achrom_calculate_RT(x, RCs, r_to_py(FALSE)))
+                pull(peptide) 
+              if (length(pep) == 1) {
+                pep = c(pep, pep)
+                x = data.table(RT = as.numeric(py_calls$achrom_calculate_RT(pep, RCs, r_to_py(FALSE)))) %>%
+                  unique()
+              } else {
+                x = data.table(RT = as.numeric(py_calls$achrom_calculate_RT(pep, RCs, r_to_py(FALSE))))
+              }
               return(x)
             }) %>%
             rbindlist() %>%
