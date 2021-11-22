@@ -151,6 +151,7 @@ suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/stats_PTM/")))
 processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory"), pattern = paste0(filename, ".csv"))
 
 operation_mode = ifelse(length(processed_files) > 0, "Update", "Generation")
+print(Sys.time())
 print(paste0("Mode: ", operation_mode))
 
 if (operation_mode == "Update") {
@@ -212,12 +213,14 @@ if (nrow(peptide_chunks) == 0) {
   if (length(peptides[str_detect(peptides, "/PCP_")]) > 0) {
     PCP_list <- peptides[str_detect(peptides, "/PCP_")]  %>%
       mclapply(FUN = vroom, delim = ",", mc.cores = Ncpu, show_col_types = FALSE) 
+    print(Sys.time())
     print("Reading in PCP sequences: Done")
   }
   # PSP
   if (length(peptides[str_detect(peptides, "/PSP_")]) > 0) {
     PSP_list <- peptides[str_detect(peptides, "/PSP_")]  %>%
       mclapply(FUN = vroom, delim = ",", mc.cores = Ncpu, show_col_types = FALSE)
+    print(Sys.time())
     print("Reading in PSP sequences: Done")
   }
   
@@ -240,6 +243,7 @@ if (nrow(peptide_chunks) == 0) {
           as.data.table()
       }) 
     pep_types <- c(pep_types, "PCP")
+    print(Sys.time())
     print("MW PCP: Done")
   }
   
@@ -259,6 +263,7 @@ if (nrow(peptide_chunks) == 0) {
           as.data.table()
       }) 
     pep_types <- c(pep_types, "PSP")
+    print(Sys.time())
     print("MW PSP: Done")
   }
   
@@ -298,6 +303,7 @@ rcond = None
           x[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
         }) %>%
         rbindlist()
+      print(Sys.time())
       print("MW filter: done")
       
       # Save stats
@@ -374,6 +380,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
             pull(RT)
         }
       }
+      print(Sys.time())
       print("RT prediction: Done")
       
       ### 2D filter: MW & RT
@@ -391,6 +398,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
           }) %>%
           rbindlist()
       }
+      print(Sys.time())
       print("2D MW/RT filter: Done")
       
       # Update stats after RT filter
@@ -415,6 +423,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
     PTM_list <- Master_table_expanded_PTM$PTMs %>%
       unique() %>%
       na.omit()
+    print(Sys.time())
     print(paste("Starting PTM generation for the following PTMs:", str_flatten(PTM_list, collapse = ", ")))
   }
   
@@ -494,6 +503,9 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   ### ---------------------------- (7) Peptide sequence export --------------------------------------
   # Unmodified m/z & RT matched sequences
   # No compression is done to facilitate read-in by NetMHCPan
+    print(Sys.time())
+    print(paste("Starting peptide sequence export"))
+  
   for (i in seq_along(mz_nomod)) {
     for (j in seq_along(mz_nomod[[i]])) {
       mz_nomod[[i]][[j]] %>%
@@ -508,6 +520,8 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   
   ### --------------------------------------(8) Chunk aggregation status (Snakemake output) --------------------------------------
   ### Record aggregation stats
+    print(Sys.time())
+    print(paste("Starting aggregation stats export"))
   
   if (length(peptides[str_detect(peptides, "/PSP_")]) > 0) {
     aggregation_stats <- tibble(total_PCP = sum(unlist(lapply(PCP_list, nrow))), 
@@ -568,3 +582,11 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
                 delim = ",", num_threads = Ncpu, append = FALSE)
   }
 }
+
+print(cl)
+rm(list = "cl")
+gc()
+
+print(Sys.time())
+print(paste("Finished MW & RT filtering"))
+
