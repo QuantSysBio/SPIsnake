@@ -7,7 +7,7 @@
 # output:       
 #               - Proteome spit into chunks of fixed size, similar sequences stored together
 #               
-# author:       YH, JL, HR
+# author:       YH, JL
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
@@ -148,7 +148,7 @@ for (i in 1:nrow(Master_table)) {
     
     L = unlist(lapply(dat, nchar))
     # empirically derived for proteins > 300 aa
-    numPSP = L*714
+    numPSP = L*350
     
     cumNum = rep(NA,length(L))
     cumNum[1] = numPSP[1]
