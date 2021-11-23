@@ -45,7 +45,7 @@ source("src/snakefiles/functions.R")
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 # 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/V_11.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/W_10.csv"
 #   filename <- filename %>%
 #     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
@@ -355,7 +355,10 @@ rcond = None
             as.data.table()
         }
         
-        if (!is.na(nrow(mz_nomod[[i]][[MS_mass_list]]))) {
+        empty_MS_mass_list <- nrow(mz_nomod[[i]][[MS_mass_list]]) > 0
+        NA_MS_mass_list <- !is.na(nrow(mz_nomod[[i]][[MS_mass_list]]))
+        
+        if (NA_MS_mass_list & empty_MS_mass_list) {
           ### Predict
           py_calls <- py_run_string("
 def achrom_calculate_RT(x, RCs, raise_no_mod):
@@ -389,7 +392,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
       print("RT prediction: Done")
       
       ### 2D filter: MW & RT
-      if (!is.na(nrow(mz_nomod[[i]][[MS_mass_list]]))) {
+      if (NA_MS_mass_list & empty_MS_mass_list) {
         
         mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]] %>%
           split(by = c("index"), drop = T) %>%
