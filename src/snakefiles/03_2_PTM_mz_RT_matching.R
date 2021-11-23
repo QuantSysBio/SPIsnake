@@ -355,11 +355,12 @@ rcond = None
             as.data.table()
         }
         
+        ### Predict
         empty_MS_mass_list <- nrow(mz_nomod[[i]][[MS_mass_list]]) > 0
         NA_MS_mass_list <- !is.na(nrow(mz_nomod[[i]][[MS_mass_list]]))
         
         if (NA_MS_mass_list & empty_MS_mass_list) {
-          ### Predict
+        
           py_calls <- py_run_string("
 def achrom_calculate_RT(x, RCs, raise_no_mod):
   x = pd.DataFrame({'sequences': x})
@@ -391,7 +392,12 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
       print(Sys.time())
       print("RT prediction: Done")
       
+
+
       ### 2D filter: MW & RT
+      empty_MS_mass_list <- nrow(mz_nomod[[i]][[MS_mass_list]]) > 0
+      NA_MS_mass_list <- !is.na(nrow(mz_nomod[[i]][[MS_mass_list]]))
+
       if (NA_MS_mass_list & empty_MS_mass_list) {
         
         mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]] %>%
