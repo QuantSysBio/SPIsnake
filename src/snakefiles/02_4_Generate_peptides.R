@@ -218,14 +218,25 @@ print("Saved PSP")
 print(Sys.time())
 
 
+print("----- memory usage by Slurm -----")
+jobid = system("echo $SLURM_JOB_ID")
+system(paste0("seff ", jobid)) %>%
+  print()
+
+print("----- memory usage by R -----")
+memory.profile() %>%
+  print()
+
 print("----- connections -----")
-print(showConnections())
+showConnections() %>%
+  print()
 
 print("----- removing cluster -----")
 print(cl)
-rm(list = "cl")
-gc()
+stopCluster(cl)
 
-print("----- available memory: -----")
-print(system("free -h"))
+print("----- garbage collection -----")
+gc() %>%
+  print()
+
 

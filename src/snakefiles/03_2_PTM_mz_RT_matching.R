@@ -595,3 +595,25 @@ gc()
 print(Sys.time())
 print(paste("Finished MW & RT filtering"))
 
+
+print("----- memory usage by Slurm -----")
+jobid = system("echo $SLURM_JOB_ID")
+system(paste0("seff ", jobid)) %>%
+  print()
+
+print("----- memory usage by R -----")
+memory.profile() %>%
+  print()
+
+print("----- connections -----")
+showConnections() %>%
+  print()
+
+print("----- removing cluster -----")
+print(cl)
+stopCluster(cl)
+
+print("----- garbage collection -----")
+gc() %>%
+  print()
+
