@@ -597,9 +597,6 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   }
 }
 
-print(cl)
-rm(list = "cl")
-gc()
 
 print(Sys.time())
 print(paste("Finished MW & RT filtering"))
