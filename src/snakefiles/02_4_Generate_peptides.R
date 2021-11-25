@@ -106,8 +106,6 @@ cl <- parallelly::autoStopCluster(cl, debug=T)
 data.table::setDTthreads(Ncpu)
 
 print(paste0("number of CPUs: ", Ncpu))
-print("----- available memory: -----")
-print(system("free -h"))
 
 # Exclusion pattern: peptides with these letters will be omitted
 exclusion_pattern <- "(U|X|\\*)"
@@ -223,7 +221,7 @@ jobid = system("echo $SLURM_JOB_ID")
 system(paste0("sstat ", jobid)) %>%
   print()
 
-system("sacct --format='JobID,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
+system("sacct --format='JobID,JobName,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
   print()
 
 

@@ -134,7 +134,7 @@ RT_calibration_lists <- list.files("data/RT_calibration", pattern = ".csv") %>%
   mutate(AA_length = filename) 
 
 ### CPUs
-Ncpu = availableCores()
+Ncpu = availableCores(methods = "Slurm")
 cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
@@ -610,7 +610,7 @@ jobid = system("echo $SLURM_JOB_ID")
 system(paste0("sstat ", jobid)) %>%
   print()
 
-system("sacct --format='JobID,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
+system("sacct --format='JobID,JobName,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
   print()
 
 

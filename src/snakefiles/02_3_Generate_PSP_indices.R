@@ -51,8 +51,6 @@ cl <- parallelly::autoStopCluster(cl, debug=T)
 data.table::setDTthreads(Ncpu)
 
 print(paste0("number of CPUs: ", Ncpu))
-print("----- available memory: -----")
-print(system("free -h"))
 
 # Save into chunks according to first N letters
 max_protein_length = as.integer(snakemake@params[["max_protein_length"]])
@@ -101,7 +99,7 @@ jobid = system("echo $SLURM_JOB_ID")
 system(paste0("sstat ", jobid)) %>%
   print()
 
-system("sacct --format='JobID,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
+system("sacct --format='JobID,JobName,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
   print()
 
 print("----- memory usage by R -----")
