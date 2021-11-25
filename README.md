@@ -56,6 +56,11 @@ snakemake --use-conda --use-singularity --cluster-config src/cluster.yaml --clus
 ### troubleshooting
 In case you encounter an error with singularity that says `Write on output file failed because No space left on device`, go to the `/tmp` directory on `s1604-fs01`. Remove the directory `conda/` **after making sure that is was created by yourself and modified recently**. Then, try again.
 
+Check the resource usage of current Slurm jobs via:
+```
+sacct --format='JobID,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'
+```
+
 ### Check job status
 Enter `squeue` on any of the nodes except the Mascot server to check which jobs are currently running.
 You can track the status of your job via the outfile (`data/SPIsnake/outfiles/*.out`). Alternatively, you can monitor the node occupancy by `ssh`-ing on the compute nodes and monitoring their activity.
