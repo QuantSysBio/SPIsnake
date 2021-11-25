@@ -1,6 +1,6 @@
 # Paths to references and global options
 
-Master_table: Master_table_uniprot.csv
+Master_table: Master_table.csv
 Experiment_design: data/Experiment_design.csv
 
 DB:
