@@ -220,8 +220,12 @@ print(Sys.time())
 
 print("----- memory usage by Slurm -----")
 jobid = system("echo $SLURM_JOB_ID")
-system(paste0("seff ", jobid)) %>%
+system(paste0("sstat ", jobid)) %>%
   print()
+
+system("sacct --format='JobID,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
+  print()
+
 
 print("----- memory usage by R -----")
 memory.profile() %>%
