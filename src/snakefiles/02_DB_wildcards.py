@@ -37,7 +37,7 @@ rule Cluster_proteome:
     log: 
         join(logs, "Cluster_proteome_{proteome}.txt")
     conda: 
-        "mmseqs.yaml"
+        "R_env_reticulate.yaml"
     resources:
         ncpus = config["max_cpus"],
         mem = config["max_mem"]
@@ -69,7 +69,7 @@ rule Split_proteome_chunks:
     log: 
         join(logs, "Split_proteome_chunks_{proteome}.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources:
         ncpus = 1,
         mem = config["max_mem"]
@@ -97,7 +97,7 @@ rule Expand_Master_table:
     log: 
         join(logs, "Expand_Master_table.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources:
         ncpus = 1,
         mem = config["max_mem"]
@@ -154,7 +154,7 @@ rule Generate_PSP_indices:
     log: 
         join(logs, "Generate_index_{PSP_index}.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         load = 100,
         ncpus = config["max_cpus"],
@@ -220,7 +220,7 @@ rule Generate_peptides:
     log: 
         join(logs, "Generate_peptides_{filename}.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         load = 100,
         ncpus = config["max_cpus"],
@@ -231,11 +231,4 @@ rule Generate_peptides:
         AA_index_length=features["DB"]["AA_index_length"],
         max_protein_length=features["DB"]["max_protein_length"]
     script:
-        "02_4_Generate_peptides.R"  
-
-
-
-
-
-
-
+        "02_4_Generate_peptides.R"
