@@ -9,7 +9,7 @@ rule Define_peptide_aggregation:
     log: 
         join(logs, "Define_peptide_processing.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources:
         ncpus = config["max_cpus"],
         mem = config["max_mem"] 
