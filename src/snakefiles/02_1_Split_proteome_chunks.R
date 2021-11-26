@@ -20,6 +20,9 @@ deps <- c("Biostrings","stringi", "stringr", "data.table", "vroom")
 for(i in 1:length(deps)){
       
  if(deps[i] %in% rownames(installed.packages()) == FALSE) {
+       if(deps[i] == "stringi") {
+  install.packages("stringi", configure.args="--disable-pkg-config")
+} 
   install.packages(deps[i], repos = "http://cran.us.r-project.org")
 } 
 require(deps[i])
