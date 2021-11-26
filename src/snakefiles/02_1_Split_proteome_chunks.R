@@ -15,7 +15,7 @@ sink(log)
 
 
 ### ---------------------------- Dependencies ---------------------------------------------
-deps <- c("Biostrings","stringi", "stringr", "data.table", "vroom")
+deps <- c("stringi", "stringr", "data.table", "vroom")
 #deps <- c("bettermc", "stringi", "stringr", "data.table", "vroom")
 for(i in 1:length(deps)){
       
