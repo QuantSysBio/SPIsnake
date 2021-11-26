@@ -7,7 +7,7 @@ dependencies:
  - mmseqs2=13.45111
  - pigz=2.6
  - pcre2=10.37
-# - bioconductor-biostrings=2.60.0
+ - bioconductor-biostrings=2.60.0
  - bioconductor-genomeinfodb=1.28.0
  - bioconductor-genomeinfodbdata=1.2.6
  - r-base=4.1.0
