@@ -58,7 +58,7 @@ In case you encounter an error with singularity that says `Write on output file 
 
 Check the resource usage of current Slurm jobs via:
 ```
-sacct --format='JobID,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'
+sacct --format='JobID,JobName,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'
 ```
 
 ### Check job status
