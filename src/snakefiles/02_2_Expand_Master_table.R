@@ -19,6 +19,7 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(stringi))
+print(sessionInfo())
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # Master table

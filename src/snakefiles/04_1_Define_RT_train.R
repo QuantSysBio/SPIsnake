@@ -32,6 +32,7 @@ suppressPackageStartupMessages(library(vroom))
 # }
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
+print(sessionInfo())
 
 ### CPUs
 Ncpu = availableCores()

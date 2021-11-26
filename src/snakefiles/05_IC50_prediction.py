@@ -11,7 +11,7 @@ rule Define_IC50:
     log: 
         join(logs, "Define_IC50.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources:
         ncpus = config["max_cpus"],
         mem = config["max_mem"] 
@@ -63,7 +63,7 @@ rule aggregate_IC50_prediction:
     log: 
         join(logs, "aggregate_IC50.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         load = 100,
         ncpus = config["max_cpus"],
@@ -87,7 +87,7 @@ rule predict_MHC_affinity:
     log: 
         join(logs, "Predict_MHC_affinity_{cmd_block}.txt")
     conda: 
-        "R_env.yaml"
+        "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         load = 100,
         ncpus = config["max_cpus"],

@@ -23,12 +23,14 @@ suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(stringi))
 suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(vroom))
 
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
+print(sessionInfo())
 
 # Manual startup
 {

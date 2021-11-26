@@ -21,10 +21,12 @@ suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(vroom))
+print(sessionInfo())
 
 # {
 #   setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")

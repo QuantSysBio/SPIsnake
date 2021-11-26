@@ -13,6 +13,18 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
+
+### ---------------------------- Dependencies ---------------------------------------------
+deps <- c("Biostrings","stringi", "stringr", "data.table", "vroom")
+#deps <- c("bettermc", "stringi", "stringr", "data.table", "vroom")
+for(i in 1:length(deps)){
+      
+ if(deps[i] %in% rownames(installed.packages()) == FALSE) {
+  install.packages(deps[i], repos = "http://cran.us.r-project.org")
+} 
+require(deps[i])
+}
+
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
@@ -54,6 +66,7 @@ suppressPackageStartupMessages(library(vroom))
 
 source(snakemake@input[["functions"]])
 print("Loaded functions. Loading the data")
+print(sessionInfo())
 
 ### ---------------------------- (1) read input file and extract info --------------------------------------
 ### Inputs:

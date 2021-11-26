@@ -27,6 +27,7 @@ suppressPackageStartupMessages(library(vroom))
 }
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
+print(sessionInfo())
 
 ### ---------------------------- (1) Read inputs ----------------------------
 # Master_table_expanded

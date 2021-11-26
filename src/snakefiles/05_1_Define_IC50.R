@@ -17,8 +17,10 @@ suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(vroom))
+print(sessionInfo())
 
 # {
   # setwd("/home/yhorokh/Desktop/wd/tmp/SPIsnake")

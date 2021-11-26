@@ -19,11 +19,13 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(gridExtra))
 suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(vroom))
+print(sessionInfo())
 
 {
   ### Manual startup

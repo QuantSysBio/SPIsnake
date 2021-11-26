@@ -19,11 +19,13 @@ suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
 
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
+print(sessionInfo())
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # Wildcard

@@ -24,10 +24,12 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(vroom))
 
 source("src/snakefiles/functions.R")
+print(sessionInfo())
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 {

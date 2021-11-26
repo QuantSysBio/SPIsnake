@@ -24,6 +24,7 @@ suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr, warn.conflicts = FALSE))
 suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(reticulate))
 suppressPackageStartupMessages(library(stringr))
@@ -31,6 +32,7 @@ suppressPackageStartupMessages(library(vroom))
 suppressPackageStartupMessages(library(arrangements))
 
 source("src/snakefiles/functions.R")
+print(sessionInfo())
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # {
