@@ -18,8 +18,8 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(tidyr))
-suppressPackageStartupMessages(library(parallel))
-#require("bettermc")
+#suppressPackageStartupMessages(library(parallel))
+require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
 
@@ -86,7 +86,7 @@ suppressWarnings(
   index_list <- sample(index_list) 
   ncharz <- sapply(index_list,nchar) ## this will later allow us to reorder the sample
   
-  index_list_result <- mclapply(index_list, mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F,
+  index_list_result <- bettermc::mclapply(index_list, mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, mc.retry = 3,
                                 CutAndPaste_seq_return_sp, nmer = Nmers, MiSl=MiSl)
   
   index_list_result <- index_list_result[order(ncharz)]

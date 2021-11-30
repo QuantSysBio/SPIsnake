@@ -20,8 +20,8 @@ suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(foreach))
-suppressPackageStartupMessages(library(parallel))
-#require("bettermc")
+#suppressPackageStartupMessages(library(parallel))
+require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(tidyr))
@@ -105,7 +105,7 @@ pep_map <- split(pep_map, by="mapping_prefix", drop=T, keep.by=T) %>%
   lapply(as_tibble)
 
 ### ---------------------------- (3) Informative headers and FASTA export --------------------------------------
-mclapply(pep_map, mc.cores = Ncpu, FUN = function(x){
+bettermc::mclapply(pep_map, mc.cores = Ncpu, FUN = function(x){
   
   # Identify source proteome and splice type
   df_map <- x %>%
