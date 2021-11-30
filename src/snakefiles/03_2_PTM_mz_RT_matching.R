@@ -23,8 +23,8 @@ suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr, warn.conflicts = FALSE))
 suppressPackageStartupMessages(library(foreach))
-#suppressPackageStartupMessages(library(parallel))
-require("bettermc")
+suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(reticulate))
 suppressPackageStartupMessages(library(stringr))
@@ -214,14 +214,14 @@ if (nrow(peptide_chunks) == 0) {
   # PCP
   if (length(peptides[str_detect(peptides, "/PCP_")]) > 0) {
     PCP_list <- peptides[str_detect(peptides, "/PCP_")]  %>%
-      bettermc::mclapply(FUN = vroom, delim = ",", mc.cores = Ncpu, mc.retry = 3, show_col_types = FALSE) 
+      mclapply(FUN = vroom, delim = ",", mc.cores = Ncpu, show_col_types = FALSE) 
     print(Sys.time())
     print("Reading in PCP sequences: Done")
   }
   # PSP
   if (length(peptides[str_detect(peptides, "/PSP_")]) > 0) {
     PSP_list <- peptides[str_detect(peptides, "/PSP_")]  %>%
-      bettermc::mclapply(FUN = vroom, delim = ",", mc.cores = Ncpu, mc.retry = 3, show_col_types = FALSE)
+      mclapply(FUN = vroom, delim = ",", mc.cores = Ncpu, show_col_types = FALSE)
     print(Sys.time())
     print("Reading in PSP sequences: Done")
   }
@@ -237,7 +237,7 @@ if (nrow(peptide_chunks) == 0) {
     
     PCP <- PCP %>%
       split(by = "index", drop = T) %>%
-      bettermc::mclapply(mc.cores = Ncpu, mc.retry = 3, FUN = function(x){
+      mclapply(mc.cores = Ncpu, FUN = function(x){
         x %>%
           lazy_dt() %>%
           unique() %>%
@@ -257,7 +257,7 @@ if (nrow(peptide_chunks) == 0) {
     
     PSP <- PSP %>%
       split(by = "index", drop = T) %>%
-      bettermc::mclapply(mc.cores = Ncpu, mc.retry = 3, FUN = function(x){
+      mclapply(mc.cores = Ncpu, FUN = function(x){
         x %>%
           lazy_dt() %>%
           unique() %>%
@@ -301,7 +301,7 @@ rcond = None
       
       # Which peptide sequences pass the MW filter
       mz_nomod[[i]][[MS_mass_list]] <- input %>%
-        bettermc::mclapply(mc.cores = Ncpu, mc.retry = 3, FUN = function(x){
+        mclapply(mc.cores = Ncpu, FUN = function(x){
           x[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
         }) %>%
         rbindlist()
@@ -373,7 +373,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
 ")
           mz_nomod[[i]][[MS_mass_list]]$RT_pred <- mz_nomod[[i]][[MS_mass_list]] %>%
             split(by = c("index"), drop = T) %>%
-            bettermc::mclapply(mc.cores = Ncpu, mc.retry = 3, FUN = function(x){
+            mclapply(mc.cores = Ncpu, FUN = function(x){
               pep = x %>%
                 lazy_dt() %>%
                 select(-index) %>%
@@ -404,7 +404,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
         
         mz_nomod[[i]][[MS_mass_list]] <- mz_nomod[[i]][[MS_mass_list]] %>%
           split(by = c("index"), drop = T) %>%
-          bettermc::mclapply(mc.cores = Ncpu, mc.retry = 3, FUN = function(x){
+          mclapply(mc.cores = Ncpu, FUN = function(x){
             x = x %>%
               lazy_dt() %>%
               select(-index) %>%
@@ -471,7 +471,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
         input$index <- str_sub(input$peptide, index_length + 1, index_length + 1)
         input <- input %>%
           split(by = "index", drop = T) %>%
-          bettermc::mclapply(mc.cores = Ncpu, mc.retry = 3, FUN = function(x){
+          mclapply(mc.cores = Ncpu, FUN = function(x){
             x %>%
               lazy_dt() %>%
               unique() %>%
@@ -491,7 +491,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
           
           # PTM generation and MW filtering per peptide
           tmp = input %>%
-            bettermc::mclapply(mc.cores = Ncpu, mc.retry = 3, FUN = function(x){
+            mclapply(mc.cores = Ncpu, FUN = function(x){
               PTMcombinations = getPTMcombinations_fast(c(x$peptide, x$MW), NmaxMod = max_variable_PTM, mods_input = mods)
               y = PTMcombinations[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
               PTM_pep_stats = tibble(peptide = x$peptide,

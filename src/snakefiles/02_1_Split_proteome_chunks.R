@@ -15,10 +15,18 @@ sink(log)
 
 
 ### ---------------------------- Dependencies ---------------------------------------------
-if("bettermc" %in% rownames(installed.packages()) == FALSE) {
-  install.packages("bettermc", repos = "http://cran.us.r-project.org")
+deps <- c("stringi", "stringr", "data.table", "vroom")
+#deps <- c("bettermc", "stringi", "stringr", "data.table", "vroom")
+for(i in 1:length(deps)){
+      
+ if(deps[i] %in% rownames(installed.packages()) == FALSE) {
+       if(deps[i] == "stringi") {
+  install.packages("stringi", configure.args="--disable-pkg-config", repos = "http://cran.us.r-project.org")
 } 
-require("bettermc")
+  install.packages(deps[i], repos = "http://cran.us.r-project.org")
+} 
+require(deps[i])
+}
 
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))

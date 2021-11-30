@@ -22,8 +22,8 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(stringi))
-#suppressPackageStartupMessages(library(parallel))
-require("bettermc")
+suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(vroom))
@@ -135,9 +135,9 @@ dat_sort <- dat[names(sort(unlist(lapply(dat, nchar)), decreasing = T))]
 if (grepl("cis-PSP", Splice_type)==T) {
   print("Computing PCP and cis-PSP")
   
-  Pep_list <- bettermc::mclapply(dat_sort, 
+  Pep_list <- mclapply(dat_sort, 
                        mc.cores = Ncpu,
-                       mc.cleanup=T, mc.preschedule=F, mc.retry = 3,
+                       mc.cleanup=T, mc.preschedule=F,
                        CutAndPaste_seq_from_big_sp_fast, 
                        big_sp_input=index_list_result,
                        nmer = Nmers, 
@@ -147,7 +147,7 @@ if (grepl("cis-PSP", Splice_type)==T) {
 } else if (Splice_type == "PCP") {
   print("Computing PCP only")
   
-  Pep_list <- bettermc::mclapply(dat_sort, mc.cores = Ncpu,  mc.cleanup=T, mc.preschedule=F,
+  Pep_list <- mclapply(dat_sort, mc.cores = Ncpu,  mc.cleanup=T, mc.preschedule=F,
                         CutAndPaste_seq_PCP, nmer = Nmers)
   print(Sys.time())
   print("Computed PCP")

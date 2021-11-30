@@ -47,7 +47,7 @@ Split_list_max_length <- function(String_list, max_length=2000, overlap_length=M
 }
 
 Split_list_max_length_parallel <- function(String_list, max_length=2000, overlap_length=MiSl*2){
-  out = bettermc::mclapply(seq_along(String_list), mc.cores = Ncpu, function(i){
+  out = mclapply(seq_along(String_list), mc.cores = Ncpu, function(i){
     
     # Extract sequence attributes
     protein_name = attr(String_list[[i]], "name")

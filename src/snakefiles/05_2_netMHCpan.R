@@ -23,8 +23,8 @@ suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
-#suppressPackageStartupMessages(library(parallel))
-require("bettermc")
+suppressPackageStartupMessages(library(parallel))
+#require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(vroom))
 
@@ -56,14 +56,13 @@ setDTthreads(Ncpu)
 cmd_block_i <- str_split_fixed(cmd_block_i, "/IC50/Seq_stats/", 2)[,2] %>%
   str_remove(".csv")
 cmd_netMHCpan <- cmd_netMHCpan %>% 
-  filter(cmd_block == cmd_block_i) %>%
-  arrange(-N_mer)
+  filter(cmd_block == cmd_block_i)
 cmds <- cmd_netMHCpan %>%
   pull(cmds) %>%
   as.list()
 
 # Run netMHCpan-4.1
-bettermc::mclapply(cmds, mc.cores = Ncpu, function(x){
+mclapply(cmds, mc.cores = Ncpu, function(x){
   print(x)
   system(x, intern = T)
 })
@@ -72,7 +71,7 @@ print("Predicted MHC affinity")
 ### ---------------------------------------------- Select MHC-I binders --------------------------------------------------
 # Peptide_files <- cmd_netMHCpan$Peptide_file[1:27] %>% as.list()
 
-IC50_filter_stats <- bettermc::mclapply(X = Peptide_files, mc.cores = Ncpu, mc.retry = 3, FUN = function(x){
+IC50_filter_stats <- mclapply(X = Peptide_files, mc.cores = Ncpu, FUN = function(x){
   # Parameters
   Affinity_threshold <- cmd_netMHCpan$Affinity_threshold[cmd_netMHCpan$Peptide_file == x]
   
