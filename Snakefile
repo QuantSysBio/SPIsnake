@@ -1,6 +1,7 @@
 shell.executable("/bin/bash")
 
-container: "docker://snakemake/snakemake:v6.8.0"
+#container: "docker://snakemake/snakemake:v6.11.1"
+container: "docker://yhorokh/spisnake:latest"
 import pandas as pd
 import os, multiprocessing
 import yaml

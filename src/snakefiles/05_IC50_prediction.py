@@ -1,11 +1,10 @@
 rule Define_IC50:
     input:
         Experiment_design = features["Experiment_design"],
-        netMHCpan = "bin/netMHCpan-4.1/netMHCpan",
+        # netMHCpan = "bin/netMHCpan-4.1/netMHCpan",
         mz_RT_aggregation = join(dir_DB_PTM_mz, ".Aggregate_peptides.done")
     output:
-        cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv"),
-        IC50_aggregation_table = join(dir_IC50, "IC50_aggregation_table.csv")
+        cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv")
     benchmark: 
         join(benchmarks, "Define_IC50.json")
     log: 
@@ -54,6 +53,7 @@ class Checkpoint_IC50:
 rule aggregate_IC50_prediction:
     input:
         checkpoint = Checkpoint_IC50(join(dir_IC50, "Seq_stats/{cmd_block}.csv")),
+        Experiment_design = features["Experiment_design"],
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
         cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv")
     output:
@@ -65,11 +65,11 @@ rule aggregate_IC50_prediction:
     conda: 
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
-        load = 100,
         ncpus = config["max_cpus"],
         mem = config["max_mem"] 
     params:
         dir_DB_exhaustive=dir_DB_exhaustive,
+        dir_DB_PTM_mz=dir_DB_PTM_mz,
         dir_IC50=dir_IC50,
         dir_DB_out=dir_DB_out
     script:
@@ -77,9 +77,9 @@ rule aggregate_IC50_prediction:
 
 
 rule predict_MHC_affinity:
-    input: 
-        cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv"),
-        netMHCpan = "bin/netMHCpan-4.1/netMHCpan"
+    input:
+        Experiment_design = features["Experiment_design"],
+        cmd_netMHCpan = join(dir_IC50, "cmd_netMHCpan.csv")
     output:
         IC50_filter_stats = join(dir_IC50, "Seq_stats/{cmd_block}.csv")
     benchmark: 
@@ -89,10 +89,8 @@ rule predict_MHC_affinity:
     conda: 
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
-        load = 100,
         ncpus = config["max_cpus"],
         mem = config["max_mem"] 
-    container: None
     params:
         dir_IC50=dir_IC50
     script:

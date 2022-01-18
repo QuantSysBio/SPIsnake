@@ -77,9 +77,8 @@ rule PTM_mz_RT_matching:
         join(logs, "PTM_mz_matching_{AA_length}.txt")
     conda: 
         "R_env_reticulate.yaml"
-    resources: # 1 per node at the time
-        load = 100,
-        ncpus = config["max_cpus"],
+    resources:
+        ncpus = config["cpus_critical"],
         mem = config["max_mem"] 
     params:
         dir_DB_exhaustive=dir_DB_exhaustive,
@@ -87,6 +86,7 @@ rule PTM_mz_RT_matching:
         method=features["RT_filter"]["method"],
         netMHCpan_chunk=features["DB"]["netMHCpan_chunk"],
         max_variable_PTM=features["DB"]["max_variable_PTM"],
-        generate_spliced_PTMs=features["DB"]["generate_spliced_PTMs"]
+        generate_spliced_PTMs=features["DB"]["generate_spliced_PTMs"],
+        cpus_for_R = config["max_cpus"]
     script:
         "03_2_PTM_mz_RT_matching.R"

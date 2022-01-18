@@ -65,27 +65,13 @@ dir_RT_calibration = snakemake@params[["dir_RT_calibration"]]
 # Output dirs
 dir_RT_prediction = snakemake@params[["dir_RT_prediction"]]
 {
-  suppressWarnings(
-    dir.create(dir_RT_prediction)
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_RT_prediction, "/train"))
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_RT_prediction, "/test"))
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_RT_prediction, "/predict"))
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_RT_prediction, "/RT_models"))
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_RT_prediction, "/plots"))
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_RT_prediction, "/peptide_RT"))
-  )
+  suppressWarnings(dir.create(dir_RT_prediction))
+  suppressWarnings(dir.create(paste0(dir_RT_prediction, "/train")))
+  suppressWarnings(dir.create(paste0(dir_RT_prediction, "/test")))
+  suppressWarnings(dir.create(paste0(dir_RT_prediction, "/predict")))
+  suppressWarnings(dir.create(paste0(dir_RT_prediction, "/RT_models")))
+  suppressWarnings(dir.create(paste0(dir_RT_prediction, "/plots")))
+  suppressWarnings(dir.create(paste0(dir_RT_prediction, "/peptide_RT")))
 }
 
 ### ---------------------------- (2) Split train/test --------------------------------------

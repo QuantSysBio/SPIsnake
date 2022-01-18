@@ -68,7 +68,6 @@ rule aggregate_RT:
     conda: 
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
-        load = 100,
         ncpus = 1,
         mem = config["max_mem"] 
     params:
@@ -89,7 +88,6 @@ rule RT_train:
     conda: 
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
-        load = 100,
         ncpus = config["max_cpus"],
         mem = config["max_mem"] 
     script:

@@ -156,13 +156,13 @@ rule Generate_PSP_indices:
     conda: 
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
-        load = 100,
-        ncpus = config["max_cpus"],
+        ncpus = config["cpus_critical"],
         mem = config["max_mem"]
     params:
         directory=dir_DB_exhaustive,
         AA_index_length=features["DB"]["AA_index_length"],
-        max_protein_length=features["DB"]["max_protein_length"]
+        max_protein_length=features["DB"]["max_protein_length"],
+        cpus_for_R = config["max_cpus"]
     script:
         "02_3_Generate_PSP_indices.R"  
 
@@ -221,14 +221,14 @@ rule Generate_peptides:
         join(logs, "Generate_peptides_{filename}.txt")
     conda: 
         "R_env_reticulate.yaml"
-    resources: # 1 per node at the time
-        load = 100,
-        ncpus = config["max_cpus"],
+    resources:
+        ncpus = config["cpus_critical"],
         mem = config["max_mem"] 
     params:
         directory=dir_DB_exhaustive,
         dir_DB_Fasta_chunks=dir_DB_Fasta_chunks,
         AA_index_length=features["DB"]["AA_index_length"],
-        max_protein_length=features["DB"]["max_protein_length"]
+        max_protein_length=features["DB"]["max_protein_length"],
+        cpus_for_R = config["max_cpus"]
     script:
         "02_4_Generate_peptides.R"

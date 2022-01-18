@@ -11,7 +11,7 @@ DB:
     AA_index_length: 1
     replace_I_with_L: FALSE
     netMHCpan_chunk: 1000000
-    n_netMHCpan_blocks: 30
+    n_netMHCpan_blocks: 3
 
 RT_filter:
     # achrom or AutoRT

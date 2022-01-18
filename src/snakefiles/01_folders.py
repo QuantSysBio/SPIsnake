@@ -15,7 +15,7 @@ dir_RT_prediction = Output_dir + "RT_prediction/"
 dir_DB_PTM_mz = Output_dir + "DB_PTM_mz/"
 dir_DB_filtered = Output_dir + "DB_filtered/"
 
-dir_IC50 = "/localdata/SPIsnake/" + Output_dir + "IC50/"
+dir_IC50 = Output_dir + "IC50/"
 dir_DB_out = Output_dir + "DB_out/"
 
 benchmarks = Output_dir + "benchmarks/"

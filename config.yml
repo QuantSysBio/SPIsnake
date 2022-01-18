@@ -1,3 +1,4 @@
 max_cpus: 72
+cpus_critical: 1
 max_mem: 240G
 min_mem: 3G
