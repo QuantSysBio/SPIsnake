@@ -1,0 +1,380 @@
+FROM condaforge/mambaforge:latest
+LABEL io.github.snakemake.containerized="true"
+LABEL io.github.snakemake.conda_env_hash="db26f7d2d59a78bc36ceabb30fdc1bfacbb67fec2d63c49451906379b110e221"
+
+# Step 1: Retrieve conda environments
+
+# Conda environment:
+#   source: src/snakefiles/R_env_reticulate.yaml
+#   prefix: /conda-envs/51eb3a83b37e3a4e9ecf4cb0af1c7888
+#   name: R_env_reticulate
+#   channels:
+#     - conda-forge
+#     - bioconda
+#     - defaults
+#   dependencies:
+#     - _libgcc_mutex=0.1=conda_forge
+#     - _openmp_mutex=4.5=1_gnu
+#     - _r-mutex=1.0.1=anacondar_1
+#     - _tflow_select=2.3.0=mkl
+#     - abseil-cpp=20210324.2=h9c3ff4c_0
+#     - absl-py=1.0.0=pyhd8ed1ab_0
+#     - aiohttp=3.8.1=py39h3811e60_0
+#     - aiosignal=1.2.0=pyhd8ed1ab_0
+#     - alsa-lib=1.2.3=h516909a_0
+#     - astor=0.8.1=pyh9f0ad1d_0
+#     - astunparse=1.6.3=pyhd8ed1ab_0
+#     - async-timeout=4.0.1=pyhd8ed1ab_0
+#     - attrs=21.2.0=pyhd8ed1ab_0
+#     - binutils_impl_linux-64=2.36.1=h193b22a_2
+#     - binutils_linux-64=2.36=hf3e587d_1
+#     - bioconductor-biocgenerics=0.40.0=r41hdfd78af_0
+#     - bioconductor-biostrings=2.62.0=r41hd029910_0
+#     - bioconductor-genomeinfodb=1.30.0=r41hdfd78af_0
+#     - bioconductor-genomeinfodbdata=1.2.7=r41hdfd78af_1
+#     - bioconductor-iranges=2.28.0=r41hd029910_0
+#     - bioconductor-s4vectors=0.32.0=r41hd029910_0
+#     - bioconductor-xvector=0.34.0=r41hd029910_0
+#     - bioconductor-zlibbioc=1.40.0=r41hd029910_0
+#     - blinker=1.4=py_1
+#     - brotli=1.0.9=h7f98852_6
+#     - brotli-bin=1.0.9=h7f98852_6
+#     - brotlipy=0.7.0=py39h3811e60_1003
+#     - bwidget=1.9.14=ha770c72_1
+#     - bzip2=1.0.8=h7f98852_4
+#     - c-ares=1.18.1=h7f98852_0
+#     - ca-certificates=2021.10.8=ha878542_0
+#     - cached-property=1.5.2=hd8ed1ab_1
+#     - cached_property=1.5.2=pyha770c72_1
+#     - cachetools=4.2.4=pyhd8ed1ab_0
+#     - cairo=1.16.0=h6cf1ce9_1008
+#     - certifi=2021.10.8=py39hf3d152e_1
+#     - cffi=1.15.0=py39h4bc2ebd_0
+#     - charset-normalizer=2.0.8=pyhd8ed1ab_0
+#     - click=8.0.3=py39hf3d152e_1
+#     - cryptography=35.0.0=py39h95dcef6_2
+#     - curl=7.80.0=h2574ce0_0
+#     - cycler=0.11.0=pyhd8ed1ab_0
+#     - dataclasses=0.8=pyhc8e2a94_3
+#     - dbus=1.13.6=h48d8840_2
+#     - expat=2.4.1=h9c3ff4c_0
+#     - flatbuffers=2.0.0=h9c3ff4c_0
+#     - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
+#     - font-ttf-inconsolata=3.000=h77eed37_0
+#     - font-ttf-source-code-pro=2.038=h77eed37_0
+#     - font-ttf-ubuntu=0.83=hab24e00_0
+#     - fontconfig=2.13.1=hba837de_1005
+#     - fonts-conda-ecosystem=1=0
+#     - fonts-conda-forge=1=0
+#     - fonttools=4.28.2=py39h3811e60_0
+#     - freetype=2.10.4=h0708190_1
+#     - fribidi=1.0.10=h36c2ea0_0
+#     - frozenlist=1.2.0=py39h3811e60_1
+#     - gast=0.4.0=pyh9f0ad1d_0
+#     - gawk=5.1.0=h7f98852_0
+#     - gcc_impl_linux-64=9.4.0=h03d3576_11
+#     - gcc_linux-64=9.4.0=h391b98a_1
+#     - gettext=0.19.8.1=h73d1719_1008
+#     - gfortran_impl_linux-64=9.4.0=h0003116_11
+#     - gfortran_linux-64=9.4.0=hf0ab688_1
+#     - giflib=5.2.1=h36c2ea0_2
+#     - git=2.33.1=pl5321hc30692c_0
+#     - glib=2.70.1=h780b84a_0
+#     - glib-tools=2.70.1=h780b84a_0
+#     - gmp=6.2.1=h58526e2_0
+#     - google-auth=1.35.0=pyh6c4a22f_0
+#     - google-auth-oauthlib=0.4.6=pyhd8ed1ab_0
+#     - google-pasta=0.2.0=pyh8c360ce_0
+#     - graphite2=1.3.13=h58526e2_1001
+#     - greenlet=1.1.2=py39he80948d_1
+#     - grpcio=1.42.0=py39hff7568b_0
+#     - gsl=2.7=he838d99_0
+#     - gst-plugins-base=1.18.5=hf529b03_2
+#     - gstreamer=1.18.5=h9f60fe5_2
+#     - gxx_impl_linux-64=9.4.0=h03d3576_11
+#     - gxx_linux-64=9.4.0=h0316aca_1
+#     - h5py=3.6.0=nompi_py39h7e08c79_100
+#     - harfbuzz=3.1.1=h83ec7ef_0
+#     - hdf5=1.12.1=nompi_h2750804_102
+#     - icu=68.2=h9c3ff4c_0
+#     - idna=3.1=pyhd3deb0d_0
+#     - importlib-metadata=4.8.2=py39hf3d152e_0
+#     - jbig=2.1=h7f98852_2003
+#     - joblib=1.1.0=pyhd8ed1ab_0
+#     - jpeg=9d=h36c2ea0_0
+#     - keras-preprocessing=1.1.2=pyhd8ed1ab_0
+#     - kernel-headers_linux-64=2.6.32=he073ed8_15
+#     - kiwisolver=1.3.2=py39h1a9c180_1
+#     - krb5=1.19.2=hcc1bbae_3
+#     - lcms2=2.12=hddcbb42_0
+#     - ld_impl_linux-64=2.36.1=hea4e1c9_2
+#     - lerc=3.0=h9c3ff4c_0
+#     - libblas=3.9.0=12_linux64_openblas
+#     - libbrotlicommon=1.0.9=h7f98852_6
+#     - libbrotlidec=1.0.9=h7f98852_6
+#     - libbrotlienc=1.0.9=h7f98852_6
+#     - libcblas=3.9.0=12_linux64_openblas
+#     - libclang=11.1.0=default_ha53f305_1
+#     - libcurl=7.80.0=h2574ce0_0
+#     - libdeflate=1.8=h7f98852_0
+#     - libedit=3.1.20191231=he28a2e2_2
+#     - libev=4.33=h516909a_1
+#     - libevent=2.1.10=h9b69904_4
+#     - libffi=3.4.2=h7f98852_5
+#     - libgcc-devel_linux-64=9.4.0=hd854feb_11
+#     - libgcc-ng=11.2.0=h1d223b6_11
+#     - libgfortran-ng=11.2.0=h69a702a_11
+#     - libgfortran5=11.2.0=h5c6108e_11
+#     - libglib=2.70.1=h174f98d_0
+#     - libgomp=11.2.0=h1d223b6_11
+#     - libiconv=1.16=h516909a_0
+#     - libidn2=2.3.2=h7f98852_0
+#     - liblapack=3.9.0=12_linux64_openblas
+#     - libllvm11=11.1.0=hf817b99_2
+#     - libnghttp2=1.43.0=h812cca2_1
+#     - libogg=1.3.4=h7f98852_1
+#     - libopenblas=0.3.18=pthreads_h8fe5266_0
+#     - libopus=1.3.1=h7f98852_1
+#     - libpng=1.6.37=h21135ba_2
+#     - libpq=13.5=hd57d9b9_0
+#     - libprotobuf=3.14.0=h780b84a_0
+#     - libsanitizer=9.4.0=h79bfe98_11
+#     - libssh2=1.10.0=ha56f1ee_2
+#     - libstdcxx-devel_linux-64=9.4.0=hd854feb_11
+#     - libstdcxx-ng=11.2.0=he4da1e4_11
+#     - libtiff=4.3.0=h6f004c6_2
+#     - libunistring=0.9.10=h7f98852_0
+#     - libuuid=2.32.1=h7f98852_1000
+#     - libvorbis=1.3.7=h9c3ff4c_0
+#     - libwebp-base=1.2.1=h7f98852_0
+#     - libxcb=1.13=h7f98852_1004
+#     - libxkbcommon=1.0.3=he3ba5ed_0
+#     - libxml2=2.9.12=h72842e0_0
+#     - libxslt=1.1.33=h15afd5d_2
+#     - libzlib=1.2.11=h36c2ea0_1013
+#     - lxml=4.6.4=py39h107f48f_0
+#     - lz4-c=1.9.3=h9c3ff4c_1
+#     - make=4.3=hd18ef5c_1
+#     - markdown=3.3.6=pyhd8ed1ab_0
+#     - matplotlib=3.5.0=py39hf3d152e_0
+#     - matplotlib-base=3.5.0=py39h2fa2bec_0
+#     - mmseqs2=13.45111=h95f258a_1
+#     - multidict=5.2.0=py39h3811e60_1
+#     - munkres=1.1.4=pyh9f0ad1d_0
+#     - mysql-common=8.0.27=ha770c72_1
+#     - mysql-libs=8.0.27=hfa10184_1
+#     - ncurses=6.2=h58526e2_4
+#     - nspr=4.32=h9c3ff4c_1
+#     - nss=3.72=hb5efdd6_0
+#     - numpy=1.21.4=py39hdbf815f_0
+#     - oauthlib=3.1.1=pyhd8ed1ab_0
+#     - olefile=0.46=pyh9f0ad1d_1
+#     - openjpeg=2.4.0=hb52868f_1
+#     - openssl=1.1.1l=h7f98852_0
+#     - opt_einsum=3.3.0=pyhd8ed1ab_1
+#     - packaging=21.3=pyhd8ed1ab_0
+#     - pandas=1.3.4=py39hde0f152_1
+#     - pango=1.48.10=h54213e6_2
+#     - pcre=8.45=h9c3ff4c_0
+#     - pcre2=10.37=h032f7d1_0
+#     - perl=5.32.1=1_h7f98852_perl5
+#     - pigz=2.6=h27826a3_0
+#     - pillow=8.4.0=py39ha612740_0
+#     - pip=21.3.1=pyhd8ed1ab_0
+#     - pixman=0.40.0=h36c2ea0_0
+#     - protobuf=3.14.0=py39he80948d_1
+#     - psutil=5.8.0=py39h3811e60_2
+#     - pthread-stubs=0.4=h36c2ea0_1001
+#     - pyasn1=0.4.8=py_0
+#     - pyasn1-modules=0.2.7=py_0
+#     - pycparser=2.21=pyhd8ed1ab_0
+#     - pyjwt=2.3.0=pyhd8ed1ab_0
+#     - pyopenssl=21.0.0=pyhd8ed1ab_0
+#     - pyparsing=3.0.6=pyhd8ed1ab_0
+#     - pyqt=5.12.3=py39hf3d152e_8
+#     - pyqt-impl=5.12.3=py39hde8b62d_8
+#     - pyqt5-sip=4.19.18=py39he80948d_8
+#     - pyqtchart=5.12=py39h0fcd23e_8
+#     - pyqtwebengine=5.12.1=py39h0fcd23e_8
+#     - pysocks=1.7.1=py39hf3d152e_4
+#     - pyteomics=4.5=pyh5e36f6f_0
+#     - python=3.9.7=hb7a2778_3_cpython
+#     - python-dateutil=2.8.2=pyhd8ed1ab_0
+#     - python-flatbuffers=1.12=pyhd8ed1ab_1
+#     - python_abi=3.9=2_cp39
+#     - pytz=2021.3=pyhd8ed1ab_0
+#     - pyu2f=0.1.5=pyhd8ed1ab_0
+#     - qt=5.12.9=hda022c4_4
+#     - r-ade4=1.7_18=r41he454529_0
+#     - r-assertthat=0.2.1=r41hc72bb7e_2
+#     - r-backports=1.4.0=r41hcfec24a_0
+#     - r-base=4.1.1=hb93adac_1
+#     - r-bit=4.0.4=r41hcfec24a_0
+#     - r-bit64=4.0.5=r41hcfec24a_0
+#     - r-bitops=1.0_7=r41hcfec24a_0
+#     - r-brio=1.1.2=r41hcfec24a_0
+#     - r-callr=3.7.0=r41hc72bb7e_0
+#     - r-cli=3.1.0=r41h03ef668_0
+#     - r-codetools=0.2_18=r41hc72bb7e_0
+#     - r-colorspace=2.0_2=r41hcfec24a_0
+#     - r-cpp11=0.4.1=r41hc72bb7e_0
+#     - r-crayon=1.4.2=r41hc72bb7e_0
+#     - r-data.table=1.14.2=r41hcfec24a_0
+#     - r-desc=1.4.0=r41hc72bb7e_0
+#     - r-diffobj=0.3.5=r41hcfec24a_0
+#     - r-digest=0.6.28=r41h03ef668_0
+#     - r-dplyr=1.0.7=r41h03ef668_0
+#     - r-dtplyr=1.1.0=r41hc72bb7e_0
+#     - r-ellipsis=0.3.2=r41hcfec24a_0
+#     - r-evaluate=0.14=r41hc72bb7e_2
+#     - r-fansi=0.4.2=r41hcfec24a_0
+#     - r-farver=2.1.0=r41h03ef668_0
+#     - r-foreach=1.5.1=r41hc72bb7e_0
+#     - r-generics=0.1.1=r41hc72bb7e_0
+#     - r-ggplot2=3.3.5=r41hc72bb7e_0
+#     - r-glue=1.5.0=r41hcfec24a_0
+#     - r-gmp=0.6_2.1=r41h03ef668_0
+#     - r-gridextra=2.3=r41hc72bb7e_1003
+#     - r-gtable=0.3.0=r41hc72bb7e_3
+#     - r-here=1.0.1=r41hc72bb7e_0
+#     - r-hms=1.1.1=r41hc72bb7e_0
+#     - r-isoband=0.2.5=r41h03ef668_0
+#     - r-iterators=1.0.13=r41hc72bb7e_0
+#     - r-jsonlite=1.7.2=r41hcfec24a_0
+#     - r-labeling=0.4.2=r41hc72bb7e_0
+#     - r-lattice=0.20_45=r41hcfec24a_0
+#     - r-lifecycle=1.0.1=r41hc72bb7e_0
+#     - r-magrittr=2.0.1=r41hcfec24a_1
+#     - r-mass=7.3_54=r41hcfec24a_0
+#     - r-matrix=1.3_4=r41he454529_0
+#     - r-mgcv=1.8_38=r41he454529_0
+#     - r-munsell=0.5.0=r41hc72bb7e_1003
+#     - r-nlme=3.1_153=r41h859d828_0
+#     - r-parallelly=1.29.0=r41hc72bb7e_0
+#     - r-pillar=1.6.4=r41hc72bb7e_0
+#     - r-pixmap=0.4_12=r41hc72bb7e_0
+#     - r-pkgconfig=2.0.3=r41hc72bb7e_1
+#     - r-pkgload=1.2.3=r41h03ef668_0
+#     - r-png=0.1_7=r41hcfec24a_1004
+#     - r-praise=1.0.0=r41hc72bb7e_1004
+#     - r-prettyunits=1.1.1=r41hc72bb7e_1
+#     - r-processx=3.5.2=r41hcfec24a_0
+#     - r-progress=1.2.2=r41hc72bb7e_2
+#     - r-ps=1.6.0=r41hcfec24a_0
+#     - r-purrr=0.3.4=r41hcfec24a_1
+#     - r-r6=2.5.1=r41hc72bb7e_0
+#     - r-rappdirs=0.3.3=r41hcfec24a_0
+#     - r-rcolorbrewer=1.1_2=r41h785f33e_1003
+#     - r-rcpp=1.0.7=r41h03ef668_0
+#     - r-rcurl=1.98_1.5=r41hcfec24a_0
+#     - r-rematch2=2.1.2=r41hc72bb7e_1
+#     - r-reticulate=1.22=r41h03ef668_0
+#     - r-rlang=0.4.12=r41hcfec24a_0
+#     - r-rprojroot=2.0.2=r41hc72bb7e_0
+#     - r-rstudioapi=0.13=r41hc72bb7e_0
+#     - r-scales=1.1.1=r41hc72bb7e_0
+#     - r-segmented=1.3_4=r41hc72bb7e_0
+#     - r-seqinr=4.2_8=r41hcfec24a_0
+#     - r-sp=1.4_6=r41hcfec24a_0
+#     - r-stringi=1.7.5=r41hcabe038_0
+#     - r-stringr=1.4.0=r41hc72bb7e_2
+#     - r-testthat=3.1.0=r41h03ef668_0
+#     - r-tibble=3.1.6=r41hcfec24a_0
+#     - r-tidyr=1.1.4=r41h03ef668_0
+#     - r-tidyselect=1.1.1=r41hc72bb7e_0
+#     - r-tzdb=0.2.0=r41h03ef668_0
+#     - r-utf8=1.2.2=r41hcfec24a_0
+#     - r-vctrs=0.3.8=r41hcfec24a_1
+#     - r-viridislite=0.4.0=r41hc72bb7e_0
+#     - r-vroom=1.5.6=r41h03ef668_0
+#     - r-waldo=0.3.1=r41hc72bb7e_0
+#     - r-withr=2.4.2=r41hc72bb7e_0
+#     - readline=8.1=h46c0cb4_0
+#     - requests=2.26.0=pyhd8ed1ab_1
+#     - requests-oauthlib=1.3.0=pyh9f0ad1d_0
+#     - rsa=4.8=pyhd8ed1ab_0
+#     - scikit-learn=1.0.1=py39h4dfa638_2
+#     - scipy=1.7.3=py39hee8e79c_0
+#     - sed=4.8=he412f7d_0
+#     - setuptools=59.4.0=py39hf3d152e_0
+#     - six=1.16.0=pyh6c4a22f_0
+#     - snappy=1.1.8=he1b5a44_3
+#     - sqlalchemy=1.4.27=py39h3811e60_0
+#     - sqlite=3.37.0=h9cd32fc_0
+#     - sysroot_linux-64=2.12=he073ed8_15
+#     - tensorboard=2.6.0=pyhd8ed1ab_1
+#     - tensorboard-data-server=0.6.0=py39h95dcef6_1
+#     - tensorboard-plugin-wit=1.8.0=pyh44b312d_0
+#     - tensorflow=2.6.0=mkl_py39haac40d1_0
+#     - tensorflow-base=2.6.0=mkl_py39h3d85931_0
+#     - tensorflow-estimator=2.6.0=py39he80948d_0
+#     - termcolor=1.1.0=py_2
+#     - threadpoolctl=3.0.0=pyh8a188c0_0
+#     - tk=8.6.11=h27826a3_1
+#     - tktable=2.10=hb7b940f_3
+#     - tornado=6.1=py39h3811e60_2
+#     - typing-extensions=4.0.0=hd8ed1ab_0
+#     - typing_extensions=4.0.0=pyha770c72_0
+#     - tzdata=2021e=he74cb21_0
+#     - urllib3=1.26.7=pyhd8ed1ab_0
+#     - werkzeug=2.0.1=pyhd8ed1ab_0
+#     - wget=1.20.3=ha56f1ee_1
+#     - wheel=0.35.1=pyh9f0ad1d_0
+#     - wrapt=1.13.3=py39h3811e60_1
+#     - xorg-kbproto=1.0.7=h7f98852_1002
+#     - xorg-libice=1.0.10=h7f98852_0
+#     - xorg-libsm=1.2.3=hd9c2040_1000
+#     - xorg-libx11=1.7.2=h7f98852_0
+#     - xorg-libxau=1.0.9=h7f98852_0
+#     - xorg-libxdmcp=1.1.3=h7f98852_0
+#     - xorg-libxext=1.3.4=h7f98852_1
+#     - xorg-libxrender=0.9.10=h7f98852_1003
+#     - xorg-libxt=1.2.1=h7f98852_2
+#     - xorg-renderproto=0.11.1=h7f98852_1002
+#     - xorg-xextproto=7.3.0=h7f98852_1002
+#     - xorg-xproto=7.0.31=h7f98852_1007
+#     - xz=5.2.5=h516909a_1
+#     - yarl=1.7.2=py39h3811e60_1
+#     - zipp=3.6.0=pyhd8ed1ab_0
+#     - zlib=1.2.11=h36c2ea0_1013
+#     - zstd=1.5.0=ha95c52a_0
+#   prefix: /home/yhorokh/miniconda3/envs/SPIsnake_min
+RUN mkdir -p /conda-envs/51eb3a83b37e3a4e9ecf4cb0af1c7888
+COPY src/snakefiles/R_env_reticulate.yaml /conda-envs/51eb3a83b37e3a4e9ecf4cb0af1c7888/environment.yaml
+
+# Step 2: Generate conda environments
+
+RUN mamba env create -n R_env_reticulate --file /conda-envs/51eb3a83b37e3a4e9ecf4cb0af1c7888/environment.yaml && \
+    mamba clean --all -y
+
+# Step 3: Activate shell and switch environments
+
+RUN echo "source activate R_env_reticulate" > ~/.bashrc
+ENV PATH /opt/conda/envs/R_env_reticulate/bin:$PATH
+
+# Step 4: Additional R dependencies
+
+RUN R -e 'install.packages("bettermc", repos = "http://cran.us.r-project.org")'
+RUN R -e 'install.packages("arrangements", repos = "http://cran.us.r-project.org")'
+RUN R -e 'install.packages("R.utils", repos = "http://cran.us.r-project.org")'
+RUN R -e 'install.packages("fst", repos = "http://cran.us.r-project.org")'
+RUN R -e 'data.table::update.dev.pkg()'
+
+# Step 5: Install NetMHCPan
+
+COPY /netMHCPan_src/netMHCpan-4.1b.Linux.tar.gz /bin/
+RUN cd bin/ && cat netMHCpan-4.1b.Linux.tar.gz | uncompress | tar xvf -
+COPY /netMHCPan_src/data.tar.gz /bin/netMHCpan-4.1/
+RUN cd /bin/netMHCpan-4.1/ && tar -xvf data.tar.gz
+RUN rm /bin/netMHCpan-4.1/data.tar.gz
+RUN rm /bin/netMHCpan-4.1b.Linux.tar.gz
+
+ENV TZ=Europe/Berlin
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN apt-get update && apt-get install -y apt-utils
+RUN apt-get install -y software-properties-common
+RUN add-apt-repository universe && apt-get update
+RUN apt-get install -y tcsh
+
+# Step 6: Install AutoRT
+RUN git clone https://github.com/bzhanglab/AutoRT /bin/AutoRT

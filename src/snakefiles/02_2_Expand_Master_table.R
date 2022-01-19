@@ -22,13 +22,17 @@ suppressPackageStartupMessages(library(stringi))
 print(sessionInfo())
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
+# {
+#   ### Manual startup
+#   Master_table <- read.csv("Master_table.csv")
+#   directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
+# }
+
 # Master table
 Master_table <- read.csv(snakemake@input[["Master_table"]])
-# Master_table <- read.csv("Master_table.csv")
 
 # Output dir
 directory = snakemake@params[["directory"]]
-# directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
 print(directory)
 
 ### Find chunks
@@ -76,31 +80,17 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     unique() 
   }
 
-
-  # Tidy format for indices
-{
-  ### PSP
-  PSP_indices <- Master_table_expanded %>% 
-    filter(`Splice_type` == "cis-PSP") %>% 
-    ungroup() %>%
-    
-    # Create a future wildcard
-    mutate(PSP_index = paste(N_mers, Min_Interv_length, sep = "_")) %>%
-    select(PSP_index) %>%
-    unique() 
+# Tidy format for indices
+### PSP
+PSP_indices <- Master_table_expanded %>% 
+  filter(`Splice_type` == "cis-PSP") %>% 
+  ungroup() %>%
   
-  # ### PCP
-  # PCP_indices <- Master_table_expanded %>% 
-  #   ungroup() %>%
-  #   
-  #   # Create a future wildcard
-  #   mutate(PCP_index = paste(N_mers, Min_Interv_length, sep = "_")) %>%
-  #   select(PCP_index) %>%
-  #   unique() 
-}
+  # Create a future wildcard
+  mutate(PSP_index = paste(N_mers, Min_Interv_length, sep = "_")) %>%
+  select(PSP_index) %>%
+  unique() 
 
-
-# Output
+### Output
 fwrite(Master_table_expanded, file = unlist(snakemake@output[["Master_table_expanded"]]))
 fwrite(PSP_indices, file = unlist(snakemake@output[["PSP_indices"]]))
-# fwrite(PCP_indices, file = unlist(snakemake@output[["PCP_indices"]]))

@@ -1,11 +1,11 @@
 ### ---------------------------------------------- Define peptide aggregation  ----------------------------------------------
-# description:
+# description:  Define all relevant combinations of AA and N-mers for further processing
+#               They will be used as wildcards to control uniqueness, MW computation, m/z matching and PTM generation. 
 #               
 # input:        1. Peptide sequences generated in chunks
 #               2. Parameters: Master_table_expanded
 # output:       
-#               A table with a single line per combination of parameters for peptide across proteome chunks. 
-#               They will be used as wildcards to control uniqueness, MW computation, m/z matching and PTM generation. 
+#               - A table with a single line per combination of parameters for peptide across proteome chunks. 
 #               
 # author:       YH
 
@@ -18,13 +18,14 @@ suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(vroom))
 
-{
-  # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake-main")
-  # Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
-  # index_length = 1
-  # dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
-  # dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
-}
+# {
+#   setwd("/home/yhorokh/SNAKEMAKE/SPIsnake-main")
+#   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
+#   index_length = 1
+#   dir_DB_exhaustive = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
+#   dir_DB_PTM_mz = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_PTM_mz"
+# }
+
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 print(sessionInfo())
@@ -46,27 +47,12 @@ AA = matrix(c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "
 dir_DB_exhaustive = snakemake@params[["dir_DB_exhaustive"]]
 dir_DB_PTM_mz = snakemake@params[["dir_DB_PTM_mz"]]
 {
-  suppressWarnings(
-    dir.create(dir_DB_exhaustive)
-  )
-  suppressWarnings(
-    dir.create(dir_DB_PTM_mz)
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_DB_exhaustive, "/unique_peptide_sequences"))
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched"))
-  )
-  suppressWarnings(
-    dir.create(paste0(dir_DB_PTM_mz, "/files_mz_match"))
-  )
-  # suppressWarnings(
-  #   dir.create(paste0(dir_DB_PTM_mz, "/unique_peptide_MW"))
-  # )
-
-  }
-
+  suppressWarnings(dir.create(dir_DB_exhaustive))
+  suppressWarnings(dir.create(dir_DB_PTM_mz))
+  suppressWarnings(dir.create(paste0(dir_DB_exhaustive, "/unique_peptide_sequences")))
+  suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched")))
+  suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/files_mz_match")))
+}
 
 ### ---------------------------- (2) Define aggregation wildcards --------------------------------------
 # Define unique combinations
@@ -103,7 +89,6 @@ print(paste("Total", nrow(Peptide_aggregation_table), "combinations of AA_length
 }
 
 ### ---------------------------- (3) Export aggregation wildcards --------------------------------------
-
 vroom_write(Peptide_aggregation_table, delim = ",", append = FALSE,
             file = unlist(snakemake@output[["Peptide_aggregation_table"]]))
 

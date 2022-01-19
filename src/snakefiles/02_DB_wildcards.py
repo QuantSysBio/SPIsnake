@@ -229,6 +229,7 @@ rule Generate_peptides:
         dir_DB_Fasta_chunks=dir_DB_Fasta_chunks,
         AA_index_length=features["DB"]["AA_index_length"],
         max_protein_length=features["DB"]["max_protein_length"],
+        fst_compression = features["DB"]["fst_compression"],
         cpus_for_R = config["max_cpus"]
     script:
         "02_4_Generate_peptides.R"

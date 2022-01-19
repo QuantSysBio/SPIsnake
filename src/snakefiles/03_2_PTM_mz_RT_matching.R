@@ -6,9 +6,9 @@
 #               2. Parameters: Master_table_expanded
 # output:       
 #               Output files are saved in chunks that depend on first N=index_length letters of a peptide
-#               - Unique sequences per experiment .csv.gz
-#               - Unique peptides MW .csv.gz
-#               - Unique peptides after m/z and RT matching per experiment .csv.gz
+#               - Unique sequences per experiment .fst
+#               - Unique peptides MW .fst
+#               - Unique peptides after m/z and RT matching per experiment .fst
 #               - Peptide-mass_list matching
 #               - Peptide filtering stats .csv
 #               
@@ -23,7 +23,7 @@ suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr, warn.conflicts = FALSE))
 suppressPackageStartupMessages(library(foreach))
-#suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(fst))
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(R.utils))
@@ -143,6 +143,9 @@ setDTthreads(Ncpu)
 
 retry_times = 3
 
+### fst compression level
+fst_compression = as.integer(snakemake@params[["fst_compression"]])
+
 ### ---------------------------- End user variables ----------------------------
 # Proteinogenic AAs
 AA = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
@@ -187,9 +190,9 @@ if (operation_mode == "Update") {
 
 ### ---------------------------- (3) Uniqueness --------------------------------------
 # Select all files with the same {AA-index}{length}
-peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pattern = ".csv.gz", full.names = T) %>%
+peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pattern = ".fst", full.names = T) %>%
   as_tibble() %>%
-  mutate(file = str_remove_all(value, ".csv.gz")) %>%
+  mutate(file = str_remove_all(value, ".fst")) %>%
   mutate(file = str_split_fixed(file, "/peptide_seqences/", n = 2)[,2]) %>%
   mutate(Splice_type = str_split_fixed(file, "_", n = 2)[,1]) %>%
   mutate(file = str_sub(file, start = nchar(Splice_type) + 2)) %>%
@@ -256,7 +259,7 @@ if (nrow(peptide_chunks) == 0) {
   names(MS_mass_lists_data) <- MS_mass_lists$mass_list
   
   ### ---------------------------- Start filtering  --------------------------------------
-  # Proteome_i = Proteomes[1]
+  # Proteome_i = Proteomes[2]
   # enzyme_type = enzyme_types[1]
   
   filename_exports <- c()
@@ -270,11 +273,8 @@ if (nrow(peptide_chunks) == 0) {
       
       ### Load peptide sequences
       input <- peptides %>%
-        vroom(delim = ",", num_threads = 1, show_col_types = FALSE, altrep=FALSE) %>%
-        as.data.table()
-        # bettermc::mclapply(mc.cores = 1, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=F,
-        #                    FUN = vroom, delim = ",", num_threads = 1, show_col_types = FALSE, altrep=FALSE) %>%
-        # rbindlist()  
+        lapply(read_fst, as.data.table = TRUE) %>%
+        rbindlist() 
       cat("Reading in", enzyme_type, "sequences: Done\n",
           as.character(Sys.time()), "\n")
       
@@ -312,6 +312,7 @@ if (nrow(peptide_chunks) == 0) {
           mods <- vroom(paste0("data/modifications/", PTM, ".csv"), show_col_types = F) 
           
           # Prepare peptides
+          counter_fst = 1
           for (input_i in seq_along(input)) {
             print(paste("Generating PTMs for:", names(input)[[input_i]]))
             
@@ -372,14 +373,16 @@ if (nrow(peptide_chunks) == 0) {
                 })
             }
             # Save modified peptides
+            counter_fst = counter_fst + 1
+            
             rbindlist(lapply(tmp, `[[`, 1)) %>%
-              vroom_write(file = paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/", enzyme_type, "_", filename, "_", PTM, ".csv.gz"),
-                          delim = ",", num_threads = Ncpu, append = TRUE)
+              write_fst(path = paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/", enzyme_type, "_", filename, "_", PTM, "_", counter_fst, ".fst"), 
+                compress = fst_compression)
             
             # Save PTM generation stats
             rbindlist(lapply(tmp, `[[`, 2)) %>%
-              vroom_write(file = paste0(dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", PTM, ".csv.gz"),
-                          delim = ",", num_threads = Ncpu, append = TRUE)
+              write_fst(path = paste0(dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", PTM, "_", counter_fst, ".fst"), 
+                compress = fst_compression)
             rm(tmp)
           }
           rm(input_PTM_j)
@@ -542,10 +545,8 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
         }
         filename_exports <- c(filename_exports,
                               paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", enzyme_type, "_", 
-                                     filename, "_", Proteome_i, "_", MS_mass_lists$mass_list[j],".csv.gz"))
-        vroom_write(tmp, 
-                    file = last(filename_exports),
-                    delim = ",", num_threads = Ncpu, append = FALSE)
+                                     filename, "_", Proteome_i, "_", MS_mass_lists$mass_list[j],".fst"))
+        write_fst(tmp, path = last(filename_exports), compress = fst_compression)
         rm(tmp)
       } # End 2D filter
     } # End enzyme type
@@ -553,11 +554,12 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   
   ### ----------------------------- Prepare NetMHCPan inputs ----------------------------- 
   names(filename_exports) <- str_split_fixed(filename_exports, "/unique_peptides_mz_RT_matched/", 2)[,2] %>%
-    str_remove(".csv.gz")
+    str_remove(".fst")
   
   # Define IC50 aggregation
   IC50_aggregation_table <- Experiment_design %>%
-    tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]") %>%
+    filter(!(is.na(`MHC-I_alleles`) | is.na(Affinity_threshold))) %>%
+    tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]", ) %>%
     mutate(`MHC-I_alleles` = str_squish(`MHC-I_alleles`),
            Affinity_threshold = str_squish(Affinity_threshold)) 
   IC50_aggregation_table
@@ -568,48 +570,46 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
       str_c(collapse = "|")
     keep <- str_ends(names(filename_exports), IC50_aggregation)
     
-    # Export all unique peptides for a given allele
-    filename_exports[keep] %>%
-      lapply(FUN = vroom, show_col_types = FALSE, num_threads = Ncpu, col_types=cols(
-        peptide = col_character(),
-        MW = col_double(),
-        RT_pred = col_double()
-      ), col_select = "peptide") %>%
-      rbindlist() %>%
-      lazy_dt() %>%
-      arrange(peptide) %>%
-      unique() %>%
-      mutate(netMHCpan_split = ceiling(seq_along(peptide)/netMHCpan_chunk)) %>%
-      group_by(netMHCpan_split) %>%
-      group_walk(~ vroom_write(.x, 
-                               file = paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan/", 
-                                             filename, "_", allele, "_ch_", .y$netMHCpan_split ,".tsv"),
-                               delim = "\t", num_threads = Ncpu, append = FALSE, col_names = FALSE))
-    
-    ### --------------------------------------(8) Chunk aggregation status (Snakemake output) --------------------------------------
-    # First export: Snakemake Wildcard
-    # Second export: Memory for future updates
-    if (operation_mode == "Generation") {
-      
-      save_peptide_chunks <- peptide_chunks %>%
-        mutate(Time = Sys.time()) %>%
-        left_join(MS_mass_lists) %>%
-        left_join(mz_stats) 
-      
-    } else if (operation_mode == "Update") {
-      
-      save_peptide_chunks <- peptide_chunks %>%
-        mutate(Time = Sys.time()) %>%
-        left_join(MS_mass_lists) %>%
-        rbind(processed_files)  %>%
-        left_join(mz_stats) 
+    if (TRUE %in% keep) {
+      # Export all unique peptides for a given allele
+      filename_exports[keep] %>%
+        lapply(FUN = read_fst, as.data.table = TRUE, columns = "peptide") %>%
+        rbindlist() %>%
+        lazy_dt() %>%
+        arrange(peptide) %>%
+        unique() %>%
+        mutate(netMHCpan_split = ceiling(seq_along(peptide)/netMHCpan_chunk)) %>%
+        group_by(netMHCpan_split) %>%
+        group_walk(~ vroom_write(.x, 
+                                 file = paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan/", 
+                                               filename, "_", allele, "_ch_", .y$netMHCpan_split ,".tsv"),
+                                 delim = "\t", num_threads = Ncpu, append = FALSE, col_names = FALSE))
     }
-    vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu,
-                unlist(snakemake@output[["chunk_aggregation_status"]]))
-    vroom_write(save_peptide_chunks, 
-                paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/", filename, ".csv"),
-                delim = ",", num_threads = Ncpu, append = FALSE)
-  } # End chunk aggregation status
+  } 
+  ### --------------------------------------(8) Chunk aggregation status (Snakemake output) --------------------------------------
+  # First export: Snakemake Wildcard
+  # Second export: Memory for future updates
+  if (operation_mode == "Generation") {
+    
+    save_peptide_chunks <- peptide_chunks %>%
+      mutate(Time = Sys.time()) %>%
+      left_join(MS_mass_lists) %>%
+      left_join(mz_stats) 
+    
+  } else if (operation_mode == "Update") {
+    
+    save_peptide_chunks <- peptide_chunks %>%
+      mutate(Time = Sys.time()) %>%
+      left_join(MS_mass_lists) %>%
+      left_join(mz_stats) %>%
+      rbind(processed_files) 
+  }
+  vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu,
+              unlist(snakemake@output[["chunk_aggregation_status"]]))
+  vroom_write(save_peptide_chunks, 
+              paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/", filename, ".csv"),
+              delim = ",", num_threads = Ncpu, append = FALSE)
+  
 } # End peptide processing
 
 ### --------------------------------------(9) Cluster termination & stats --------------------------------------

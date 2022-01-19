@@ -4,8 +4,7 @@
 # input:        1. RT command
 #               2. RT Calibration peptides split into train/test
 # output:       
-#               A table with a single line per combination of parameters for peptide across proteome chunks. 
-#               They will be used as wildcards to control uniqueness, MW computation, m/z matching and PTM generation. 
+#               Plots and tables with prediction performance metrics (Rsquared, PCC, MSE, RMSE, MAE)
 #               
 # author:       YH
 
@@ -13,13 +12,12 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
+suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(gridExtra))
-#suppressPackageStartupMessages(library(parallel))
-require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
@@ -27,12 +25,12 @@ suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(vroom))
 print(sessionInfo())
 
-{
-  ### Manual startup
-  # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-  # cmd_RT_test <- vroom("results/RT_prediction/cmd_RT_test.csv", delim=',', show_col_types = FALSE)
-  # method = "achrom"
-}
+# {
+#   ### Manual startup
+#   ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+#   cmd_RT_test <- vroom("results/RT_prediction/cmd_RT_test.csv", delim=',', show_col_types = FALSE)
+#   method = "achrom"
+# }
 
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")

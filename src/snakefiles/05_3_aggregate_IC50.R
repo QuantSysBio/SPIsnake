@@ -1,13 +1,15 @@
 ### ---------------------------------------------- Aggregate IC50  ----------------------------------------------
-# description:
+# description:  Join protein-peptide mapping, MW- RT- and binding affinity predictions.
+#               Report search space sizes.
 #               
-# input:        1. metadata: Master_table_expanded, cmd_netMHCpan
+# input:        1. metadata: Master_table_expanded, Experiment_design, cmd_netMHCpan
 #               2. Candidate peptide binders filtered from netMHCpan output
+#               3. Peptides with MW & RT information after 2D filter
 #               
-# output:       FASTA file per Biological group
-#               multimappers 
-#                
-#               
+# output:       
+#               - FASTA file per Biological group
+#               - peptides and their properties per Biological group in .csv
+#               - DB size at each filtering step (table and plot)
 #               
 # author:       YH
 
@@ -15,14 +17,14 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
+suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(foreach))
+suppressPackageStartupMessages(library(fst))
 suppressPackageStartupMessages(library(ggplot2))
-#suppressPackageStartupMessages(library(parallel))
-suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(tidyr))
@@ -32,7 +34,7 @@ print(sessionInfo())
 # {
 #   ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
 #   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv", show_col_types = FALSE)
-#   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE) 
+#   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
 #   dir_DB_exhaustive = "results/DB_exhaustive/"
 #   dir_DB_PTM_mz = "results/DB_PTM_mz"
 #   dir_IC50 = "results/IC50/"
@@ -49,6 +51,9 @@ Ncpu = availableCores()
 cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
+
+# fst compression level
+fst_compression = as.integer(snakemake@params[["fst_compression"]])
 
 # create temporary directory for vroom
 {
@@ -67,7 +72,6 @@ setDTthreads(Ncpu)
 ### ---------------------------- (1) Read inputs ----------------------------
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE) 
-# %>%  mutate(`Output non-binders` = ifelse(Filename %in% c("MeV_BLCL_allFractions", "MeV_MA0009-BE08_allFractions"), T, F))
 Master_table_expanded <- vroom(snakemake@input[["Master_table_expanded"]], show_col_types = FALSE)
 cmd_netMHCpan <- vroom(snakemake@input[["cmd_netMHCpan"]], show_col_types = FALSE)
 
@@ -81,11 +85,11 @@ suppressWarnings(dir.create(paste0(dir_DB_out, "/plots")))
 
 ### ---------------------------- (2) Pre-processing --------------------------------------
 # Find all non-empty IC50 prediction outputs
-IC50_output <- list.files(paste0(dir_IC50, "/IC50_filtered_peptides"), pattern = ".csv.gz", full.names = T) %>%
+IC50_output <- list.files(paste0(dir_IC50, "/IC50_filtered_peptides"), pattern = ".fst", full.names = T) %>%
   as_tibble() %>%
   mutate(size = file.size(value)) %>%
   filter(size > 40) %>%
-  mutate(Peptide_file = str_remove_all(value, ".csv.gz")) %>%
+  mutate(Peptide_file = str_remove_all(value, ".fst")) %>%
   mutate(Peptide_file = str_split_fixed(Peptide_file, "/IC50_filtered_peptides/", n = 2)[,2]) %>%
   mutate(Affinity_threshold = as.numeric(str_extract(Peptide_file, "[\\d+]+$"))) %>%
   mutate(Peptide_file = str_sub(Peptide_file, start = 1, end = str_length(Peptide_file) - str_length(Affinity_threshold) - 1)) %>%
@@ -97,6 +101,8 @@ IC50_output
 
 # Add non-binder MW_RT filter outputs if necessary
 Experiment_design_expanded <- Experiment_design %>%
+  mutate(`MHC-I_alleles` = ifelse(is.na(`MHC-I_alleles`), "", `MHC-I_alleles`)) %>%
+  mutate(Affinity_threshold = ifelse(is.na(Affinity_threshold), "", Affinity_threshold)) %>%
   tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]") %>%
   mutate(`MHC-I_alleles` = str_squish(`MHC-I_alleles`),
          Affinity_threshold = str_squish(Affinity_threshold)) 
@@ -109,7 +115,7 @@ Experiment_design_expanded
     unique() %>%
     str_c(collapse = "|")
   
-  MW_RT_output <- list.files(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched"), pattern = ".csv.gz", full.names = F) %>%
+  MW_RT_output <- list.files(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched"), pattern = ".fst", full.names = F) %>%
     as_tibble() %>%
     mutate(Mass_list_file = str_extract(value, pattern = Mass_list_files)) %>%
     mutate(enzyme_type = str_split_fixed(value, "_", n = 4)[,1]) %>%
@@ -130,7 +136,7 @@ Experiment_design_expanded
     unique() %>%
     str_c(collapse = "|")
   
-  pep_map <- list.files(paste0(dir_DB_exhaustive, "/peptide_mapping"), pattern = ".csv.gz", full.names = F) %>%
+  pep_map <- list.files(paste0(dir_DB_exhaustive, "/peptide_mapping"), pattern = ".fst", full.names = F) %>%
     as_tibble() %>%
     mutate(enzyme_type = str_split_fixed(value, "_map_", n = 2)[,1]) %>%
     mutate(AA_length = str_split_fixed(value, "_map_", n = 2)[,2]) %>%
@@ -155,8 +161,9 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
       filter(AA_length %in% x$AA_length)
     IC50_pep <- IC50_x %>%
       pull(value) %>%
-      vroom(show_col_types = F, num_threads = Ncpu, delim = ",") %>%
-      as.data.table()
+      as.list() %>%
+      lapply(read_fst, as.data.table = TRUE) %>%
+      rbindlist()
     
     if (nrow(IC50_pep) == 0) {
       IC50_pep <- data.table(MHC = NA,
@@ -169,11 +176,10 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
   {
     peptide_mapping <- paste0(dir_DB_exhaustive, "/peptide_mapping/", x$value) %>%
       bettermc::mclapply(mc.cores = 1, mc.progress = F,
-                         FUN = vroom, show_col_types = F, num_threads = 1, delim = ",")
+                         FUN = read_fst, as.data.table = TRUE)
     names(peptide_mapping) <- paste(x$enzyme_type, x$Proteome, sep = "|")
     
     peptide_mapping <- rbindlist(peptide_mapping, idcol="file")
-    # peptide_mapping[, c("enzyme_type", "Proteome") := tstrsplit(file, "|", fixed=TRUE)]
     peptide_mapping[, enzyme_type := str_split_fixed(file, "\\|", 2)[,1]]
     peptide_mapping[, Proteome := str_split_fixed(file, "\\|", 2)[,2]]
     peptide_mapping$file <- NULL
@@ -201,16 +207,14 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     # Join IC50 with MW_RT information
     for (i in seq_along(MW_RT_biol_group_pep)) {
       if (MW_RT_biol_group$`Output non-binders`[[i]] == TRUE) {
-        MW_RT_biol_group_pep[[i]] <- vroom(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]]), 
-                                           show_col_types = F, num_threads = Ncpu, delim = ",") %>%
+        MW_RT_biol_group_pep[[i]] <- read_fst(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]])) %>%
           lazy_dt() %>%
           left_join(IC50_pep) %>%
           as.data.table()
       } else {
         MW_RT_biol_group_pep[[i]] <- IC50_pep %>%
           lazy_dt() %>%
-          left_join(y = vroom(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]]), 
-                              show_col_types = F, num_threads = Ncpu, delim = ",")) %>%
+          left_join(y = read_fst(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]]))) %>%
           filter(!is.na(MW)) %>%
           unique() %>%
           as.data.table()

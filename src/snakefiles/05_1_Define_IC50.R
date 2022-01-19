@@ -4,7 +4,7 @@
 # input:        1. Peptides after MW and RT filtering
 #               2. Parameters: alleles and affinities specified in Experiment_design
 # output:       
-#               A table with a single line per combination of parameters across calibration datasets
+#               - A table with a single line per combination of parameters across calibration datasets
 #               
 # author:       YH
 
@@ -12,12 +12,11 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
+suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(stringr))
-#suppressPackageStartupMessages(library(parallel))
-suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(vroom))
 print(sessionInfo())
@@ -25,7 +24,7 @@ print(sessionInfo())
 # {
 #   ### setwd("/home/yhorokh/Desktop/wd/tmp/SPIsnake")
 #   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
-  # netMHCpan = "bin/netMHCpan-4.1/netMHCpan"
+#   netMHCpan = "bin/netMHCpan-4.1/netMHCpan"
 #   dir_DB_PTM_mz = "results/DB_PTM_mz/"
 #   dir_IC50 = "results/IC50/"
 #   n_netMHCpan_blocks = 3
@@ -41,10 +40,10 @@ cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
 
 ### ---------------------------- (1) Read inputs ----------------------------
+netMHCpan <- "/bin/netMHCpan-4.1/netMHCpan"
+
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
-# netMHCpan <- snakemake@input[["netMHCpan"]]
-netMHCpan <- "/bin/netMHCpan-4.1/netMHCpan"
 n_netMHCpan_blocks <- snakemake@params[["n_netMHCpan_blocks"]]
 
 # Output dirs

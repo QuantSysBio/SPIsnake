@@ -4,7 +4,7 @@
 # input:        1. AutoRT command
 #               2. RT Calibration peptides split into train/test
 # output:       
-#               AutoRT model to be used for prediction
+#               - AutoRT model to be used for prediction
 #               
 # author:       YH
 
@@ -17,11 +17,12 @@ suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(vroom))
 
-{
-  #setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-  #RT_dataset = "results/RT_prediction/RT_models/nan/model.json"
-  #cmd_RT_train = vroom(file = "results/RT_prediction/cmd_RT_train.csv", delim=',', show_col_types = FALSE)
-}
+# {
+#   ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+#   RT_dataset = "results/RT_prediction/RT_models/nan/model.json"
+#   cmd_RT_train = vroom(file = "results/RT_prediction/cmd_RT_train.csv", delim=',', show_col_types = FALSE)
+# }
+
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 print(sessionInfo())

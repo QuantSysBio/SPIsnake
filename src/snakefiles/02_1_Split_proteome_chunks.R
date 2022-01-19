@@ -13,13 +13,7 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
-
-### ---------------------------- Dependencies ---------------------------------------------
-if("bettermc" %in% rownames(installed.packages()) == FALSE) {
-  install.packages("bettermc", repos = "http://cran.us.r-project.org")
-} 
-require("bettermc")
-
+suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
@@ -28,6 +22,7 @@ suppressPackageStartupMessages(library(parallel))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(vroom))
+
 # {
 #   # Manual startup
 #   source("src/snakefiles/functions.R")
@@ -119,7 +114,6 @@ suppressWarnings(
   dir.create(directory)
 )
 
-
 ### ---------------------------- (2) Proteome pre-processing --------------------------------------
 # Filter by minimal length and re-order by similarity from clustering
 dat <- dat[which(lapply(dat, nchar) >= min_protein_length)]
@@ -149,11 +143,8 @@ dat <- Split_list_max_length_parallel(String_list = dat,
 # Estimate chunks
 for (i in 1:nrow(Master_table)) {
   maxE <- Master_table$MaxE[i]
-  
   {
     orderedProteomeEntries <- names(dat)
-    
-    
     L = unlist(lapply(dat, nchar))
     # empirically derived for proteins > 300 aa
     numPSP = L*350

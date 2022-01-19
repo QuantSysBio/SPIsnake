@@ -1,5 +1,5 @@
 ### ---------------------------------------------- Generate PSP indices ----------------------------------------------
-# description:  Generate PSP indices
+# description:  Generate PSP indices (positions for string subsetting for every given protein length)
 #               
 # input:        
 #               peptide length, min_intervening_sequence length, output directory
@@ -12,14 +12,13 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
+suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(tidyr))
-#suppressPackageStartupMessages(library(parallel))
-require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
 
@@ -28,8 +27,14 @@ print("Loaded functions. Loading the data")
 print(sessionInfo())
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
+# {
+#   ### Manual startup
+#   filename = "results/DB_exhaustive/PSP_indices/10_25.rds"
+#   Ncpu = availableCores(27)
+#   max_protein_length = 100
+#   directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
+# }
 # Wildcard
-# filename = "results/DB_exhaustive/PSP_indices/10_25.rds"
 filename = snakemake@output[[1]]
 filename <- str_remove(filename, ".rds") %>%
   str_split_fixed(pattern = fixed("DB_exhaustive/PSP_indices/"), n = Inf)
@@ -46,7 +51,6 @@ Nmers = as.numeric(params$Nmers)
 MiSl = as.numeric(params$MiSl)
 
 # CPUs
-# Ncpu = availableCores(27)
 # Ncpu = availableCores(methods = "Slurm")
 Ncpu = snakemake@params[["cpus_for_R"]]
 cl <- parallel::makeForkCluster(Ncpu)
@@ -57,23 +61,17 @@ print(paste0("number of CPUs: ", Ncpu))
 
 # Save into chunks according to first N letters
 max_protein_length = as.integer(snakemake@params[["max_protein_length"]])
-# max_protein_length = 100
 
 # Output dir
 directory = snakemake@params[["directory"]]
-# directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
-suppressWarnings(
-  dir.create(paste0(directory, "/PSP_indices"))
-)
-
+suppressWarnings(dir.create(paste0(directory, "/PSP_indices")))
 
 ### ---------------------------- (2) Pre-compute PSP indices --------------------------------------
 {
   print(Sys.time())
   print(paste("Starting length: ", Nmers))
   
-  ## currently sp values are precalculated for every protein of length N between 1-1000
-  ## if your protein input does not contain certain lengths we could make this more efficient by omitting these
+  ## sp values are pre-calculated for every protein of length N between 1 - max_protein_length
   
   index_list <- list()
   ## generate proteins in length ranging from 1 to 1000 as
@@ -83,9 +81,9 @@ suppressWarnings(
     index_list[[n]] <- seq_sampl
   }
   
-  ## randomize and mc.preschedule=T lead to very balanced core utilization
+  ## randomization leads to balanced core usage
   index_list <- sample(index_list) 
-  ncharz <- sapply(index_list,nchar) ## this will later allow us to reorder the sample
+  ncharz <- sapply(index_list, nchar) ## this will later allow to reorder the sample
   
   index_list_result <- bettermc::mclapply(index_list, mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, mc.retry = 3,
                                 CutAndPaste_seq_return_sp, nmer = Nmers, MiSl=MiSl)
@@ -94,7 +92,6 @@ suppressWarnings(
 }
 
 ### ---------------------------- (3) Export --------------------------------------
-
 save(index_list_result, file = unlist(snakemake@output[["PSP_index"]]))
 
 print("----- memory usage by Slurm -----")

@@ -68,6 +68,7 @@ rule aggregate_IC50_prediction:
         ncpus = config["max_cpus"],
         mem = config["max_mem"] 
     params:
+        fst_compression = features["DB"]["fst_compression"],
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_DB_PTM_mz=dir_DB_PTM_mz,
         dir_IC50=dir_IC50,
@@ -92,6 +93,7 @@ rule predict_MHC_affinity:
         ncpus = config["max_cpus"],
         mem = config["max_mem"] 
     params:
+        fst_compression = features["DB"]["fst_compression"],
         dir_IC50=dir_IC50
     script:
         "05_2_netMHCpan.R"

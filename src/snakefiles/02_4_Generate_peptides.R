@@ -15,15 +15,15 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
+suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(fst))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(stringi))
-#suppressPackageStartupMessages(library(parallel))
-require("bettermc")
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(vroom))
@@ -33,24 +33,24 @@ print("Loaded functions. Loading the data")
 print(sessionInfo())
 
 # Manual startup
-{
-  # ##setwd("/home/yhorokh/Snakemake/SPIsnake-main")
-  # directory = "results/DB_exhaustive/"
-  # dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
-  # Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-  # filename = "results/DB_exhaustive/Seq_stats/8_cis-PSP_Unimod_25_Measles_CDS_6_frame_1_48.fasta.csv.gz"
-  # index_length = 1
-  # max_protein_length = 100
-  # 
-  # 
-  # filename <- str_remove(filename, ".csv.gz") %>%
-  #   str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
-  # filename <- filename[,2]
-  # print(filename)
-  # 
-  # params <- Master_table_expanded[Master_table_expanded$filename == filename,]
-  # print(t(params))
-}
+# {
+#   ### setwd("/home/yhorokh/Snakemake/SPIsnake-main")
+#   directory = "results/DB_exhaustive/"
+#   dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
+#   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
+#   filename = "results/DB_exhaustive/Seq_stats/8_cis-PSP__25_Measles_CDS_6_frame_1_96.fasta.fst"
+#   index_length = 1
+#   max_protein_length = 100
+#   Ncpu = 7
+# 
+#   filename <- str_remove(filename, ".fst") %>%
+#     str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
+#   filename <- filename[,2]
+#   print(filename)
+# 
+#   params <- Master_table_expanded[Master_table_expanded$filename == filename,]
+#   print(t(params))
+# }
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
 # Master_table_expanded
@@ -61,12 +61,8 @@ dir_DB_Fasta_chunks = snakemake@params[["dir_DB_Fasta_chunks"]]
 
 # Output dir
 directory = snakemake@params[["directory"]]
-suppressWarnings(
-  dir.create(paste0(directory, "/peptide_seqences"))
-)
-suppressWarnings(
-  dir.create(paste0(directory, "/peptide_mapping"))
-)
+suppressWarnings(dir.create(paste0(directory, "/peptide_seqences")))
+suppressWarnings(dir.create(paste0(directory, "/peptide_mapping")))
 
 # Wildcard
 filename = snakemake@output[[1]]
@@ -125,6 +121,8 @@ if (grepl("cis-PSP", Splice_type)==T) {
   load(paste0(directory, "/PSP_indices/", index_list_result, ".rds"))
 }
 
+# fst compression level
+fst_compression = as.integer(snakemake@params[["fst_compression"]])
 
 ### ---------------------------- (2) Compute PCP and PSP --------------------------------------
 print(Sys.time())
@@ -175,12 +173,11 @@ print("Added length")
   Seq_stats_dir <- paste0(directory, "/Seq_stats/")
   suppressWarnings(dir.create(Seq_stats_dir))
 }
-vroom_write(Seq_stats, 
+vroom_write(Seq_stats,
             delim = ",", num_threads = Ncpu,
             unlist(snakemake@output[["Seq_stats"]]))
 print("Saved sequence stats")
 print(Sys.time())
-
 
 ### ------------------------------------------ (4) Save peptides and mapping ------------------------------------------
 PCP %>%
@@ -190,15 +187,12 @@ PCP %>%
   filter(!(str_detect(peptide, exclusion_pattern) | 
              !str_length(peptide) == Nmers)) %>%
   unique() %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PCP_map_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu)) %>%
+  group_walk(~ write_fst(.x, 
+                         paste0(directory, "/peptide_mapping/PCP_map_",.y$index, "_", filename, ".fst"), compress = fst_compression)) %>%
   select(peptide) %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PCP_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu))
+  group_walk(~ write_fst(.x, 
+                         paste0(directory, "/peptide_seqences/PCP_",.y$index, "_", filename, ".fst"), compress = fst_compression))
 print("Saved PCP")
-
 
 PSP %>%
   lazy_dt() %>%
@@ -207,17 +201,13 @@ PSP %>%
   filter(!(str_detect(peptide, exclusion_pattern) | 
              !str_length(peptide) == Nmers)) %>%
   unique() %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_mapping/PSP_map_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu)) %>%
+  group_walk(~ write_fst(.x, 
+                           paste0(directory, "/peptide_mapping/PSP_map_",.y$index, "_", filename, ".fst"), compress = fst_compression)) %>%
   select(peptide) %>%
-  group_walk(~ vroom_write(.x, 
-                           pipe(sprintf("pigz > %s", paste0(directory, "/peptide_seqences/PSP_",.y$index, "_", filename, ".csv.gz"))),
-                           delim = ",", num_threads = Ncpu))
-
+  group_walk(~ write_fst(.x, 
+                         paste0(directory, "/peptide_seqences/PSP_",.y$index, "_", filename, ".fst"), compress = fst_compression))
 print("Saved PSP")
 print(Sys.time())
-
 
 print("----- memory usage by Slurm -----")
 jobid = system("echo $SLURM_JOB_ID")
@@ -226,7 +216,6 @@ system(paste0("sstat ", jobid)) %>%
 
 system("sacct --format='JobID,JobName,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
   print()
-
 
 print("----- memory usage by R -----")
 memory.profile() %>%
@@ -243,5 +232,3 @@ parallel::stopCluster(cl)
 print("----- garbage collection -----")
 gc() %>%
   print()
-
-

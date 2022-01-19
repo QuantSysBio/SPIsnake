@@ -1,11 +1,13 @@
 ### ---------------------------------------------- Define RT train  ----------------------------------------------
-# description:
+# description:  Evaluate retention time (RT) prediction accuracy.
+#               If achrom algorithm is used, predictions are made at once
+#               If AutoRT algorithm is used, commands are defined
 #               
 # input:        1. RT calibration datasets: sequence + time (seconds)
 #               2. Parameters: n_folds, train_proportion
 # output:       
-#               A table with a single line per combination of parameters across calibration datasets. 
-#               Data split into train/test sets
+#               - A table with a single line per combination of parameters across calibration datasets. 
+#               - Data split into train/test sets
 #               
 # author:       YH
 
@@ -30,6 +32,7 @@ suppressPackageStartupMessages(library(vroom))
 #   dir_RT_calibration = "data/RT_calibration/"
 #   dir_RT_prediction = "results/RT_prediction/"
 # }
+
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 print(sessionInfo())
@@ -40,22 +43,12 @@ cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
 
-### Future scripts require this package
-if("arrangements" %in% rownames(installed.packages()) == FALSE) {
-  install.packages("arrangements", repos = "http://cran.us.r-project.org")
-} 
-require("arrangements")
-
 ### ---------------------------- (1) Read inputs ----------------------------
-# AutoRT
-method = as.character(snakemake@params[["method"]])
-url = as.character(snakemake@params[["url"]])
-if (method == "AutoRT") {
-system(paste("git clone", url, "bin/AutoRT"))
-}
-
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
+
+# Retention time prediction method
+method = as.character(snakemake@params[["method"]])
 
 # train/test split
 n_folds = as.integer(snakemake@params[["n_folds"]])
@@ -218,16 +211,16 @@ if (method == "AutoRT") {
   # Train commands
   cmd_RT_train <- c()
   for (i in seq_along(train_RT)) {
-    cmd_RT_train[i] <- paste("python bin/AutoRT/autort.py train -i", train_RT[i] ,
+    cmd_RT_train[i] <- paste("python /bin/AutoRT/autort.py train -i", train_RT[i] ,
                              "-o", out_RT[i] ,
-                             "-e 40 -b 64 -u m -m bin/AutoRT/models/general_base_model/model.json",
+                             "-e 40 -b 64 -u m -m /bin/AutoRT/models/general_base_model/model.json",
                              "--add_ReduceLROnPlateau --early_stop_patience 10")
   }
   
   # Predict commands
   cmd_RT_test <- c()
   for (i in seq_along(pred_RT)) {
-    cmd_RT_test[i] <- paste("python bin/AutoRT/autort.py predict --test", 
+    cmd_RT_test[i] <- paste("python /bin/AutoRT/autort.py predict --test", 
                             paste0(str_replace_all(pred_RT[i], pattern = "results/RT_prediction/predict/", replacement = "results/RT_prediction/test/"), ".tsv"),
                             "-s", 
                             paste0(str_replace_all(pred_RT[i], pattern = "results/RT_prediction/predict/", replacement = "results/RT_prediction/RT_models/"), "/model.json"),

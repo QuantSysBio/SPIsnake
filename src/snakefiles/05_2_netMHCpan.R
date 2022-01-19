@@ -1,7 +1,6 @@
 ### ---------------------------------------------- Predict_MHC-I_affinity ----------------------------------------------
 # description:  Predict MHC-I affinity for a given combination of alleles and save the filtered peptides 
 #               
-#               
 # input:        1. Peptide sequences generated in chunks
 #               2. Parameters: Master_table_expanded
 # output:       
@@ -18,13 +17,13 @@
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 
+suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(fst))
 suppressPackageStartupMessages(library(seqinr))
 suppressPackageStartupMessages(library(stringr))
-#suppressPackageStartupMessages(library(parallel))
-suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(vroom))
 
@@ -56,10 +55,14 @@ suppressWarnings(dir.create(paste0(dir_IC50, "/IC50_filtered_peptides")))
 Ncpu = availableCores()
 setDTthreads(Ncpu)
 
+# fst compression level
+fst_compression = as.integer(snakemake@params[["fst_compression"]])
+
 ### ---------------------------------------------- Predict binding --------------------------------------------------
 print(head(Experiment_design))
 
 IC50_aggregation_table <- Experiment_design %>%
+  filter(!(is.na(`MHC-I_alleles`) | is.na(Affinity_threshold))) %>%
   tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]") %>%
   mutate(allele = str_squish(`MHC-I_alleles`),
          Affinity_threshold = str_squish(Affinity_threshold)) %>%
@@ -73,7 +76,7 @@ cmd_netMHCpan <- cmd_netMHCpan %>%
   mutate(output_file = str_remove_all(output_file, " -v")) %>%
   left_join(IC50_aggregation_table)
 
-# Unselect commands that have already been executed
+# Deselect commands that have already been executed
 ready <- list.files(paste0(dir_IC50, "netMHCpan_output")) %>%
   str_c(collapse = "|")
 
@@ -143,9 +146,7 @@ IC50_filter_stats <- bettermc::mclapply(X = output_files_unique, mc.cores = Ncpu
       str_replace(pattern = "netMHCpan_output", replacement = "IC50_filtered_peptides")
     
     # Save filtered peptides
-    binders_df %>%
-      vroom_write(append = FALSE, col_names = TRUE, delim = ",",
-                  file = paste0(output_name, "_", AT,".csv.gz"))
+    write_fst(binders_df, path = paste0(output_name, "_", AT,".fst"), compress = fst_compression)
     
     # Save stats
     IC50_filter_stats_AT[[AT]] <- cmd_netMHCpan %>%
