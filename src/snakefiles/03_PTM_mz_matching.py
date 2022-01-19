@@ -87,6 +87,7 @@ rule PTM_mz_RT_matching:
         netMHCpan_chunk=features["DB"]["netMHCpan_chunk"],
         max_variable_PTM=features["DB"]["max_variable_PTM"],
         generate_spliced_PTMs=features["DB"]["generate_spliced_PTMs"],
+        fst_compression = features["DB"]["fst_compression"],
         cpus_for_R = config["max_cpus"]
     script:
         "03_2_PTM_mz_RT_matching.R"
