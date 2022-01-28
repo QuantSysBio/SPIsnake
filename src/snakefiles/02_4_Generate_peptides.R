@@ -38,12 +38,12 @@ print(sessionInfo())
 #   directory = "results/DB_exhaustive/"
 #   dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
 #   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-#   filename = "results/DB_exhaustive/Seq_stats/8_cis-PSP__25_Measles_CDS_6_frame_1_96.fasta.fst"
-#   index_length = 1
+#   filename = "results/DB_exhaustive/Seq_stats/15_cis-PSP_Minimal_25_SwissProt_UP000005640_11600_12273.fasta.csv.gz"
+#   index_length = 2
 #   max_protein_length = 100
 #   Ncpu = 7
 # 
-#   filename <- str_remove(filename, ".fst") %>%
+#   filename <- str_remove(filename, ".csv.gz") %>%
 #     str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
 #   filename <- filename[,2]
 #   print(filename)
@@ -180,32 +180,42 @@ print("Saved sequence stats")
 print(Sys.time())
 
 ### ------------------------------------------ (4) Save peptides and mapping ------------------------------------------
-PCP %>%
-  lazy_dt() %>%
-  mutate(index = str_sub(peptide, 1, index_length)) %>%
-  group_by(index) %>%
-  filter(!(str_detect(peptide, exclusion_pattern) | 
-             !str_length(peptide) == Nmers)) %>%
-  unique() %>%
-  group_walk(~ write_fst(.x, 
-                         paste0(directory, "/peptide_mapping/PCP_map_",.y$index, "_", filename, ".fst"), compress = fst_compression)) %>%
-  select(peptide) %>%
-  group_walk(~ write_fst(.x, 
-                         paste0(directory, "/peptide_seqences/PCP_",.y$index, "_", filename, ".fst"), compress = fst_compression))
+PCP[, index := str_sub(peptide, start = 1, end = index_length)] %>%
+  split(by = "index", drop = T, keep.by = T) %>%
+  bettermc::mclapply(mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+    x <- x[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers)]
+    
+    if (nrow(x) > 0) {
+      index <- x$index[[1]]
+      
+      x[, .(protein, peptide)] %>% 
+        write_fst(path = paste0(directory, "/peptide_mapping/PCP_map_", index, "_", filename, ".fst"), compress = fst_compression) 
+      
+      x[, .(peptide)] %>% 
+        unique() %>%
+        write_fst(path = paste0(directory, "/peptide_seqences/PCP_", index, "_", filename, ".fst"), compress = fst_compression) 
+    }
+  }) %>%
+  capture.output()
 print("Saved PCP")
 
-PSP %>%
-  lazy_dt() %>%
-  mutate(index = str_sub(peptide, 1, index_length)) %>%
-  group_by(index) %>%
-  filter(!(str_detect(peptide, exclusion_pattern) | 
-             !str_length(peptide) == Nmers)) %>%
-  unique() %>%
-  group_walk(~ write_fst(.x, 
-                           paste0(directory, "/peptide_mapping/PSP_map_",.y$index, "_", filename, ".fst"), compress = fst_compression)) %>%
-  select(peptide) %>%
-  group_walk(~ write_fst(.x, 
-                         paste0(directory, "/peptide_seqences/PSP_",.y$index, "_", filename, ".fst"), compress = fst_compression))
+PSP[, index := str_sub(peptide, start = 1, end = index_length)] %>%
+  split(by = "index", drop = T, keep.by = T) %>%
+  bettermc::mclapply(mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+    x <- x[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers)]
+    
+    if (nrow(x) > 0) {
+      index <- x$index[[1]]
+      
+      x[, .(protein, peptide)] %>% 
+        write_fst(path = paste0(directory, "/peptide_mapping/PSP_map_", index, "_", filename, ".fst"), compress = fst_compression) 
+      
+      x[, .(peptide)] %>% 
+        unique() %>%
+        write_fst(path = paste0(directory, "/peptide_seqences/PSP_", index, "_", filename, ".fst"), compress = fst_compression)
+    }
+  }) %>%
+  capture.output()
 print("Saved PSP")
 print(Sys.time())
 

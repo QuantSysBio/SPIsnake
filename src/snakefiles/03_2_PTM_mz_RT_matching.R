@@ -49,7 +49,7 @@ print(sessionInfo())
   print(tmp_file)
 }
 
-### ---------------------------- (1) Read input file and extract info ----------------------------
+# ---------------------------- (1) Read input file and extract info ----------------------------
 # {
 #   ### Manual setup
 #   # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
@@ -62,7 +62,7 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 # 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/W_15.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/RE_15.csv"
 #   filename <- filename %>%
 #     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
@@ -149,8 +149,20 @@ retry_times = 3
 fst_compression = as.integer(snakemake@params[["fst_compression"]])
 
 ### ---------------------------- End user variables ----------------------------
+if (method == "achrom") {
+  use_condaenv("R_env_reticulate")
+  pyteomics <- import("pyteomics")
+  
+  py_run_string("
+import glob
+import pandas as pd
+from pyteomics import achrom
+import numpy
+rcond = None
+")}
+
 # Proteinogenic AAs
-AA = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
+AA = c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y")
 
 ### Mass_lists
 # Only user defined lists will be used 
@@ -190,7 +202,7 @@ if (operation_mode == "Update") {
   processed_files <- vroom(file = paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/", processed_files), delim = ",",  show_col_types = FALSE)
 }
 
-### ---------------------------- (3) Uniqueness --------------------------------------
+### ---------------------------- (3) Define file processing --------------------------------------
 # Select all files with the same {AA-index}{length}
 peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pattern = ".fst", full.names = T) %>%
   as_tibble() %>%
@@ -199,7 +211,7 @@ peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pat
   mutate(Splice_type = str_split_fixed(file, "_", n = 2)[,1]) %>%
   mutate(file = str_sub(file, start = nchar(Splice_type) + 2)) %>%
   mutate(AA_length = str_c(str_split_fixed(file, "_", n = 3)[,1],
-                            str_split_fixed(file, "_", n = 3)[,2], sep = "_")) %>%
+                           str_split_fixed(file, "_", n = 3)[,2], sep = "_")) %>%
   filter(AA_length == filename) %>%
   # add proteome
   mutate(Proteome = str_extract(file, str_c(unique(Master_table_expanded$Proteome), collapse = "|"))) %>%
@@ -233,6 +245,15 @@ if (operation_mode == "Update") {
   rm(tmp1, tmp2, keep)
 }
 
+# ### FOR TESTING !
+# if ("SwissProt_UP000005640" %in% peptide_chunks$Proteome) {
+#   peptide_chunks <- peptide_chunks[peptide_chunks$Splice_type == "PSP",]
+#   peptide_chunks <- peptide_chunks[peptide_chunks$Proteome == "SwissProt_UP000005640",]
+#   Proteome_i = "SwissProt_UP000005640"
+#   enzyme_type = "PCP"
+# #  peptide_chunks <- peptide_chunks[1:10,] %>% na.omit()
+# }
+
 # End the script if no files to be updated
 if (nrow(peptide_chunks) == 0) {
   print("Looks like there are no new peptides to be processed")
@@ -261,9 +282,6 @@ if (nrow(peptide_chunks) == 0) {
   names(MS_mass_lists_data) <- MS_mass_lists$mass_list
   
   ### ---------------------------- Start filtering  --------------------------------------
-  # Proteome_i = Proteomes[2]
-  # enzyme_type = enzyme_types[1]
-  
   filename_exports <- c()
   for (Proteome_i in Proteomes) {
     peptide_chunks_tmp <- peptide_chunks[peptide_chunks$Proteome == Proteome_i,]
@@ -275,25 +293,39 @@ if (nrow(peptide_chunks) == 0) {
       
       ### Load peptide sequences
       input <- peptides %>%
-        lapply(read_fst, as.data.table = TRUE) %>%
-        rbindlist() 
-      cat("Reading in", enzyme_type, "sequences: Done\n",
+        bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
+                           FUN = read_fst, as.data.table = TRUE, columns = "peptide") %>%
+        rbindlist() %>%
+        setkey(cols = "peptide")
+      cat("Reading in", Proteome_i, enzyme_type, "sequences: Done\n",
           as.character(Sys.time()), "\n")
       
       ### ---------------------------- (4) Compute MW --------------------------------------
-      ### And check for peptide uniqueness
-      input[, index := str_sub(peptide, start = 3, end = 3)]
+      ### Define chunking strategy
+      chunk_size = 1 * 10^5
+      if (nrow(input) < chunk_size) {
+        chunk_size = 1 * 10^4
+      }
+      n_chunks = ceiling((nrow(input) / chunk_size))
+      print(paste0("Creating ", n_chunks, " chunks"))       
       
-      input <- input %>%
-        setorder(index) %>%
-        split(by = "index", drop = T) %>%
-        bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
-          x %>%
-            lazy_dt() %>%
-            unique() %>%
-            mutate(MW=computeMZ_biostrings(peptide)) %>%
-            as.data.table()
-        }) 
+      input <- input %>% 
+        split(f = rep(1:n_chunks, each=chunk_size, length.out = nrow(input)),
+              drop = T, keep.by = F) 
+      
+      ### Compute MW block-wise
+      running_block = 1
+      block_size = 10
+      for (running_block in 1:ceiling(n_chunks/(Ncpu*block_size))) {
+        keep <- (block_size*running_block*Ncpu-block_size*Ncpu + 1) : (block_size*running_block*Ncpu)
+        keep <- keep[keep <= n_chunks]
+        input[keep] <- input[keep] %>%
+          bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
+                             FUN = function(x){
+                               unique(x)[, MW := computeMZ_biostrings(peptide)]
+                             })
+        running_block <- running_block + 1
+      }
       cat("MW", enzyme_type, ": Done\n",
           as.character(Sys.time()), "\n")
       
@@ -318,24 +350,22 @@ if (nrow(peptide_chunks) == 0) {
           for (input_i in seq_along(input)) {
             print(paste("Generating PTMs for:", names(input)[[input_i]]))
             
-            # Additional split by 4th peptide letter to reduce RAM usage
-            input_PTM_j <- list(input[[input_i]]) %>%
-              lapply(function(x){
-                x[, index4 := str_sub(peptide, start = 4, end = 4)]
-                x <- setorder(x, index4)
-                x <- split(x, by = "index4", drop = T, keep.by = F)
-                return(x)
-              }) %>%
-              unlist(recursive = FALSE)
+            # Additional split to reduce RAM usage
+            chunk_size_PTM = 1 * 10^2
+            n_chunks_PTM = round((nrow(input[[input_i]]) / chunk_size_PTM))
+            
+
+            print(paste("Starting split 1 by  10^2"))
+            input_PTM_j <- input[[input_i]] 
+            input_PTM_j <- input_PTM_j[sample(1:nrow(input_PTM_j)), ] %>% 
+              split(f = rep(1:n_chunks_PTM, each=chunk_size_PTM, length.out = nrow(input[[input_i]])),
+                    drop = T, keep.by = F)
+              print(paste("Finished split 1 by  10^2"))
             
             for (PTM_j in seq_along(input_PTM_j)) {
-              input_PTM <- input_PTM_j[[PTM_j]] %>%
-                select(peptide, MW) %>%
-                as.data.table() %>%
-                split(by = "peptide", drop = T)
-              
-              tmp = input_PTM %>%
-                bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+              tmp <- input_PTM_j[[PTM_j]] %>%
+                split(by = "peptide", drop = T) %>%
+                bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
                   PTMcombinations = getPTMcombinations_fast(c(x$peptide, x$MW), 
                                                             NmaxMod = max_variable_PTM, 
                                                             mods_input = mods)
@@ -373,36 +403,32 @@ if (nrow(peptide_chunks) == 0) {
                   }
                   return(list(PTM_MW_out,PTM_pep_stats))
                 })
-            }
-            # Save modified peptides
-            counter_fst = counter_fst + 1
-            
-            rbindlist(lapply(tmp, `[[`, 1)) %>%
-              write_fst(path = paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/", enzyme_type, "_", filename, "_", PTM, "_", counter_fst, ".fst"), 
-                compress = fst_compression)
-            
-            # Save PTM generation stats
-            rbindlist(lapply(tmp, `[[`, 2)) %>%
-              write_fst(path = paste0(dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", PTM, "_", counter_fst, ".fst"), 
-                compress = fst_compression)
-            rm(tmp)
-          }
-          rm(input_PTM_j)
-        }
-        rm(input_PTM)
-      }
+              # Save modified peptides
+              counter_fst = counter_fst + 1
+              
+              rbindlist(lapply(tmp, `[[`, 1)) %>%
+                # write_fst(path = paste0(
+                #   dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, "_", counter_fst, ".fst"), 
+                #   compress = fst_compression)
+                vroom_write(paste0(
+                  dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, ".csv.gz"), 
+                  delim = ",", append = T, num_threads = Ncpu)
+              
+              # Save PTM generation stats
+              rbindlist(lapply(tmp, `[[`, 2)) %>%
+                # write_fst(path = paste0(
+                #   dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, "_", counter_fst, ".fst"), 
+                #   compress = fst_compression)
+                vroom_write(paste0(
+                  dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, ".csv.gz"), 
+                  delim = ",", append = T, num_threads = Ncpu)
+              rm(tmp)
+            } # end 5th-letter indexed PTM generation
+            rm(input_PTM_j)
+          } # end input_i
+        } # end PTM
+      } # end PTM generation
       ### ---------------------------- (6) MW & RT matching --------------------------------------
-      if (method == "achrom") {
-        use_condaenv("R_env_reticulate")
-        pyteomics <- import("pyteomics")
-        
-        py_run_string("
-import glob
-import pandas as pd
-from pyteomics import achrom
-import numpy
-rcond = None
-")}
       for (j in 1:nrow(MS_mass_lists)) {
         print(MS_mass_lists$mass_list[j])
         MS_mass_list <- MS_mass_lists$mass_list[j]
@@ -414,11 +440,18 @@ rcond = None
         # Calibration input
         mzList = MS_mass_lists_data[[j]]
         
-        # Which peptide sequences pass the MW filter
-        tmp <- input %>%
-          bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
-            x[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
-          })
+        # MW filter block-wise
+        tmp <- vector(mode = "list", length = length(input))
+        running_block = 1
+        for (running_block in 1:ceiling(n_chunks/(Ncpu*block_size))) {
+          keep <- (block_size*running_block*Ncpu-block_size*Ncpu + 1) : (block_size*running_block*Ncpu)
+          keep <- keep[keep <= n_chunks]
+          tmp[keep] <- input[keep] %>%
+            bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
+              x[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
+                               })
+          running_block <- running_block + 1
+        }
         
         cat("MW filter: Done\n",
             as.character(Sys.time()), "\n")
@@ -429,43 +462,41 @@ rcond = None
                              mass_list = MS_mass_list,
                              unique_peptides = sum(unlist(lapply(input, nrow))),
                              mz_matched_peptides = sum(unlist(lapply(tmp, nrow))))
-        
+
         ### ----------------------------- Predict RT for m/z matched peptides -----------------------------
         if (method == "AutoRT") {
           # Save AutoRT input
           tmp <- tmp %>%
-            lapply(function(x){
-              # Save peptides for AutoRT prediction
-              x %>%
-                as_tibble() %>%
-                rename(x=peptide) %>%
-                select(x) %>%
-                vroom_write(file = paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", enzyme_type, "_", filename, "_", MS_mass_list, ".tsv"), 
-                            num_threads = Ncpu, append = F, delim = "\t")
-              
-              # AutoRT predict with pre-trained model
-              system(command = paste("python bin/AutoRT/autort.py predict --test", 
-                                     paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", enzyme_type, "_", filename, "_", MS_mass_list, ".tsv"),
-                                     "-s", paste0("results/RT_prediction/AutoRT_models/", MS_mass_list, "/model.json"),
-                                     "-o", paste0("results/RT_prediction/peptide_RT/", enzyme_type, "_", filename, "_", MS_mass_list)), 
-                     intern = T)
-              
-              # Import AutoRT
-              RT_pred <- vroom(paste0("results/RT_prediction/peptide_RT/", enzyme_type, "_", filename, "_", MS_mass_list, "/test.tsv"), show_col_types = FALSE)
-              x$RT_pred <- RT_pred$y_pred
-              return(x)
-            })
+            bettermc::mclapply(mc.cores = 1, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
+                  # Save peptides for AutoRT prediction
+                  x %>%
+                    as_tibble() %>%
+                    rename(x=peptide) %>%
+                    select(x) %>%
+                    vroom_write(file = paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", enzyme_type, "_", filename, "_", Proteome_i, "_", MS_mass_list, ".tsv"), 
+                                num_threads = Ncpu, append = F, delim = "\t")
+                  
+                  # AutoRT predict with pre-trained model
+                  system(command = paste("python bin/AutoRT/autort.py predict --test", 
+                                         paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", enzyme_type, "_", filename, "_", Proteome_i, "_", MS_mass_list, ".tsv"),
+                                         "-s", paste0("results/RT_prediction/AutoRT_models/", MS_mass_list, "/model.json"),
+                                         "-o", paste0("results/RT_prediction/peptide_RT/", enzyme_type, "_", filename, "_", MS_mass_list)), 
+                         intern = T)
+                  
+                  # Import AutoRT
+                  RT_pred <- vroom(paste0("results/RT_prediction/peptide_RT/", enzyme_type, "_", filename, "_", Proteome_i, "_", MS_mass_list, "/test.tsv"), show_col_types = FALSE)
+                  x$RT_pred <- RT_pred$y_pred
+                  return(x)
+                })
         } else if (method == "achrom") {
-          
           # Save unique peptides
           tmp %>%
-            lapply(function(x){
-              x %>%
-                as_tibble() %>%
-                select(-index) %>%
-                vroom_write(file = paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", enzyme_type, "_", filename, "_", MS_mass_list, ".tsv"), 
-                            num_threads = Ncpu, append = T, delim = "\t")
-            })
+            bettermc::mclapply(mc.cores = 1, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
+                x %>%
+                  as_tibble() %>%
+                  vroom_write(file = paste0("results/DB_PTM_mz/unique_peptides_mz_matched/", enzyme_type, "_", filename, "_", Proteome_i, "_", MS_mass_list, ".tsv"), 
+                              num_threads = Ncpu, append = T, delim = "\t")
+              })
           
           # Load parameters
           RCs <- readRDS(paste0("results/RT_prediction/RT_models/", MS_mass_list, "/achrom_RCs.rds"))
@@ -479,15 +510,14 @@ rcond = None
           exclusion_pattern <- AA[!AA %in% names(RCs$aa)] %>% str_c(collapse = "|")
           if (!exclusion_pattern == "") {
             tmp <- tmp %>%
-              mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+              bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
                 x[!str_detect(peptide, exclusion_pattern)]
               })
           }
-          tmp <- tmp[unlist(lapply(tmp, nrow)) > 0]
           
           ### Predict
-          not_empty_MS_mass_list <- length(tmp) > 0
-          # NA_MS_mass_list <- !is.na(nrow(tmp))
+        tmp <- tmp[unlist(lapply(tmp, nrow)) > 0]
+        not_empty_MS_mass_list <- length(tmp) > 0
           
           if (not_empty_MS_mass_list) {
             
@@ -500,10 +530,9 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   return out
 ")
             tmp <- tmp %>%
-              bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+              bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
                 pep = x %>%
                   lazy_dt() %>%
-                  select(-index) %>%
                   pull(peptide) 
                 if (length(pep) == 1) {
                   pep = c(pep, pep)
@@ -514,33 +543,28 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
                 }
                 x$RT_pred <- RT_pred$RT
                 return(x)
-              }) 
+              })
           }
         }
         cat("RT prediction: Done\n",
             as.character(Sys.time()), "\n")
         
         ### 2D filter: MW & RT
+        tmp <- tmp[unlist(lapply(tmp, nrow)) > 0]
         not_empty_MS_mass_list <- length(tmp) > 0
-        # NA_MS_mass_list <- !is.na(nrow(tmp))
         
         if (not_empty_MS_mass_list) {
-          
           tmp <- tmp %>%
-            # split(by = c("index"), drop = T) %>%
-            bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=F, 
-                               FUN = function(x){
-                                 x = x %>%
-                                   lazy_dt() %>%
-                                   select(-index) %>%
-                                   as.data.table()
-                                 x = mzList[x, on=.(MW_Min <= MW, MW_Max >= MW, 
-                                                    RT_Min <= RT_pred, RT_Max >= RT_pred), nomatch=0, 
-                                            .(peptide, MW, RT_pred)]
-                                 return(x)
-                               }) 
+            bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
+                out <- mzList[x, on=.(MW_Min <= MW, MW_Max >= MW, 
+                               RT_Min <= RT_pred, RT_Max >= RT_pred), nomatch=0, 
+                       .(peptide, MW, RT_pred)]
+                return(out)
+              })
         }
+        tmp <- tmp[unlist(lapply(tmp, nrow)) > 0]
         tmp <- rbindlist(tmp)
+        
         cat("2D MW/RT filter: Done\n",
             as.character(Sys.time()), "\n")
         
@@ -559,8 +583,10 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
       } # End 2D filter
     } # End enzyme type
   } # End proteome
+  rm(input)
   
   ### ----------------------------- Prepare NetMHCPan inputs ----------------------------- 
+  # filename_exports <- list.files("results/DB_PTM_mz/unique_peptides_mz_RT_matched/", pattern = "L_8", full.names = T)
   filename_exports <- filename_exports[file.exists(filename_exports)]
   names(filename_exports) <- str_split_fixed(filename_exports, "/unique_peptides_mz_RT_matched/", 2)[,2] %>%
     str_remove(".fst")
@@ -581,18 +607,24 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
     
     if (TRUE %in% keep) {
       # Export all unique peptides for a given allele
-      filename_exports[keep] %>%
-        lapply(FUN = read_fst, as.data.table = TRUE, columns = "peptide") %>%
+      peptide_exports <- filename_exports[keep] %>%
+        bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
+                           FUN = read_fst, as.data.table = TRUE, columns = "peptide") %>%
         rbindlist() %>%
-        lazy_dt() %>%
-        arrange(peptide) %>%
-        unique() %>%
-        mutate(netMHCpan_split = ceiling(seq_along(peptide)/netMHCpan_chunk)) %>%
-        group_by(netMHCpan_split) %>%
-        group_walk(~ vroom_write(.x, 
-                                 file = paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan/", 
-                                               filename, "_", allele, "_ch_", .y$netMHCpan_split ,".tsv"),
-                                 delim = "\t", num_threads = Ncpu, append = FALSE, col_names = FALSE))
+        setkey("peptide")
+      
+        peptide_exports[, netMHCpan_split := ceiling(seq_along(peptide)/netMHCpan_chunk)] %>%
+          split(by = "netMHCpan_split", drop = T, keep.by = T) %>%
+          bettermc::mclapply(mc.cores = 2, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+              netMHCpan_split <- x$netMHCpan_split[[1]]
+              
+              unique(x)[, .(peptide)] %>% 
+                vroom_write(file = paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan/", 
+                                          filename, "_", allele, "_ch_", netMHCpan_split ,".tsv"),
+                            delim = "\t", num_threads = Ncpu, append = FALSE, col_names = FALSE)            
+              
+          }) %>%
+          capture.output()
     }
   } 
   ### --------------------------------------(8) Chunk aggregation status (Snakemake output) --------------------------------------
