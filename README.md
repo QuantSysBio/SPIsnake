@@ -56,6 +56,8 @@ Check the resource usage of current Slurm jobs via:
 sacct --format='JobID,JobName,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'
 ```
 
+In case the pipeline crashes at `Define_RT_train`, remove the RT prediction folder from `results/` and re-execute the rule. Most likely, it will work now.
+
 ### Check job status
 Enter `squeue` on any of the nodes except the Mascot server to check which jobs are currently running.
 You can track the status of your job via the outfile (`data/SPIsnake/outfiles/*.out`). Alternatively, you can monitor the node occupancy by `ssh`-ing on the compute nodes and monitoring their activity.
