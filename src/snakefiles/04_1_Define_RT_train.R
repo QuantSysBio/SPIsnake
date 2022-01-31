@@ -24,7 +24,7 @@ suppressPackageStartupMessages(library(reticulate))
 suppressPackageStartupMessages(library(vroom))
 
 # {
-#   setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+#   ### setwd("/home/yhorokh/SNAKEMAKE/QSB_SPIsnake/")
 #   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
 #   method = "achrom"
 #   n_folds = 10
@@ -88,25 +88,31 @@ train <- train %>%
 # Save files
 for (i in seq_along(train)) {
   for (j in 1:n_folds) {
-
+    
     train_i = train[[i]] %>%
       ungroup() %>%
       select(peptide, RT) %>%
       unique() %>%
       slice_sample(prop = proportion_train)
     
-    AA_train <- data.frame(AA = rep(AA, times=length(train[[i]]$peptide)), 
-                           detected = str_detect(train[[i]]$peptide, rep(AA, times=length(train[[i]]$peptide)))) %>%
+    AA_train <- expand_grid(AA, 
+                            peptide = train[[i]]$peptide) %>%
+      mutate(detected = str_detect(peptide, AA)) %>%
+      select(AA, detected) %>%
+      as.data.frame() %>%
       table() %>%
       as.data.frame() %>%
       as_tibble() %>%
-      filter(detected == TRUE) %>%
+      filter(detected == T) %>%
       filter(Freq > 0)
     
     {
       # Make sure that every dataset's AA is in the training data (achrom requirement)
-      AA_presence <- data.frame(AA = rep(AA, times=length(train_i$peptide)), 
-                                detected = str_detect(train_i$peptide, rep(AA, times=length(train_i$peptide)))) %>%
+      AA_presence <- expand_grid(AA, 
+                                 peptide = train_i$peptide) %>%
+        mutate(detected = str_detect(peptide, AA)) %>%
+        select(AA, detected) %>%
+        as.data.frame() %>%
         table() %>%
         as.data.frame() %>%
         as_tibble() %>%
@@ -121,8 +127,11 @@ for (i in seq_along(train)) {
           unique() %>%
           slice_sample(prop = proportion_train)
         
-        AA_presence <- data.frame(AA = rep(AA, times=length(train_i$peptide)), 
-                                  detected = str_detect(train_i$peptide, rep(AA, times=length(train_i$peptide)))) %>%
+        AA_presence <- expand_grid(AA, 
+                                   peptide = train_i$peptide) %>%
+          mutate(detected = str_detect(peptide, AA)) %>%
+          select(AA, detected) %>%
+          as.data.frame() %>%
           table() %>%
           as.data.frame() %>%
           as_tibble() %>%
@@ -323,4 +332,3 @@ data.frame(number = seq_along(cmd_RT_test),
            cmd = cmd_RT_test)  %>%
   vroom_write(delim = ",", append = FALSE,
               file =  unlist(snakemake@output[["cmd_RT_test"]]), col_names = T)
-
