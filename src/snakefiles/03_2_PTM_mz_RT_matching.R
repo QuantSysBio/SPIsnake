@@ -50,54 +50,54 @@ print(sessionInfo())
 }
 
 # ---------------------------- (1) Read input file and extract info ----------------------------
-# {
-#   ### Manual setup
-#   # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-# 
-#   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
-#   Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
-#   Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
-#   dir_DB_exhaustive = "results/DB_exhaustive"
-#   dir_DB_PTM_mz = "results/DB_PTM_mz"
-#   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
-# 
-#   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/RE_15.csv"
-#   filename <- filename %>%
-#     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
-#   filename <- filename[,2] %>%
-#     str_remove(pattern = ".csv")
-#   print(filename)
-# 
-#   # Calibration
-#   MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
-#     as_tibble() %>%
-#     mutate(file = str_remove_all(value, ".txt"))
-#   RT_Performance_df <- vroom("results/RT_prediction/RT_Performance.csv", delim = ",", show_col_types = FALSE)
-# 
-#   ### CPUs
-#   Ncpu = availableCores()
-#   cl <- parallel::makeForkCluster(Ncpu)
-#   cl <- parallelly::autoStopCluster(cl)
-#   setDTthreads(Ncpu)
-# 
-#   # Save into chunks according to first N letters
-#   index_length = 1
-#   index_length_2 = 1
-#   netMHCpan_chunk = 10^5
-# 
-#   # RT prediction method
-#   method = as.character("achrom")
-# 
-#   # PTMs
-#   max_variable_PTM = 2
-#   generate_spliced_PTMs = FALSE
-# 
-#   # bettermc::mclapply params
-#   retry_times = 3
-# 
-#   fst_compression = 100
-# }
+{
+  ### Manual setup
+  # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+
+  Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
+  Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
+  Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
+  dir_DB_exhaustive = "results/DB_exhaustive"
+  dir_DB_PTM_mz = "results/DB_PTM_mz"
+  suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
+
+  # Wildcard
+  filename = "results/DB_PTM_mz/chunk_aggregation_status/RE_15.csv"
+  filename <- filename %>%
+    str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
+  filename <- filename[,2] %>%
+    str_remove(pattern = ".csv")
+  print(filename)
+
+  # Calibration
+  MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
+    as_tibble() %>%
+    mutate(file = str_remove_all(value, ".txt"))
+  RT_Performance_df <- vroom("results/RT_prediction/RT_Performance.csv", delim = ",", show_col_types = FALSE)
+
+  ### CPUs
+  Ncpu = availableCores()
+  cl <- parallel::makeForkCluster(Ncpu)
+  cl <- parallelly::autoStopCluster(cl)
+  setDTthreads(Ncpu)
+
+  # Save into chunks according to first N letters
+  index_length = 1
+  index_length_2 = 1
+  netMHCpan_chunk = 10^5
+
+  # RT prediction method
+  method = as.character("achrom")
+
+  # PTMs
+  max_variable_PTM = 2
+  generate_spliced_PTMs = FALSE
+
+  # bettermc::mclapply params
+  retry_times = 3
+
+  fst_compression = 100
+}
 
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
@@ -509,10 +509,18 @@ if (nrow(peptide_chunks) == 0) {
           # Exclusion pattern: peptides containing these letters will be omitted
           exclusion_pattern <- AA[!AA %in% names(RCs$aa)] %>% str_c(collapse = "|")
           if (!exclusion_pattern == "") {
-            tmp <- tmp %>%
-              bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
-                x[!str_detect(peptide, exclusion_pattern)]
-              })
+            n_chunks = length(tmp)
+            running_block = 1
+            for (running_block in 1:ceiling(n_chunks/(Ncpu*block_size))) {
+              keep <- (block_size*running_block*Ncpu-block_size*Ncpu + 1) : (block_size*running_block*Ncpu)
+              keep <- keep[keep <= n_chunks]
+              tmp[keep] <- tmp[keep] %>%
+                bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
+                                   FUN = function(x){
+                                     x[!str_detect(peptide, exclusion_pattern)]
+                                   })
+              running_block <- running_block + 1
+            }
           }
           
           ### Predict
@@ -528,22 +536,30 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
     lambda x : achrom.calculate_RT(x, RCs, raise_no_mod=False)
   )
   return out
-")
-            tmp <- tmp %>%
-              bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
-                pep = x %>%
-                  lazy_dt() %>%
-                  pull(peptide) 
-                if (length(pep) == 1) {
-                  pep = c(pep, pep)
-                  RT_pred = data.table(RT = as.numeric(py_calls$achrom_calculate_RT(pep, RCs, r_to_py(FALSE)))) %>%
-                    unique()
-                } else {
-                  RT_pred = data.table(RT = as.numeric(py_calls$achrom_calculate_RT(pep, RCs, r_to_py(FALSE))))
-                }
-                x$RT_pred <- RT_pred$RT
-                return(x)
-              })
+")          
+            n_chunks = length(tmp)
+            running_block = 1
+            for (running_block in 1:ceiling(n_chunks/(Ncpu*block_size))) {
+              keep <- (block_size*running_block*Ncpu-block_size*Ncpu + 1) : (block_size*running_block*Ncpu)
+              keep <- keep[keep <= n_chunks]
+              tmp[keep] <- tmp[keep] %>%
+                bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
+                                   FUN = function(x){
+                                     pep = x %>%
+                                       lazy_dt() %>%
+                                       pull(peptide) 
+                                     if (length(pep) == 1) {
+                                       pep = c(pep, pep)
+                                       RT_pred = data.table(RT = as.numeric(py_calls$achrom_calculate_RT(pep, RCs, r_to_py(FALSE)))) %>%
+                                         unique()
+                                     } else {
+                                       RT_pred = data.table(RT = as.numeric(py_calls$achrom_calculate_RT(pep, RCs, r_to_py(FALSE))))
+                                     }
+                                     x$RT_pred <- RT_pred$RT
+                                     return(x)
+                                   })
+              running_block <- running_block + 1
+            }
           }
         }
         cat("RT prediction: Done\n",
@@ -552,15 +568,23 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
         ### 2D filter: MW & RT
         tmp <- tmp[unlist(lapply(tmp, nrow)) > 0]
         not_empty_MS_mass_list <- length(tmp) > 0
-        
+
         if (not_empty_MS_mass_list) {
-          tmp <- tmp %>%
-            bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, FUN = function(x){
-                out <- mzList[x, on=.(MW_Min <= MW, MW_Max >= MW, 
-                               RT_Min <= RT_pred, RT_Max >= RT_pred), nomatch=0, 
-                       .(peptide, MW, RT_pred)]
-                return(out)
-              })
+          n_chunks = length(tmp)
+          running_block = 1
+          for (running_block in 1:ceiling(n_chunks/(Ncpu*block_size))) {
+            keep <- (block_size*running_block*Ncpu-block_size*Ncpu + 1) : (block_size*running_block*Ncpu)
+            keep <- keep[keep <= n_chunks]
+            tmp[keep] <- tmp[keep] %>%
+              bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
+                                 FUN = function(x){
+                                   out <- mzList[x, on=.(MW_Min <= MW, MW_Max >= MW, 
+                                                         RT_Min <= RT_pred, RT_Max >= RT_pred), nomatch=0, 
+                                                 .(peptide, MW, RT_pred)]
+                                   return(out)
+                                 })
+            running_block <- running_block + 1
+          }
         }
         tmp <- tmp[unlist(lapply(tmp, nrow)) > 0]
         tmp <- rbindlist(tmp)
@@ -577,6 +601,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
           filename_exports <- c(filename_exports,
                                 paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", enzyme_type, "_", 
                                        filename, "_", Proteome_i, "_", MS_mass_lists$mass_list[j],".fst"))
+          threads_fst(nr_of_threads = Ncpu)
           write_fst(tmp, path = last(filename_exports), compress = fst_compression)
         }
         rm(tmp)
