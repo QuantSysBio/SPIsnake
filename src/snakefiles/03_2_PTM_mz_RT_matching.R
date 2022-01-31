@@ -50,54 +50,54 @@ print(sessionInfo())
 }
 
 # ---------------------------- (1) Read input file and extract info ----------------------------
-{
-  ### Manual setup
-  # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-
-  Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
-  Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
-  Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
-  dir_DB_exhaustive = "results/DB_exhaustive"
-  dir_DB_PTM_mz = "results/DB_PTM_mz"
-  suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
-
-  # Wildcard
-  filename = "results/DB_PTM_mz/chunk_aggregation_status/RE_15.csv"
-  filename <- filename %>%
-    str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
-  filename <- filename[,2] %>%
-    str_remove(pattern = ".csv")
-  print(filename)
-
-  # Calibration
-  MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
-    as_tibble() %>%
-    mutate(file = str_remove_all(value, ".txt"))
-  RT_Performance_df <- vroom("results/RT_prediction/RT_Performance.csv", delim = ",", show_col_types = FALSE)
-
-  ### CPUs
-  Ncpu = availableCores()
-  cl <- parallel::makeForkCluster(Ncpu)
-  cl <- parallelly::autoStopCluster(cl)
-  setDTthreads(Ncpu)
-
-  # Save into chunks according to first N letters
-  index_length = 1
-  index_length_2 = 1
-  netMHCpan_chunk = 10^5
-
-  # RT prediction method
-  method = as.character("achrom")
-
-  # PTMs
-  max_variable_PTM = 2
-  generate_spliced_PTMs = FALSE
-
-  # bettermc::mclapply params
-  retry_times = 3
-
-  fst_compression = 100
-}
+# {
+#   ### Manual setup
+#   # setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+# 
+#   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv")
+#   Peptide_aggregation_table <- vroom("results/DB_PTM_mz/Peptide_aggregation_table.csv", delim = ",")
+#   Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
+#   dir_DB_exhaustive = "results/DB_exhaustive"
+#   dir_DB_PTM_mz = "results/DB_PTM_mz"
+#   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
+# 
+#   # Wildcard
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/RE_15.csv"
+#   filename <- filename %>%
+#     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
+#   filename <- filename[,2] %>%
+#     str_remove(pattern = ".csv")
+#   print(filename)
+# 
+#   # Calibration
+#   MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
+#     as_tibble() %>%
+#     mutate(file = str_remove_all(value, ".txt"))
+#   RT_Performance_df <- vroom("results/RT_prediction/RT_Performance.csv", delim = ",", show_col_types = FALSE)
+# 
+#   ### CPUs
+#   Ncpu = availableCores()
+#   cl <- parallel::makeForkCluster(Ncpu)
+#   cl <- parallelly::autoStopCluster(cl)
+#   setDTthreads(Ncpu)
+# 
+#   # Save into chunks according to first N letters
+#   index_length = 1
+#   index_length_2 = 1
+#   netMHCpan_chunk = 10^5
+# 
+#   # RT prediction method
+#   method = as.character("achrom")
+# 
+#   # PTMs
+#   max_variable_PTM = 2
+#   generate_spliced_PTMs = FALSE
+# 
+#   # bettermc::mclapply params
+#   retry_times = 3
+# 
+#   fst_compression = 100
+# }
 
 # Experiment_design
 Experiment_design <- vroom(snakemake@input[["Experiment_design"]], show_col_types = FALSE)
