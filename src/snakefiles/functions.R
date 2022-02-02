@@ -134,24 +134,15 @@ translateSP_fast <- function(SP,peptide){
   return(rez)
 }
 
-## this is the fast implementation of Juliane's function
-CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiSl){
-  ## we take the precalculated sp object for ALL protein lengths, select the subset we need
-  ## the subset we need is selected via length(peptide) as index
-  ## big_sp_input then obviously must be ordered from 1:N
-  # names(inputSequence)="test"
-  
-  results = list()
+
+Generate_PSP <- function(protein_inputs, nmer, MiSl){
+  inputSequence <- protein_inputs[[1]]
   peptide = strsplit(inputSequence,"")[[1]]
-  #print(peptide)
   L = length(peptide)
   
-  sp_input = big_sp_input[[L]]
-  rm(big_sp_input)
+  results = vector(mode = "list", length = 3)
   
   if(L>nmer){
-    #print("L>nmer")
-    
     # compute all PCP with length <=nmer
     cp = computeCPomplete(L,nmer)
     
@@ -164,8 +155,7 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
     
     if(length(cp[,1])>1){
       #print("length(cp[,1])>1")
-      
-      sp = sp_input
+      sp = protein_inputs[[2]]
       
       SPseq = translateSP_fast(sp,peptide)
       #print("All SPs translated")
@@ -176,7 +166,6 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
       SPseqClean = unique(SPseq)
       l_SPseqClean = length(SPseqClean)
       #print(paste("SP without doubles:",length(SPseqClean)))
-      
       #print("SPseqClean")
       #print(SPseqClean)
       x = removeCPfromSP_seq(SPseqClean,CPseqClean)
@@ -184,24 +173,20 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
       #print(paste("SP without CP:",length(SPseqClean)))
       
       prot_stats = data.frame(protein = attr(inputSequence, "name"),
-                               all_PCP = length(CPseq),
-                               all_PSP = length(SPseq),
-                               unique_PCP = length(CPseqClean),
-                               unique_PSP = l_SPseqClean,
-                               unique_PSP_noPCP = length(SPseqClean)
+                              all_PCP = length(CPseq),
+                              all_PSP = length(SPseq),
+                              unique_PCP = length(CPseqClean),
+                              unique_PSP = l_SPseqClean,
+                              unique_PSP_noPCP = length(SPseqClean)
       )
-    }
-    else{
+    } else {
       SPseqClean = as.character("")
       CPseqClean = as.character("")
     }
     results[[1]] = SPseqClean
     results[[2]] = CPseqClean
     results[[3]] = prot_stats
-    ## NB:this returns PCP and PSP sequences that are unique on the protein level
-    
-  }
-  else{
+  } else {
     results[[1]] = as.character("")
     results[[2]] = as.character(inputSequence)
     results[[3]] = data.frame()
@@ -213,8 +198,6 @@ CutAndPaste_seq_from_big_sp_fast <- function(inputSequence,big_sp_input,nmer,MiS
     }
   }
   return(results)
-  rm(results, peptide, L, cp, index, cpNmer, CPseq, sp, SPseq, CPseqClean, SPseqClean, x, prot_stats)
-  
 }
 
 

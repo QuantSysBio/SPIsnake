@@ -38,7 +38,7 @@ print(sessionInfo())
 #   directory = "results/DB_exhaustive/"
 #   dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
 #   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-#   filename = "results/DB_exhaustive/Seq_stats/15_cis-PSP_Minimal_25_SwissProt_UP000005640_11600_12273.fasta.csv.gz"
+#   filename = "results/DB_exhaustive/Seq_stats/15_cis-PSP_Minimal_25_SwissProt_UP000005640_1_654.fasta.csv.gz"
 #   index_length = 2
 #   max_protein_length = 100
 #   Ncpu = 7
@@ -134,20 +134,29 @@ dat_sort <- dat[names(sort(unlist(lapply(dat, nchar)), decreasing = T))]
 if (grepl("cis-PSP", Splice_type)==T) {
   print("Computing PCP and cis-PSP")
   
-  Pep_list <- bettermc::mclapply(dat_sort, 
-                       mc.cores = Ncpu,
-                       mc.cleanup=T, mc.preschedule=F, mc.retry = 3,
-                       CutAndPaste_seq_from_big_sp_fast, 
-                       big_sp_input=index_list_result,
-                       nmer = Nmers, 
-                       MiSl=MiSl)
+  # Match indices to proteins of corresponding length
+  inputs <- vector(mode = "list", length = length(dat_sort))
+  for (i in seq_along(inputs)) {
+    inputs[[i]][[1]] <- dat_sort[[i]]
+    inputs[[i]][[2]] <- index_list_result[[nchar(dat_sort[[i]][[1]])]]
+  }
+  
+  # Generate PSP sequences
+  Pep_list <- bettermc::mclapply(X = inputs, 
+                                 FUN = Generate_PSP,
+                                 nmer = Nmers, 
+                                 MiSl = MiSl,
+                                 mc.cores = Ncpu,
+                                 mc.cleanup = T, mc.preschedule = F, mc.retry = 3)
   print(Sys.time())
   print("Computed PCP/PSP")
 } else if (Splice_type == "PCP") {
   print("Computing PCP only")
-  
-  Pep_list <- bettermc::mclapply(dat_sort, mc.cores = Ncpu,  mc.cleanup=T, mc.preschedule=F,
-                        CutAndPaste_seq_PCP, nmer = Nmers)
+  Pep_list <- bettermc::mclapply(X = dat_sort,  
+                                 FUN = CutAndPaste_seq_PCP,
+                                 nmer = Nmers,
+                                 mc.cores = Ncpu, 
+                                 mc.cleanup =T , mc.preschedule = F, mc.retry = 3)
   print(Sys.time())
   print("Computed PCP")
 } else if (!exists("Pep_list")) {
@@ -182,7 +191,7 @@ print(Sys.time())
 ### ------------------------------------------ (4) Save peptides and mapping ------------------------------------------
 PCP[, index := str_sub(peptide, start = 1, end = index_length)] %>%
   split(by = "index", drop = T, keep.by = T) %>%
-  bettermc::mclapply(mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+  bettermc::mclapply(mc.cores = 2, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
     x <- x[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers)]
     
     if (nrow(x) > 0) {
@@ -201,7 +210,7 @@ print("Saved PCP")
 
 PSP[, index := str_sub(peptide, start = 1, end = index_length)] %>%
   split(by = "index", drop = T, keep.by = T) %>%
-  bettermc::mclapply(mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+  bettermc::mclapply(mc.cores = 2, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
     x <- x[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers)]
     
     if (nrow(x) > 0) {
