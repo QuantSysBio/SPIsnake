@@ -47,7 +47,7 @@ Split_list_max_length <- function(String_list, max_length=2000, overlap_length=M
 }
 
 Split_list_max_length_parallel <- function(String_list, max_length=2000, overlap_length=MiSl*2){
-  out = mclapply(seq_along(String_list), mc.cores = Ncpu, function(i){
+  out = bettermc::mclapply(seq_along(String_list), mc.cores = Ncpu, function(i){
     
     # Extract sequence attributes
     protein_name = attr(String_list[[i]], "name")
@@ -466,27 +466,17 @@ read_MW_file <- function(file, num_threads){
 
 computeMZ_biostrings <- function(seq){
   seq = AAStringSet(seq)
- 
-  if(length(seq)<1){
-    mz = numeric()
+  
+  if(length(seq) < 1){
+    MW = NA
   }
-  if(length(seq)>0){
-   
-    mz = rep(NA,length(seq))
-   
-    aa = matrix(NA,2,20)
-      aa1 = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
+  if(length(seq) > 0){
+    aa1 = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
     aa2 = c(71.037114, 156.101111, 114.042927, 115.026943, 103.009185, 129.042593, 128.058578, 57.021464, 137.058912, 113.084064, 113.084064, 128.094963, 131.040485, 147.068414, 97.052764, 87.032028, 101.047679, 186.079313, 163.06332, 99.068414)
-   
-   
-    aa3 =  matrix(NA, nrow=20, ncol=length(seq))
-    for(n in 1:length(aa1)){
-      count = Biostrings::vcountPattern(aa1[n],seq)
-      aa3[n,] = count*aa2[n]
-    }
-    MW=colSums(aa3)+18.01528
+    aa3 = letterFrequency(seq, letters = aa1) %*% diag(aa2)
+    MW=rowSums(aa3)+18.01528
     ## add NA for zero values
-    MW=round(MW, digits = 5)
+    # MW=round(MW, digits = 5)
     MW[MW==18.01528] = NA
   }
   return(MW)
@@ -521,10 +511,7 @@ regression_stats <- function(obs, pred){
 
 ### ---------------------------- PTM generation ----------------------------
 
-getPTMcombinations_fast <- function(input,NmaxMod,mods_input=mods){
-  s = as.vector(input[1])
-  m = as.numeric(as.vector(input[2]))
-  
+getPTMcombinations_fast <- function(s, m, NmaxMod,mods_input=mods){
   aa = strsplit(s,split="")[[1]]
   
   kn = which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term")
@@ -559,9 +546,7 @@ getPTMcombinations_fast <- function(input,NmaxMod,mods_input=mods){
   
   if(NmaxMod>1 & length(modIndex)>1){
     for(i in 2:min(NmaxMod,length(modIndex))){
-      
-      matx <- matrix(modDelta[combi[[i]]],dim(combi[[i]])[1],i)
-      deltaMass[[i]] <- rowSums(matx)
+      deltaMass[[i]] <- rowSums(matrix(modDelta[combi[[i]]],dim(combi[[i]])[1],i))
       
       IDs[[i]] = matrix(modId[combi[[i]]],dim(combi[[i]])[1],i)
       IDs[[i]] <- do.call(stringi::stri_join, c(input=as.data.frame(IDs[[i]], stringsAsFactors = F), sep=";"))
@@ -569,11 +554,9 @@ getPTMcombinations_fast <- function(input,NmaxMod,mods_input=mods){
   }
   
   # generate final mod sequences with delta Masses
-  peptide = rep(s,sum(unlist(lapply(deltaMass,length)))) ## length of the peptide and
-  ids = unlist(IDs)
-  deltaMW = unlist(deltaMass)
-  finalMW = m+deltaMW
-  
-  res = data.table(peptide,ids,MW=finalMW)
-  return(res)
+  PTMcombinations = data.table(peptide = rep(s,sum(unlist(lapply(deltaMass,length)))),
+                               ids = unlist(IDs),
+                               MW = m+unlist(deltaMass))
+  return(PTMcombinations)
 }
+
