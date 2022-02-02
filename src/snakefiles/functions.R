@@ -511,10 +511,7 @@ regression_stats <- function(obs, pred){
 
 ### ---------------------------- PTM generation ----------------------------
 
-getPTMcombinations_fast <- function(input,NmaxMod,mods_input=mods){
-  s = as.vector(input[1])
-  m = as.numeric(as.vector(input[2]))
-  
+getPTMcombinations_fast <- function(s, m, NmaxMod,mods_input=mods){
   aa = strsplit(s,split="")[[1]]
   
   kn = which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term")
@@ -549,9 +546,7 @@ getPTMcombinations_fast <- function(input,NmaxMod,mods_input=mods){
   
   if(NmaxMod>1 & length(modIndex)>1){
     for(i in 2:min(NmaxMod,length(modIndex))){
-      
-      matx <- matrix(modDelta[combi[[i]]],dim(combi[[i]])[1],i)
-      deltaMass[[i]] <- rowSums(matx)
+      deltaMass[[i]] <- rowSums(matrix(modDelta[combi[[i]]],dim(combi[[i]])[1],i))
       
       IDs[[i]] = matrix(modId[combi[[i]]],dim(combi[[i]])[1],i)
       IDs[[i]] <- do.call(stringi::stri_join, c(input=as.data.frame(IDs[[i]], stringsAsFactors = F), sep=";"))
@@ -559,11 +554,9 @@ getPTMcombinations_fast <- function(input,NmaxMod,mods_input=mods){
   }
   
   # generate final mod sequences with delta Masses
-  peptide = rep(s,sum(unlist(lapply(deltaMass,length)))) ## length of the peptide and
-  ids = unlist(IDs)
-  deltaMW = unlist(deltaMass)
-  finalMW = m+deltaMW
-  
-  res = data.table(peptide,ids,MW=finalMW)
-  return(res)
+  PTMcombinations = data.table(peptide = rep(s,sum(unlist(lapply(deltaMass,length)))),
+                               ids = unlist(IDs),
+                               MW = m+unlist(deltaMass))
+  return(PTMcombinations)
 }
+
