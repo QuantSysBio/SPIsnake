@@ -265,6 +265,8 @@ if (nrow(peptide_chunks) == 0) {
   
   vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu, append = TRUE,
               unlist(snakemake@output[["chunk_aggregation_status"]]))
+  vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu, append = TRUE,
+              unlist(snakemake@output[["chunk_aggregation_memory"]]))
 } else {
   Proteomes <- peptide_chunks$Proteome %>% unique()
   enzyme_types <- peptide_chunks$Splice_type %>% unique()
