@@ -6,12 +6,17 @@ Experiment_design: data/Experiment_design.csv
 DB:
     min_protein_length: 9
     max_protein_length: 500
+    replace_I_with_L: FALSE
+    # PTM
     max_variable_PTM: 2
     generate_spliced_PTMs: FALSE
-    AA_index_length: 1
-    replace_I_with_L: FALSE
+    # NetMHCPan
     netMHCpan_chunk: 1000000
-    n_netMHCpan_blocks: 30
+    n_netMHCpan_blocks: 3 # set equal to number of nodes used
+    # Format
+    AA_index_length: 1 # 1 or 2
+    fst_compression: 100
+    minimal_output_headers: TRUE
 
 RT_filter:
     # achrom or AutoRT
