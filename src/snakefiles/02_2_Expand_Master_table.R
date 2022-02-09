@@ -25,7 +25,7 @@ print(sessionInfo())
 # {
 #   ### Manual startup
 #   Master_table <- read.csv("Master_table.csv")
-#   directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
+#   directory = "/home/yhorokh/SNAKEMAKE/QSB_SPIsnake/results/DB_exhaustive"
 # }
 
 # Master table
@@ -72,7 +72,7 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     left_join(proteome_chunks) %>%
     
     ### Create a future wildcard
-    mutate(filename = paste(N_mers, Splice_type, PTMs, Min_Interv_length, chunk, sep = "_")) %>%
+    mutate(filename = paste(N_mers, Splice_type, Min_Interv_length, chunk, sep = "_")) %>%
     arrange(filename) %>%
     ### Sanity check for redundancies
     ungroup() %>%

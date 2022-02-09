@@ -62,7 +62,7 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 # 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/VM_8.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/M_8.csv"
 #   filename <- filename %>%
 #     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
@@ -95,7 +95,6 @@ print(sessionInfo())
 # 
 #   # bettermc::mclapply params
 #   retry_times = 3
-# 
 #   fst_compression = 100
 # }
 
@@ -217,13 +216,16 @@ peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pat
   mutate(Proteome = str_extract(file, str_c(unique(Master_table_expanded$Proteome), collapse = "|"))) %>%
   mutate(Proteome = str_remove_all(Proteome, regex("_[\\d+]+_[\\d+]+.fasta$"))) %>%
   # add PTM
-  mutate(PTMs = str_split_fixed(file, pattern = AA_length, 2)[,2]) %>%
-  mutate(PTMs = ifelse(str_starts(PTMs, "_"), str_sub(PTMs, 2), PTMs)) %>%
-  mutate(PTMs = str_split_fixed(PTMs, pattern = Proteome, 2)[,1]) %>%
-  mutate(PTMs = str_split_fixed(PTMs, "_", n = 2)[,2]) %>%
-  mutate(PTMs = str_remove_all(PTMs, regex("_[\\d+]+_"))) %>%
-  mutate(PTMs = ifelse(PTMs == "NA", NA, PTMs))  %>%
-  mutate(PTMs = ifelse(PTMs == "", NA, PTMs))  
+  mutate(AA = paste0(str_split_fixed(AA_length, "_", 2)[,1],"_")) %>%
+  mutate(filename = str_split_fixed(file, pattern = AA, 2)[,2]) %>%
+  left_join(select(Master_table_expanded, filename, PTMs))
+  # mutate(PTMs = str_split_fixed(file, pattern = AA_length, 2)[,2]) %>%
+  # mutate(PTMs = ifelse(str_starts(PTMs, "_"), str_sub(PTMs, 2), PTMs)) %>%
+  # mutate(PTMs = str_split_fixed(PTMs, pattern = Proteome, 2)[,1]) %>%
+  # mutate(PTMs = str_split_fixed(PTMs, "_", n = 2)[,2]) %>%
+  # mutate(PTMs = str_remove_all(PTMs, regex("_[\\d+]+_"))) %>%
+  # mutate(PTMs = ifelse(PTMs == "NA", NA, PTMs))  %>%
+  # mutate(PTMs = ifelse(PTMs == "", NA, PTMs))  
 
 if (operation_mode == "Update") {
   # Don't use absolute path when checking for file completeness
@@ -315,7 +317,9 @@ if (nrow(peptide_chunks) == 0) {
       
       ### ---------------------------- (5) PTM generation --------------------------------------
       # PTMs to be generated
-      PTM_list <- peptide_chunks_tmp$PTMs[peptide_chunks_tmp$Splice_type == enzyme_type] 
+      PTM_list <- peptide_chunks_tmp$PTMs[peptide_chunks_tmp$Splice_type == enzyme_type] %>%
+        str_split(pattern = "\\|") %>%
+        unlist()
       PTM_list <- PTM_list[!(PTM_list == "")] %>% unique() %>% na.omit() %>% as.character()
       
       if (generate_spliced_PTMs == FALSE) {
@@ -332,7 +336,7 @@ if (nrow(peptide_chunks) == 0) {
           # Prepare peptides
           counter_fst = 1
           for (input_i in seq_along(n_chunks)) {
-            print(paste("Generating PTMs for:", input_i))
+            print(paste("Generating PTMs for:", PTM, input_i))
             
             # Additional split to reduce RAM usage
             PTMcombinations <- input[chunks == input_i, .(peptide, MW)]
