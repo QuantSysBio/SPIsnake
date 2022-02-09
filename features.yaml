@@ -14,8 +14,9 @@ DB:
     netMHCpan_chunk: 1000000
     n_netMHCpan_blocks: 3 # set equal to number of nodes used
     # Format
-    AA_index_length: 1
+    AA_index_length: 1 # 1 or 2
     fst_compression: 100
+    minimal_output_headers: TRUE
 
 RT_filter:
     # achrom or AutoRT
