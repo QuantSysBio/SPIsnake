@@ -69,6 +69,7 @@ rule aggregate_IC50_prediction:
         mem = config["max_mem"] 
     params:
         fst_compression = features["DB"]["fst_compression"],
+        minimal_output_headers = features["DB"]["minimal_output_headers"],
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_DB_PTM_mz=dir_DB_PTM_mz,
         dir_IC50=dir_IC50,

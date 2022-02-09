@@ -36,7 +36,8 @@ print(sessionInfo())
 #   dir_IC50 = "results/IC50/"
 #   cmd_netMHCpan <- vroom(paste0(dir_IC50, "cmd_netMHCpan.csv"), show_col_types = FALSE)
 #   Experiment_design <- vroom("data/Experiment_design.csv", delim = ",")
-#   cmd_block_i = "results/IC50/Seq_stats/3.csv"
+#   cmd_block_i = "results/IC50/Seq_stats/1.csv"
+#   fst_compression = 100
 # }
 
 # Experiment_design
@@ -77,7 +78,12 @@ cmd_netMHCpan <- cmd_netMHCpan %>%
   left_join(IC50_aggregation_table)
 
 # Deselect commands that have already been executed
-ready <- list.files(paste0(dir_IC50, "netMHCpan_output")) %>%
+ready <- list.files(paste0(dir_IC50, "netMHCpan_output"), full.names = T) %>%
+  as_tibble() %>%
+  mutate(file_size = file.size(value)) %>%
+  filter(file_size > 5000) %>%
+  mutate(value = str_split_fixed(value, "/netMHCpan_output/", 2)[,2]) %>%
+  pull(value) %>%
   str_c(collapse = "|")
 
 cmd_netMHCpan_todo <- cmd_netMHCpan %>% 
@@ -110,51 +116,68 @@ output_files <- cmd_netMHCpan %>%
 output_files_unique <- unique(output_files$output_file)
   
 IC50_filter_stats <- bettermc::mclapply(X = output_files_unique, mc.cores = Ncpu, mc.retry = 3, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
-  # Parameters
-  Affinity_threshold <- cmd_netMHCpan$Affinity_threshold[cmd_netMHCpan$output_file == x] %>%
-    unique()
   
-  IC50_filter_stats_AT <- vector(mode = "list", length = length(Affinity_threshold))
-  for (AT in Affinity_threshold) {
-    # Read and filter netMHCpan output
-    print(file.exists(x))
-    binders_df <- vroom_lines(file = x, 
-                              num_threads = 1,
-                              skip_empty_rows = TRUE,
-                              skip = 55)
-    if (length(binders_df) > 0) {
-      binders_df <- binders_df %>%
-        str_replace_all(pattern = "[[:space:]]+", " ") %>%
-        str_split_fixed(pattern = " ", n = Inf) %>%
-        as.data.table() %>%
-        lazy_dt() %>%
-        rename(MHC = V3, peptide = V4, `Aff(nM)` = V17) %>%
-        select(MHC, peptide, `Aff(nM)`) %>%
-        mutate(`Aff(nM)` = as.numeric(`Aff(nM)`)) %>%
-        filter((!is.na(`Aff(nM)`)) & `Aff(nM)` <= AT) %>%
-        as.data.table()
-      print(head(binders_df))
-    } else {
-      binders_df = data.table(MHC = character(),
-                              peptide = character(),
-                              `Aff(nM)` = numeric())
-      print("Warning: empty input!")
-      print("Make sure that allele is present in netMHCpan-4.1/data/allelenames")
+  if (file.exists(x)) {
+    # Parameters
+    Affinity_threshold <- cmd_netMHCpan$Affinity_threshold[cmd_netMHCpan$output_file == x] %>%
+      unique()
+    IC50_filter_stats_AT <- vector(mode = "list", length = length(Affinity_threshold))
+    
+    for (AT in Affinity_threshold) {
+      
+      # Read and filter netMHCpan output
+      binders_df <- vroom_lines(file = x, 
+                                num_threads = 1,
+                                skip_empty_rows = TRUE,
+                                skip = 55)
+      if (length(binders_df) > 0) {
+        binders_df <- binders_df %>%
+          str_replace_all(pattern = "[[:space:]]+", " ") %>%
+          str_split_fixed(pattern = " ", n = Inf) %>%
+          as.data.table() %>%
+          lazy_dt() %>%
+          rename(MHC = V3, peptide = V4, `Aff(nM)` = V17) %>%
+          select(MHC, peptide, `Aff(nM)`) %>%
+          mutate(`Aff(nM)` = as.numeric(`Aff(nM)`)) %>%
+          filter((!is.na(`Aff(nM)`))) %>%
+          mutate(Predicted_binder = ifelse(`Aff(nM)` <= as.numeric(AT), TRUE, FALSE)) %>%
+          mutate(peptide = str_remove_all(peptide, "X")) %>%
+          as.data.table()
+        print(head(binders_df))
+      } else {
+        binders_df = data.table(MHC = character(),
+                                peptide = character(),
+                                `Aff(nM)` = numeric(),
+                                Predicted_binder = logical())
+        print("Warning: empty input!")
+        print("Make sure that allele is present in netMHCpan-4.1/data/allelenames")
+      }
+      output_name <- x %>%
+        str_remove(".tsv.txt") %>%
+        str_replace(pattern = "netMHCpan_output", replacement = "IC50_filtered_peptides")
+      
+      # Save filtered peptides
+      write_fst(binders_df, path = paste0(output_name, "_", AT,".fst"), compress = fst_compression)
+      
+      # Save stats
+      IC50_filter_stats_AT[[AT]] <- cmd_netMHCpan %>%
+        filter(output_file == x & Affinity_threshold == AT) %>%
+        select(- Filename) %>%
+        mutate(IC50_filtered_peptides = length(which(binders_df$Predicted_binder == T)))
     }
-    output_name <- x %>%
-      str_remove(".tsv.txt") %>%
-      str_replace(pattern = "netMHCpan_output", replacement = "IC50_filtered_peptides")
-    
-    # Save filtered peptides
-    write_fst(binders_df, path = paste0(output_name, "_", AT,".fst"), compress = fst_compression)
-    
-    # Save stats
-    IC50_filter_stats_AT[[AT]] <- cmd_netMHCpan %>%
-      filter(output_file == x & Affinity_threshold == AT) %>%
-      select(- Filename) %>%
-      mutate(IC50_filtered_peptides = nrow(binders_df))
+    IC50_filter_stats_AT <- bind_rows(IC50_filter_stats_AT)
+  } else {
+    IC50_filter_stats_AT <- tibble(file = character(),
+                                   size = double(),
+                                   N_mer = double(),
+                                   allele = character(),
+                                   cmd_block = double(),
+                                   cmds = character(),
+                                   output_file = character(),
+                                   Affinity_threshold = character(),
+                                   IC50_filtered_peptides = double())
   }
-  return(bind_rows(IC50_filter_stats_AT))
+  return(IC50_filter_stats_AT)
 }) %>%
   bind_rows()
   

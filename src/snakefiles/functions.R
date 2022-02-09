@@ -168,8 +168,8 @@ Generate_PSP <- function(protein_inputs, nmer, MiSl){
       #print(paste("SP without doubles:",length(SPseqClean)))
       #print("SPseqClean")
       #print(SPseqClean)
-      x = removeCPfromSP_seq(SPseqClean,CPseqClean)
-      SPseqClean = x[[1]]
+      #x = removeCPfromSP_seq(SPseqClean,CPseqClean)
+      #SPseqClean = x[[1]]
       #print(paste("SP without CP:",length(SPseqClean)))
       
       prot_stats = data.frame(protein = attr(inputSequence, "name"),

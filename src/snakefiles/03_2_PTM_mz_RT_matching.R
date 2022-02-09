@@ -62,7 +62,7 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 # 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/CT_15.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/VM_8.csv"
 #   filename <- filename %>%
 #     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
@@ -258,7 +258,6 @@ if (operation_mode == "Update") {
 # End the script if no files to be updated
 if (nrow(peptide_chunks) == 0) {
   print("Looks like there are no new peptides to be processed")
-  
   save_peptide_chunks <- peptide_chunks %>%
     rbind(processed_files) %>%
     mutate(Time = Sys.time()) 

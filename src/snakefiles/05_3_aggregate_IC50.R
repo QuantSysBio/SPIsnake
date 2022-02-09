@@ -40,6 +40,8 @@ print(sessionInfo())
 #   dir_IC50 = "results/IC50/"
 #   dir_DB_out = "results/DB_out"
 #   cmd_netMHCpan <- vroom(paste0(dir_IC50, "cmd_netMHCpan.csv"), show_col_types = FALSE)
+#   fst_compression = 100
+#   minimal_output_headers = TRUE
 # }
 
 source("src/snakefiles/functions.R")
@@ -55,6 +57,9 @@ setDTthreads(Ncpu)
 # fst compression level
 fst_compression = as.integer(snakemake@params[["fst_compression"]])
 
+# Header size
+minimal_output_headers = as.logical(snakemake@params[["minimal_output_headers"]])
+
 # create temporary directory for vroom
 {
   Sys.getenv("TMPDIR") %>% print()
@@ -63,7 +68,7 @@ fst_compression = as.integer(snakemake@params[["fst_compression"]])
   vroom_dir = "/tmp/vroom"
   suppressWarnings(dir.create(vroom_dir))
   Sys.setenv(VROOM_TEMP_PATH = vroom_dir)
-  Sys.getenv("VROOM_TEMP_PATH") %>%print()
+  Sys.getenv("VROOM_TEMP_PATH") %>% print()
   
   tmp_file = tempfile()
   print(tmp_file)
@@ -108,8 +113,6 @@ Experiment_design_expanded <- Experiment_design %>%
          Affinity_threshold = str_squish(Affinity_threshold)) 
 Experiment_design_expanded
 
-# Remove the if condition?
-# if (TRUE %in% Experiment_design_expanded$`Output non-binders`) 
 {
   Mass_list_files <- Experiment_design$Filename %>%
     unique() %>%
@@ -146,14 +149,16 @@ Experiment_design_expanded
     mutate(Proteome = str_extract(value, pattern = Proteomes)) %>%
     filter(!str_starts(AA_length, "_")) %>%
     # filter(AA_length %in% c(MW_RT_output$AA_length[MW_RT_output$`Output non-binders` == T], IC50_output$AA_length)) %>%
+    # filter(AA_length %in% IC50_output$AA_length) %>%
     as.data.table() %>%
     split(by = "AA_length")
   pep_map
 }
 
-# ----------------------------- DEV: ON ----------------------------
+# --------------------------------------- Main --------------------------------------
 DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
   print(x$AA_length[[1]])
+  fst::threads_fst(nr_of_threads = Ncpu)
   
   # Load IC50 filtered peptides
   {
@@ -162,21 +167,21 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     IC50_pep <- IC50_x %>%
       pull(value) %>%
       as.list() %>%
-      lapply(read_fst, as.data.table = TRUE) %>%
+      lapply(FUN = read_fst, as.data.table = TRUE) %>%
       rbindlist()
     
     if (nrow(IC50_pep) == 0) {
       IC50_pep <- data.table(MHC = NA,
                              peptide = NA,
-                             'Aff(nM)' = NA)
-      }
+                             'Aff(nM)' = NA,
+                             Predicted_binder = F)
+    }
   }
   
   # Load peptide-protein mappings
   {
     peptide_mapping <- paste0(dir_DB_exhaustive, "/peptide_mapping/", x$value) %>%
-      bettermc::mclapply(mc.cores = 1, mc.progress = F,
-                         FUN = read_fst, as.data.table = TRUE)
+      lapply(FUN = read_fst, as.data.table = TRUE)
     names(peptide_mapping) <- paste(x$enzyme_type, x$Proteome, sep = "|")
     
     peptide_mapping <- rbindlist(peptide_mapping, idcol="file")
@@ -208,27 +213,29 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     for (i in seq_along(MW_RT_biol_group_pep)) {
       if (MW_RT_biol_group$`Output non-binders`[[i]] == TRUE) {
         MW_RT_biol_group_pep[[i]] <- read_fst(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]])) %>%
-          lazy_dt() %>%
-          left_join(IC50_pep) %>%
+          left_join(as_tibble(IC50_pep)) %>%
           as.data.table()
       } else {
         MW_RT_biol_group_pep[[i]] <- IC50_pep %>%
+          as_tibble() %>%
+          right_join(y = read_fst(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]]))) %>%
           lazy_dt() %>%
-          left_join(y = read_fst(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]]))) %>%
           filter(!is.na(MW)) %>%
+          filter(Predicted_binder == T) %>%
           unique() %>%
           as.data.table()
       }
     }
     # Report number of predicted binders per mass_list file
     MW_RT_biol_group$IC50_filtered_peptides <- bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
-                                                                         MW_RT_biol_group_pep, FUN = function(x){
-      x %>%
-        filter(!is.na(`Aff(nM)`)) %>%
-        select(peptide) %>%
-        as_tibble() %>%
-        n_distinct()
-    }) %>%
+                                                                  MW_RT_biol_group_pep, FUN = function(x){
+                                                                    x %>%
+                                                                      filter(!is.na(`Aff(nM)`)) %>%
+                                                                      filter(Predicted_binder == T) %>%
+                                                                      select(peptide) %>%
+                                                                      as_tibble() %>%
+                                                                      n_distinct()
+                                                                  }) %>%
       unlist()
     
     # Proceed with non-empty data.tables
@@ -251,14 +258,20 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
       vroom_write(keep_pep, file = paste0(dir_DB_out, "/", biol_group, ".csv"), delim = ",", append = T, num_threads = Ncpu)
       
       # Make fasta headers
-      keep_pep <- keep_pep %>%
-        unite(col = header, enzyme_type, Proteome, protein, MW, RT_pred, MHC, `Aff(nM)`, remove = T, sep = "|") %>%
-        lazy_dt() %>%
-        group_by(peptide) %>%
-        summarise(header=paste(header,collapse=';')) %>%
-        as.data.table()
-      keep_pep
-      
+      if (minimal_output_headers == T) {
+        keep_pep <- keep_pep %>%
+          select(peptide) %>%
+          unique() %>%
+          mutate(header=paste0(biol_group, "_", x$AA_length[[1]], "_", 1:n())) %>%
+          as.data.table()
+      } else {
+        keep_pep <- keep_pep %>%
+          unite(col = header, enzyme_type, Proteome, protein, MW, RT_pred, MHC, `Aff(nM)`, remove = T, sep = "|") %>%
+          lazy_dt() %>%
+          group_by(peptide) %>%
+          summarise(header=paste(header,collapse=';')) %>%
+          as.data.table()
+      }
       # Save fasta
       fasta_chunk <- AAStringSet(x = keep_pep$peptide)
       names(fasta_chunk) <- keep_pep$header
@@ -286,12 +299,23 @@ MW_RT_stats <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_status"), fu
 MW_RT_stats
 
 ### Add peptide filtering information from other steps
+tmp <- Experiment_design_expanded %>%
+  select(Filename, Biological_group, "Output non-binders") %>%
+  rename(mass_list = Filename) %>%
+  unique()
+
 Summary_stats <- DB_reduction_IC50 %>%
   as_tibble() %>%
   rename(mass_list = Mass_list_file) %>%
   mutate(Proteome = str_extract(value, pattern = str_c(unique(Master_table_expanded$Proteome), 
                                                        collapse = "|"))) %>%
-  full_join(MW_RT_stats) %>%
+  right_join(MW_RT_stats) %>%
+  # Fill in NAs that appear due to complete removal of AA_Nmer at 2D filter step
+  mutate(IC50_filtered_peptides = ifelse(is.na(IC50_filtered_peptides), 0, IC50_filtered_peptides)) %>%
+  select(-c("Biological_group", "Output non-binders")) %>%
+  left_join(tmp) %>%
+  mutate(value = ifelse(is.na(value), paste0(enzyme_type, "_", AA_length, "_", Proteome, "_", mass_list, ".fst"), value)) %>%
+  # Reshape for plotting
   pivot_longer(cols = contains("_peptides"), names_to = c("Filtering_step"), values_to = "# peptides") %>%
   mutate(`log10 # peptides` = log10(`# peptides` + 1),
          Length = str_split_fixed(AA_length, "_", 2)[,2]) %>%
@@ -311,7 +335,14 @@ gg$DB_reduction <- Summary_stats %>%
   geom_line(aes(color=Proteome, linetype = Length), alpha=1) + 
   facet_grid(enzyme_type ~ mass_list) + 
   theme_bw() + 
-  theme(text=element_text(family="sans", face="plain", color="#000000", size=12, hjust=0.5, vjust=0.5)) + 
+  theme(text=element_text(family="sans", face="plain", color="#000000", size=12, hjust=0.5, vjust=0.5),
+        panel.background = element_rect(fill = "white",
+                                        colour = "white",
+                                        size = 0.5, linetype = "solid"),
+        plot.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()
+        ) + 
   guides(color=guide_legend(title="Proteome")) + 
   xlab("Filtering step") + 
   ylab("log10 # peptides") 
@@ -322,9 +353,17 @@ gg$DB_reduction
 for (i in seq_along(gg)) {
   ggsave(gg[[i]], filename = paste0(dir_DB_out, "/plots/", names(gg)[[i]], ".png"), device = "png", 
          width = 20, height = 6, dpi = "retina")
+  ggsave(gg[[i]], filename = paste0(dir_DB_out, "/plots/", names(gg)[[i]], ".pdf"), device = "pdf", 
+         width = 20, height = 6, dpi = "retina")
 }
 
 # Stats
 Summary_stats %>%
+  # Summarize
+  group_by(mass_list, enzyme_type, Proteome, Filtering_step, Length) %>%
+  summarise(`# peptides` = sum(`# peptides`)) %>%
+  mutate(`log10 # peptides` = log10(`# peptides` + 1)) %>%
+  pivot_wider(id_cols = c("mass_list", "enzyme_type", "Proteome", "Length"), 
+              names_from = Filtering_step, values_from = c(`# peptides`)) %>%
   vroom_write(delim = ",", append = FALSE, col_names = TRUE,
               file = unlist(snakemake@output[["Summary_stats"]]))

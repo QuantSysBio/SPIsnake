@@ -32,13 +32,13 @@ source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 print(sessionInfo())
 
-# Manual startup
 # {
+#   ### Manual startup
 #   ### setwd("/home/yhorokh/Snakemake/SPIsnake-main")
 #   directory = "results/DB_exhaustive/"
 #   dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
 #   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-#   filename = "results/DB_exhaustive/Seq_stats/15_cis-PSP_Minimal_25_SwissProt_UP000005640_1_654.fasta.csv.gz"
+#   filename = "results/DB_exhaustive/Seq_stats/8_cis-PSP_NA_25_Measles_CDS_6_frame_1_96.fasta.csv.gz"
 #   index_length = 2
 #   max_protein_length = 100
 #   Ncpu = 7
@@ -156,7 +156,7 @@ if (grepl("cis-PSP", Splice_type)==T) {
                                  FUN = CutAndPaste_seq_PCP,
                                  nmer = Nmers,
                                  mc.cores = Ncpu, 
-                                 mc.cleanup =T , mc.preschedule = F, mc.retry = 3)
+                                 mc.cleanup = T , mc.preschedule = F, mc.retry = 3)
   print(Sys.time())
   print("Computed PCP")
 } else if (!exists("Pep_list")) {
@@ -191,7 +191,7 @@ print(Sys.time())
 ### ------------------------------------------ (4) Save peptides and mapping ------------------------------------------
 PCP[, index := str_sub(peptide, start = 1, end = index_length)] %>%
   split(by = "index", drop = T, keep.by = T) %>%
-  bettermc::mclapply(mc.cores = 2, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+  bettermc::mclapply(mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
     x <- x[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers)]
     
     if (nrow(x) > 0) {
@@ -210,7 +210,7 @@ print("Saved PCP")
 
 PSP[, index := str_sub(peptide, start = 1, end = index_length)] %>%
   split(by = "index", drop = T, keep.by = T) %>%
-  bettermc::mclapply(mc.cores = 2, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
+  bettermc::mclapply(mc.cores = 4, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
     x <- x[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers)]
     
     if (nrow(x) > 0) {
