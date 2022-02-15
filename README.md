@@ -10,18 +10,18 @@ conda install -c conda-forge singularity
 
 ## Setup
 1. Define common job parameters in `config.yml` and `features.yaml`
-2. Define proteomic search space in `Master_table.csv`. 
-N-mers separated by underscores will give rise to a full range of peptide sequences. Redundancies are removed internally. 
-Place proteome `.fasta` files in `data/reference`
-Place PTM tables `.csv` files in `data/modifications`
+2. Define proteomic search space in `Master_table.csv`.  
+N-mers separated by underscores will give rise to a full range of peptide sequences. Redundancies are removed internally.  
+Place proteome `.fasta` files in `data/reference`  amd remove whitespaces from input fasta file heders by running `sed 's, ,_,g' -i data/reference/*.fasta`. Otherwise headers will be trimmed at first whitespace.  
 3. Specify datasets and corresponding tolerances to be used for MW filtering in `/data/Experiment_design.csv`; place the corresponding `.txt` files in `/data/MS_mass_lists`
+4. Place PTM tables `.csv` files in `data/modifications`
 
 ## Execution
 ### Workflow check
 `snakemake -j 1 -n`
 ### Workflow execution:
 ```
-time snakemake --use-singularity -j 7 --resources load=100
+time snakemake --use-singularity -j 1 --resources load=100
 ```
 
 ## SPIsnake + Slurm
