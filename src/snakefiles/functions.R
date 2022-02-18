@@ -69,6 +69,53 @@ Split_list_max_length_parallel <- function(String_list, max_length=2000, overlap
   return(out)
 }
 
+Split_max_length2 <- function(XStringSet, max_length=500, overlap_length=MiSl*2){
+  out <- as.list(seq_along(XStringSet))
+  for (i in seq_along(XStringSet)) {
+    # Extract coordinates
+    at <- breakInChunks(totalsize = width(XStringSet[i]), chunksize = max_length)
+    at <- successiveIRanges(width = width(at), gapwidth = -overlap_length)
+    
+    # Extract sequence
+    protein_chunks <- unlist(extractAt(XStringSet[i], at))
+    
+    # Update names
+    names(protein_chunks) <- paste0(names(XStringSet[i]), "|chunk:", at@start, "-", at@start + at@width - 1)
+    out[[i]] <- protein_chunks
+  }
+  return(unlist(AAStringSetList(out)))
+}
+
+Split_max_length3 <- function(x, max_length=500, overlap_length=MiSl*2){
+  lapply(x, function(x){
+    
+    if (nchar(x) <= max_length) {
+      protein_chunks <- x
+    } else {
+      # Extract coordinates
+      totalsize = 200*nchar(x) 
+      
+      at <- breakInChunks(totalsize = totalsize, chunksize = max_length)
+      at <- successiveIRanges(width = width(at), gapwidth = -overlap_length)
+      
+      # Subset last relevant IRanges
+      keep <- which((at@start + at@width) <= nchar(x))
+      keep <- c(keep, max(keep) + 1)
+      at <- at[keep]
+      
+      ### Correct the last coordinate
+      at@width[length(at@width)] <- as.integer(nchar(x) - at@start[length(at@start)] + 1)
+      
+      # Extract sequence
+      protein_chunks <- extractAt(x, at)
+      
+      # Update names
+      names(protein_chunks) <- paste0("|chunk:", at@start, "-", at@start + at@width - 1)
+    }
+    return(protein_chunks)
+  })
+}
+
 Save_prot_chunk <- function(dat, 
                             nF=nF, 
                             orderedProteomeEntries=orderedProteomeEntries, 
@@ -84,8 +131,27 @@ Save_prot_chunk <- function(dat,
   }
 }
 
+Save_prot_chunk_biostrings <- function(dat, 
+                                       nF=nF, 
+                                       Pi=Pi,
+                                       orderedProteomeEntries=orderedProteomeEntries, 
+                                       directory=directory,
+                                       proteome_name=proteome_name,
+                                       protein_counter_start=protein_counter_start,
+                                       protein_counter_end=protein_counter_end,
+                                       maxE=maxE){
+  for(j in 1:nF){
+    start=Pi[j]+1
+    end=Pi[j+1]
+    
+    writeXStringSet(x = dat[orderedProteomeEntries[start:end]], 
+                    filepath = paste0(directory, "/", maxE, "_", proteome_name, "_", protein_counter_start, "_", protein_counter_end, "_", j,".fasta"))
+  }
+}
 
 ### ---------------------------- PCP/PSP generation ----------------------------
+
+
 
 CutAndPaste_seq_return_sp <- function(inputSequence,nmer,MiSl){
   ### Makes PCP, cis-PSP, revcis-PCP from a given input
@@ -200,6 +266,12 @@ Generate_PSP <- function(protein_inputs, nmer, MiSl){
   return(results)
 }
 
+Generate_PSP_2 <- function(protein_inputs){
+  stri_join(extractAt(protein_inputs[[1]], IRanges(start = protein_inputs[[2]][,1], 
+                                                   end =   protein_inputs[[2]][,2])), 
+            extractAt(protein_inputs[[1]], IRanges(start = protein_inputs[[2]][,3], 
+                                                   end =   protein_inputs[[2]][,4])))
+}
 
 CutAndPaste_seq <- function(inputSequence,nmer,MiSl){
   # Makes PCP, cis-PSP, revcis-PCP from a given input
@@ -272,34 +344,29 @@ CutAndPaste_seq <- function(inputSequence,nmer,MiSl){
   rm(results, peptide, L, cp, index, cpNmer, CPseq, sp, SPseq, CPseqClean, SPseqClean, x, prot_stats)
 }
 
-CutAndPaste_seq_PCP <- function(inputSequence,nmer){
+CutAndPaste_seq_PCP <- function(inputSequence, nmer){
   # Make PCP sequences from a given input
-  
   results = list()
-  peptide = strsplit(inputSequence,"")[[1]]
-  L = length(peptide)
+  L = nchar(inputSequence)
   
   if(L>nmer){
-    
     # compute all PCP with length <=nmer
-    cp = computeCPomplete(L,nmer)
+    cp <- computeCPomplete(L, nmer)
     
-    # get all PCP with length == nmer
-    index = which((cp[,2]-cp[,1]+1)==nmer)
-    cpNmer = cp[index,]
+    # # get all PCP with length == nmer
+    # index = which((cp[,2]-cp[,1]+1)==nmer)
+    # cpNmer = cp[index,]
+    CPseq <- str_sub(inputSequence, cp[,1], cp[,2])
     
-    CPseq = translateCP(cpNmer,peptide)
-    
-    if(length(cp[,1])>1){
+    if(nrow(cp) > 1){
       
       CPseqClean = unique(CPseq)
-      
       prot_stats = data.frame(protein = attr(inputSequence, "name"),
-                               all_PCP = length(CPseq),
-                               all_PSP = 0,
-                               unique_PCP = length(CPseqClean),
-                               unique_PSP = 0,
-                               unique_PSP_noPCP = 0
+                              all_PCP = length(CPseq),
+                              all_PSP = 0,
+                              unique_PCP = length(CPseqClean),
+                              unique_PSP = 0,
+                              unique_PSP_noPCP = 0
       )
     }
     else{
@@ -325,19 +392,11 @@ CutAndPaste_seq_PCP <- function(inputSequence,nmer){
   return(results)
 }
 
-
 # compute all PCP with length <=nmer
 computeCPomplete <- function(L,nmer){
-  
-  maxL = nmer+1
-  CP = numeric()
-  
-  for(i in 1:L){
-    CP = rbind(CP, cbind(rep(i,length(c(i:min(L,(i+maxL-2))))),
-                         c(i:min(L,(i+maxL-2)))))
-  }
+  CP = matrix(c(rep(1 : (L-nmer+1)), 
+                rep(1 : (L-nmer+1)) + nmer - 1), ncol = 2, byrow = F)
   return(CP)
-  rm(maxL, CP)
 }
 
 # translate PCP

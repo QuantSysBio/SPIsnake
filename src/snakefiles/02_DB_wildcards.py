@@ -23,6 +23,29 @@ def get_split_proteomes_input(Master_table) :
     return(prot_split)
 
 
+rule Index_proteome:
+    """
+    Use linclust to order proteins by sequence similarity
+    """
+    input:
+        proteome = join(dir_reference, '{proteome}.fasta')
+    output:
+        prot_index = join(dir_reference, '{proteome}.fasta.fai')
+    benchmark: 
+        join(benchmarks, "Index_proteome_{proteome}.json")
+    log: 
+        join(logs, "Index_proteome_{proteome}.txt")
+    conda: 
+        "R_env_reticulate.yaml"
+    resources:
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"]
+    params:
+        dir_cluster_proteome=join(dir_cluster, "{proteome}/{proteome}"),
+        dir_tmp=join(dir_cluster, "{proteome}/tmp")
+    shell:
+        "samtools faidx {input.proteome} --output {output.prot_index} &> {log}"
+
 
 rule Cluster_proteome:
     """
@@ -58,6 +81,7 @@ rule Split_proteome_chunks:
     """
     input:
         proteome = join(dir_reference, '{proteome}.fasta'),
+        prot_index = join(dir_reference, '{proteome}.fasta.fai'),
         prot_cluster = join(dir_cluster, "{proteome}/{proteome}_cluster.tsv"),
         Master_table = features["Master_table"],
         functions = "src/snakefiles/functions.R"

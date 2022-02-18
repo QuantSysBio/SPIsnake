@@ -30,18 +30,41 @@ suppressPackageStartupMessages(library(vroom))
 
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
+seq_vectorized <- Vectorize(seq.default, vectorize.args = c("from", "to"), SIMPLIFY = F) 
 print(sessionInfo())
+
+### Create temporary directory for vroom
+{
+  Sys.getenv("TMPDIR") %>% print()
+  Sys.getenv("VROOM_TEMP_PATH") %>% print()
+  
+  vroom_dir = "/tmp/vroom"
+  suppressWarnings(dir.create(vroom_dir))
+  Sys.setenv(VROOM_TEMP_PATH = vroom_dir)
+  Sys.getenv("VROOM_TEMP_PATH") %>%print()
+  
+  tmp_file = tempfile()
+  print(tmp_file)
+}
 
 # {
 #   ### Manual startup
 #   ### setwd("/home/yhorokh/Snakemake/SPIsnake-main")
 #   directory = "results/DB_exhaustive/"
 #   dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
+#   suppressWarnings(dir.create(paste0(directory, "/peptide_seqences")))
+#   suppressWarnings(dir.create(paste0(directory, "/peptide_mapping")))
 #   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-#   filename = "results/DB_exhaustive/Seq_stats/8_cis-PSP_NA_25_Measles_CDS_6_frame_1_96.fasta.csv.gz"
-#   index_length = 2
+#   filename = "results/DB_exhaustive/Seq_stats/10_PCP_25_intergenic_15183907_17714557_1.fasta"
+#   index_length = 1
 #   max_protein_length = 100
+#   exclusion_pattern <- "(U|X|\\*)"
+#   fst_compression = 100
+# 
 #   Ncpu = 7
+#   # cl <- parallel::makeForkCluster(Ncpu)
+#   # cl <- parallelly::autoStopCluster(cl, debug=T)
+#   data.table::setDTthreads(Ncpu)
 # 
 #   filename <- str_remove(filename, ".csv.gz") %>%
 #     str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
@@ -50,6 +73,23 @@ print(sessionInfo())
 # 
 #   params <- Master_table_expanded[Master_table_expanded$filename == filename,]
 #   print(t(params))
+# 
+#   Nmers = as.numeric(params$N_mers)
+#   MiSl = as.numeric(params$Min_Interv_length)
+#   Splice_type = as.character(params$Splice_type)
+# 
+#   index_list_result = paste(Nmers, MiSl, sep = "_")
+#   if (grepl("cis-PSP", Splice_type)==T) {
+#     load(paste0(directory, "/PSP_indices/", index_list_result, ".rds"))
+#   }
+# 
+#   proteome = list.files(dir_DB_Fasta_chunks, pattern = params$chunk, recursive = T, full.names = T)
+#   proteome = proteome[str_ends(proteome, ".fasta")]
+#   dat = readAAStringSet(proteome)
+# 
+#   # Keep only proteome name
+#   proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
+#   proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
 # }
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
@@ -80,8 +120,7 @@ print(t(params))
 # Input fasta
 proteome = list.files(dir_DB_Fasta_chunks, pattern = params$chunk, recursive = T, full.names = T)
 proteome = proteome[str_ends(proteome, ".fasta")]
-dat = read.fasta(file=proteome, 
-                 seqtype="AA", as.string = TRUE)
+dat = readAAStringSet(proteome)
 
 # Keep only proteome name
 proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
@@ -97,8 +136,6 @@ MiSl = as.numeric(params$Min_Interv_length)
 Splice_type = as.character(params$Splice_type)
 
 # CPUs
-# Ncpu = availableCores(27)
-# Ncpu = availableCores(methods = "Slurm")
 Ncpu = snakemake@params[["cpus_for_R"]]
 cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl, debug=T)
@@ -124,109 +161,121 @@ if (grepl("cis-PSP", Splice_type)==T) {
 # fst compression level
 fst_compression = as.integer(snakemake@params[["fst_compression"]])
 
-### ---------------------------- (2) Compute PCP and PSP --------------------------------------
+### ---------------------------- (2) Compute PCP --------------------------------------
 print(Sys.time())
 print(paste("Starting length: ", Nmers))
 
-# Compute PCP and PSP per sequence
-dat_sort <- dat[names(sort(unlist(lapply(dat, nchar)), decreasing = T))]
+# Pre-filter and sort input sequences
+dat_sort <- dat[width(dat) >= Nmers]
+dat_sort <- dat_sort[order(width(dat_sort), decreasing = T),]
 
-if (grepl("cis-PSP", Splice_type)==T) {
-  print("Computing PCP and cis-PSP")
+if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
+  print("Computing PCP")
+  
+  split_chunks <- rep(1:(5*Ncpu), length.out=length(dat_sort))
+  PCP <- split(dat_sort, split_chunks) %>%
+    bettermc::mclapply(mc.preschedule = TRUE, 
+                       mc.cores = Ncpu, 
+                       mc.cleanup = TRUE, 
+                       mc.force.fork = TRUE, 
+                       mc.retry = 3, 
+                       Nmers = Nmers,
+                       FUN = function(x, Nmers){
+                         extractAt(x, IRangesList(start = seq_vectorized(from = 1, to = width(x)-Nmers+1),
+                                                  end = seq_vectorized(from = Nmers, to = width(x))))
+                       })
+  # Tidy format
+  PCP <- rbindlist(lapply(PCP, as.data.table)) %>%
+    lazy_dt() %>%
+    select(value, group_name) %>%
+    rename(protein = group_name,
+           peptide = value) %>%
+    as.data.table()
+  setkey(PCP, peptide, protein)
+  PCP$type <- "PCP"
+  
+  # gc()
+  print(Sys.time())
+  print("Computed PCP")
+  
+  Seq_stats <- PCP
+} 
+
+### ---------------------------- (3) Compute PSP --------------------------------------
+if (grepl("cis-PSP", Splice_type) == TRUE) {
+  print("Computing cis-PSP")
   
   # Match indices to proteins of corresponding length
+  dat_sort <- dat_sort[width(dat_sort) > Nmers]
   inputs <- vector(mode = "list", length = length(dat_sort))
   for (i in seq_along(inputs)) {
     inputs[[i]][[1]] <- dat_sort[[i]]
-    inputs[[i]][[2]] <- index_list_result[[nchar(dat_sort[[i]][[1]])]]
+    inputs[[i]][[2]] <- index_list_result[[width(dat_sort[i])]]
   }
   
   # Generate PSP sequences
-  Pep_list <- bettermc::mclapply(X = inputs, 
-                                 FUN = Generate_PSP,
-                                 nmer = Nmers, 
-                                 MiSl = MiSl,
-                                 mc.cores = Ncpu,
-                                 mc.cleanup = T, mc.preschedule = F, mc.retry = 3)
+  PSP <- bettermc::mclapply(X = inputs, 
+                            FUN = Generate_PSP_2,
+                            mc.cores = Ncpu,
+                            mc.cleanup = TRUE, 
+                            mc.preschedule = TRUE, 
+                            mc.force.fork = TRUE, 
+                            mc.retry = 3)
+  names(PSP) <- names(dat_sort)
+  PSP <- setDT(stack(PSP))
+  setnames(PSP, c("peptide", "protein"))
+  setkey(PSP, peptide, protein)
+  PSP$type <- "PSP"
+  
   print(Sys.time())
   print("Computed PCP/PSP")
-} else if (Splice_type == "PCP") {
-  print("Computing PCP only")
-  Pep_list <- bettermc::mclapply(X = dat_sort,  
-                                 FUN = CutAndPaste_seq_PCP,
-                                 nmer = Nmers,
-                                 mc.cores = Ncpu, 
-                                 mc.cleanup = T , mc.preschedule = F, mc.retry = 3)
-  print(Sys.time())
-  print("Computed PCP")
-} else if (!exists("Pep_list")) {
-  print("Unknown splicing type, no peptides will be generated")
+  
+  Seq_stats <- rbindlist(list(PCP, PSP))
 } 
 
-# Tidy format
-PSP <- seq_list_to_dt(lapply(Pep_list, `[[`, 1))
-PCP <- seq_list_to_dt(lapply(Pep_list, `[[`, 2))
-Seq_stats <- rbindlist(lapply(Pep_list, `[[`, 3))
-print("Created data.tables")
-
 # Add peptide length
-colnames(PSP) <- c("protein", "peptide")
-colnames(PCP) <- c("protein", "peptide")
+Seq_stats <- Seq_stats %>%
+  lazy_dt() %>%
+  group_by(protein, type) %>%
+  summarise(total_peptides = n(),
+            unique_peptides = n_distinct(peptide)) %>%
+  mutate(length = Nmers) %>%
+  as.data.table()
 
-Seq_stats$length <- Nmers
 print("Added length")
 
-### ---------------------------- (3) Save stats --------------------------------------
-### Export protein stats
-{
-  Seq_stats_dir <- paste0(directory, "/Seq_stats/")
-  suppressWarnings(dir.create(Seq_stats_dir))
-}
+### ---------------------------- (4) Save stats --------------------------------------
+Seq_stats_dir <- paste0(directory, "/Seq_stats/")
+suppressWarnings(dir.create(Seq_stats_dir))
+
 vroom_write(Seq_stats,
             delim = ",", num_threads = Ncpu,
             unlist(snakemake@output[["Seq_stats"]]))
 print("Saved sequence stats")
 print(Sys.time())
 
-### ------------------------------------------ (4) Save peptides and mapping ------------------------------------------
-PCP[, index := str_sub(peptide, start = 1, end = index_length)] %>%
-  split(by = "index", drop = T, keep.by = T) %>%
-  bettermc::mclapply(mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
-    x <- x[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers)]
-    
-    if (nrow(x) > 0) {
-      index <- x$index[[1]]
-      
-      x[, .(protein, peptide)] %>% 
-        write_fst(path = paste0(directory, "/peptide_mapping/PCP_map_", index, "_", filename, ".fst"), compress = fst_compression) 
-      
-      x[, .(peptide)] %>% 
-        unique() %>%
-        write_fst(path = paste0(directory, "/peptide_seqences/PCP_", index, "_", filename, ".fst"), compress = fst_compression) 
-    }
-  }) %>%
-  capture.output()
-print("Saved PCP")
-
-PSP[, index := str_sub(peptide, start = 1, end = index_length)] %>%
-  split(by = "index", drop = T, keep.by = T) %>%
-  bettermc::mclapply(mc.cores = 4, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
-    x <- x[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers)]
-    
-    if (nrow(x) > 0) {
-      index <- x$index[[1]]
-      
-      x[, .(protein, peptide)] %>% 
-        write_fst(path = paste0(directory, "/peptide_mapping/PSP_map_", index, "_", filename, ".fst"), compress = fst_compression) 
-      
-      x[, .(peptide)] %>% 
-        unique() %>%
-        write_fst(path = paste0(directory, "/peptide_seqences/PSP_", index, "_", filename, ".fst"), compress = fst_compression)
-    }
-  }) %>%
-  capture.output()
-print("Saved PSP")
-print(Sys.time())
+### ------------------------------------------ (5) Save peptides and mapping ------------------------------------------
+data.table::setDTthreads(Ncpu)
+if (exists("PCP")) {
+  PCP[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers),] %>% 
+    .[,index := str_sub(peptide, start = 1, end = index_length)] %>% 
+    .[, write_fst(unique(.SD), paste0(directory, "/peptide_mapping/PCP_map_", .BY, "_", filename, ".fst"), compress = fst_compression), 
+      by=index, .SDcols=c("protein", "peptide")] %>% 
+    .[, write_fst(unique(.SD), paste0(directory, "/peptide_seqences/PCP_", .BY, "_", filename, ".fst"), compress = fst_compression), 
+      by=index, .SDcols=c("peptide")]
+  print("Saved PCP")
+  print(Sys.time())
+}
+if (exists("PSP")) {
+  PSP[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers),] %>% 
+    .[,index := str_sub(peptide, start = 1, end = index_length)] %>% 
+    .[, write_fst(unique(.SD), paste0(directory, "/peptide_mapping/PSP_map_", .BY, "_", filename, ".fst"), compress = fst_compression), 
+      by=index, .SDcols=c("protein", "peptide")] %>% 
+    .[, write_fst(unique(.SD), paste0(directory, "/peptide_seqences/PSP_", .BY, "_", filename, ".fst"), compress = fst_compression), 
+      by=index, .SDcols=c("peptide")]
+  print("Saved PSP")
+  print(Sys.time())
+}
 
 print("----- memory usage by Slurm -----")
 jobid = system("echo $SLURM_JOB_ID")
