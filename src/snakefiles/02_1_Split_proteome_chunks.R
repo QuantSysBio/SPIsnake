@@ -24,6 +24,20 @@ suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
 suppressPackageStartupMessages(library(vroom))
 
+### Create temporary directory for vroom
+{
+  Sys.getenv("TMPDIR") %>% print()
+  Sys.getenv("VROOM_TEMP_PATH") %>% print()
+  
+  vroom_dir = "/tmp/vroom"
+  suppressWarnings(dir.create(vroom_dir))
+  Sys.setenv(VROOM_TEMP_PATH = vroom_dir)
+  Sys.getenv("VROOM_TEMP_PATH") %>%print()
+  
+  tmp_file = tempfile()
+  print(tmp_file)
+}
+
 # {
 #   # Manual startup  
 #   Ncpu = availableCores()
