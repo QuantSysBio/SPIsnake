@@ -138,9 +138,9 @@ proteome_index <- data.frame(recno = 1:nrow(proteome_index),
                              desc = proteome_index$NAME,
                              seqlength = as.integer(proteome_index$LENGTH),
                              filepath = proteome)
-proteome_size <- file.size(proteome)
+proteome_size <- sum(proteome_index$seqlength)
 
-input_chunks <- ceiling(proteome_size / (0.66 * 10^9))
+input_chunks <- ceiling(proteome_size / maxE)
 input_chunks_positions <- rep(1:input_chunks, length.out=nrow(proteome_index), each=ceiling(nrow(proteome_index)/input_chunks))
 
 protein_counter_start = 1
