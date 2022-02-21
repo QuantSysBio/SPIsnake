@@ -193,6 +193,7 @@ if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
     as.data.table()
   setkey(PCP, peptide, protein)
   PCP$type <- "PCP"
+  PCP <- PCP[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers),]
   
   # gc()
   print(Sys.time())
@@ -226,6 +227,7 @@ if (grepl("cis-PSP", Splice_type) == TRUE) {
   setnames(PSP, c("peptide", "protein"))
   setkey(PSP, peptide, protein)
   PSP$type <- "PSP"
+  PSP <- PSP[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers),]
   
   print(Sys.time())
   print("Computed PCP/PSP")
@@ -257,7 +259,7 @@ print(Sys.time())
 ### ------------------------------------------ (5) Save peptides and mapping ------------------------------------------
 data.table::setDTthreads(Ncpu)
 if (exists("PCP")) {
-  PCP[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers),] %>% 
+  PCP %>% 
     .[,index := str_sub(peptide, start = 1, end = index_length)] %>% 
     .[, write_fst(unique(.SD), paste0(directory, "/peptide_mapping/PCP_map_", .BY, "_", filename, ".fst"), compress = fst_compression), 
       by=index, .SDcols=c("protein", "peptide")] %>% 
@@ -267,7 +269,7 @@ if (exists("PCP")) {
   print(Sys.time())
 }
 if (exists("PSP")) {
-  PSP[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers),] %>% 
+  PSP %>% 
     .[,index := str_sub(peptide, start = 1, end = index_length)] %>% 
     .[, write_fst(unique(.SD), paste0(directory, "/peptide_mapping/PSP_map_", .BY, "_", filename, ".fst"), compress = fst_compression), 
       by=index, .SDcols=c("protein", "peptide")] %>% 
