@@ -39,21 +39,21 @@ suppressPackageStartupMessages(library(vroom))
 }
 
 # {
-#   # Manual startup  
+#   # Manual startup
 #   Ncpu = availableCores()
 #   cl <- parallel::makeForkCluster(Ncpu)
 #   cl <- parallelly::autoStopCluster(cl)
 #   source("src/snakefiles/functions.R")
 # 
-#   proteome <- "data/reference/intergenic.fasta"
+#   proteome <- "data/reference/expressed_CDS_frameshift.fasta"
 #   proteome_name <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
 #   proteome_name <- unlist(strsplit(proteome_name, ".fasta", fixed = T))[1]
 #   directory=paste0("results/DB_exhaustive/Fasta_chunks/", proteome_name)
 # 
-#   proteome_index <- vroom("data/reference/intergenic.fasta.fai", 
+#   proteome_index <- vroom("data/reference/expressed_CDS_frameshift.fasta.fai",
 #                           delim = "\t", col_names = c("NAME", "LENGTH", "OFFSET", "LINEBASES", "LINEWIDTH"), num_threads = Ncpu, show_col_types = F)
-#   
-#   prot_cluster <- vroom("results/Cluster/intergenic/intergenic_cluster.tsv", 
+# 
+#   prot_cluster <- vroom("results/Cluster/expressed_CDS_frameshift/expressed_CDS_frameshift_cluster.tsv",
 #                         col_names = c("V1", "V2"), delim = "\t", num_threads = Ncpu, show_col_types = F)
 #   Master_table <- read.csv("Master_table.csv") %>%
 #     as_tibble()  %>%
@@ -138,10 +138,13 @@ proteome_index <- data.frame(recno = 1:nrow(proteome_index),
                              desc = proteome_index$NAME,
                              seqlength = as.integer(proteome_index$LENGTH),
                              filepath = proteome)
-proteome_size <- sum(proteome_index$seqlength)
 
-input_chunks <- ceiling(proteome_size / maxE)
-input_chunks_positions <- rep(1:input_chunks, length.out=nrow(proteome_index), each=ceiling(nrow(proteome_index)/input_chunks))
+if (!(nrow(proteome_index) == nrow(prot_cluster))) {
+  prot_cluster <- prot_cluster[!duplicated(prot_cluster),]
+}
+
+input_chunks <- ceiling(sum(proteome_index$seqlength) / maxE)
+input_chunks_positions <- rep(1:input_chunks, length.out=nrow(prot_cluster), each=ceiling(nrow(prot_cluster)/input_chunks))
 
 protein_counter_start = 1
 protein_counter_end = 0
