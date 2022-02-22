@@ -246,8 +246,8 @@ if (operation_mode == "Update") {
 # if ("SwissProt_UP000005640" %in% peptide_chunks$Proteome) {
 #   peptide_chunks <- peptide_chunks[peptide_chunks$Splice_type == "PCP",]
 #   peptide_chunks <- peptide_chunks[peptide_chunks$Proteome == "SwissProt_UP000005640",]
-# Proteome_i = "SwissProt_UP000005640"
-# enzyme_type = "PSP"
+# Proteome_i = "proteome_expressed_gencode"
+enCzyme_type = "PCP"
 # peptide_chunks <- peptide_chunks %>%
 #   mutate(PTMs = ifelse(PTMs == "Minimal", NA, PTMs))
 # }
@@ -331,18 +331,24 @@ if (nrow(peptide_chunks) == 0) {
           
           # Prepare peptides
           counter_fst = 1
-          for (input_i in seq_along(n_chunks)) {
+          for (input_i in 1:n_chunks) {
             print(paste("Generating PTMs for:", PTM, input_i))
             
             # Additional split to reduce RAM usage
             PTMcombinations <- input[chunks == input_i, .(peptide, MW)]
-            PTMcombinations <- PTMcombinations[, by=peptide,
-                                               PTMcombinations:=.(list(getPTMcombinations_fast(s = peptide, 
-                                                                                               m = MW,
-                                                                                               NmaxMod = max_variable_PTM, 
-                                                                                               mods_input = mods)))]
-            PTMcombinations <- rbindlist(PTMcombinations$PTMcombinations) %>%
+            PTMcombinations <- PTMcombinations[, PTMcombinations := parallel::mcmapply(getPTMcombinations_fast_vec, 
+                                                                                       peptide, MW, max_variable_PTM, 
+                                                                                       list(mods), 
+                                                                             SIMPLIFY = T, 
+                                                                             mc.cores = Ncpu, 
+                                                                             mc.preschedule = T, 
+                                                                             USE.NAMES = F, 
+                                                                             mc.cleanup = T)]
+            print("got PTM combinations")
+            
+            PTMcombinations <- rbindlist(PTMcombinations$PTMcombinations, use.names = F) %>%
               .[!is.na(ids)]
+            print("rbind combinations")
             
             # If there have been PTMs generated
             if (!(nrow(PTMcombinations) == 1 & anyNA(PTMcombinations$ids))) {
@@ -361,10 +367,10 @@ if (nrow(peptide_chunks) == 0) {
                 
                 # MW filter
                 PTM_MW_out[[j]] <- PTMcombinations[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
-                # PTM_pep_stats[[j]] <- PTM_MW_out[[j]][, .(MW_filtered_PTM = uniqueN(ids)), by = peptide] 
                 PTM_pep_stats[[j]] <- PTM_MW_out[[j]][, .(All_MW_filtered_PTM = .N,
                                                           Unique_MW_filtered_PTM = uniqueN(ids)), keyby = .(peptide)] 
               }
+              print("filtered by MW")
               
               # Save modified peptides
               counter_fst = counter_fst + 1
@@ -387,6 +393,12 @@ if (nrow(peptide_chunks) == 0) {
           } # end input_i
         } # end PTM
       } # end PTM generation
+      
+      # Re-start the cluster
+      cl <- parallel::makeForkCluster(Ncpu)
+      cl <- parallelly::autoStopCluster(cl)
+      setDTthreads(Ncpu)
+      
       ### ---------------------------- (6) MW & RT matching --------------------------------------
       for (j in 1:nrow(MS_mass_lists)) {
         print(MS_mass_lists$mass_list[j])

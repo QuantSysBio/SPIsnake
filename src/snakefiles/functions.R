@@ -168,7 +168,7 @@ CutAndPaste_seq_return_sp <- function(inputSequence,nmer,MiSl){
   }
 }
 
-Generate_PSP_2 <- function(protein_inputs){
+Generate_PSP_2 <- function(protein_inputs, Nmers){
   stri_join(extractAt(protein_inputs[[1]], IRanges(start = protein_inputs[[2]][,1], 
                                                    end =   protein_inputs[[2]][,2])), 
             extractAt(protein_inputs[[1]], IRanges(start = protein_inputs[[2]][,3], 
@@ -241,7 +241,7 @@ regression_stats <- function(obs, pred){
 
 ### ---------------------------- PTM generation ----------------------------
 
-getPTMcombinations_fast <- function(s, m, NmaxMod,mods_input=mods){
+getPTMcombinations_fast <- function(s = peptide, m = MW, NmaxMod=max_variable_PTM, mods_input=mods){
   aa = strsplit(s,split="")[[1]]
   
   kn = which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term")
@@ -289,3 +289,5 @@ getPTMcombinations_fast <- function(s, m, NmaxMod,mods_input=mods){
                                MW = m+unlist(deltaMass))
   return(PTMcombinations)
 }
+
+getPTMcombinations_fast_vec <- Vectorize(getPTMcombinations_fast, vectorize.args = c("s", "m"), SIMPLIFY = F)
