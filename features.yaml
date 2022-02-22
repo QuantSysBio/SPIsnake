@@ -5,11 +5,12 @@ Experiment_design: data/Experiment_design.csv
 
 DB:
     min_protein_length: 9
-    max_protein_length: 500
+    max_protein_length: 2000
     replace_I_with_L: FALSE
     # PTM
     max_variable_PTM: 2
     generate_spliced_PTMs: FALSE
+    PTM_chunk: 10000
     # NetMHCPan
     netMHCpan_chunk: 1000000
     n_netMHCpan_blocks: 3 # set equal to number of nodes used
