@@ -352,7 +352,7 @@ if (nrow(peptide_chunks) == 0) {
               names(PTM_pep_stats) <- MS_mass_lists$mass_list
               
               PTM_stats_all <- PTMcombinations[, .(All_PTM = .N,
-                                                   unique_PTM = uniqueN(ids)), by = peptide] %>%
+                                                   Unique_PTM = uniqueN(ids)), keyby = .(peptide)] %>%
                 as_tibble()
               
               for (j in 1:nrow(MS_mass_lists)) {
@@ -361,7 +361,9 @@ if (nrow(peptide_chunks) == 0) {
                 
                 # MW filter
                 PTM_MW_out[[j]] <- PTMcombinations[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
-                PTM_pep_stats[[j]] <- PTM_MW_out[[j]][, .(MW_filtered_PTM = uniqueN(ids)), by = peptide] 
+                # PTM_pep_stats[[j]] <- PTM_MW_out[[j]][, .(MW_filtered_PTM = uniqueN(ids)), by = peptide] 
+                PTM_pep_stats[[j]] <- PTM_MW_out[[j]][, .(All_MW_filtered_PTM = .N,
+                                                          Unique_MW_filtered_PTM = uniqueN(ids)), keyby = .(peptide)] 
               }
               
               # Save modified peptides
@@ -375,7 +377,8 @@ if (nrow(peptide_chunks) == 0) {
               rbindlist(PTM_pep_stats, idcol = "mzList") %>%
                 as_tibble() %>%
                 right_join(PTM_stats_all) %>%
-                relocate(peptide, All_PTM, MW_filtered_PTM, mzList) %>%
+                relocate(peptide, All_PTM, Unique_PTM, All_MW_filtered_PTM, Unique_MW_filtered_PTM, mzList) %>% 
+                arrange(peptide, mzList) %>%
                 vroom_write(paste0(
                   dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, ".csv.gz"), 
                   delim = ",", append = T, num_threads = Ncpu)
