@@ -85,6 +85,7 @@ rule PTM_mz_RT_matching:
         dir_DB_PTM_mz=dir_DB_PTM_mz,
         method=features["RT_filter"]["method"],
         netMHCpan_chunk=features["DB"]["netMHCpan_chunk"],
+        PTM_chunk=features["DB"]["PTM_chunk"],
         max_variable_PTM=features["DB"]["max_variable_PTM"],
         generate_spliced_PTMs=features["DB"]["generate_spliced_PTMs"],
         fst_compression = features["DB"]["fst_compression"],

@@ -92,6 +92,7 @@ print(sessionInfo())
 #   # PTMs
 #   max_variable_PTM = 2
 #   generate_spliced_PTMs = FALSE
+#   PTM_chunk = 10000
 # 
 #   # bettermc::mclapply params
 #   retry_times = 3
@@ -134,6 +135,7 @@ method = as.character(snakemake@params[["method"]])
 # PTMs
 max_variable_PTM = as.integer(snakemake@params[["max_variable_PTM"]])
 generate_spliced_PTMs = as.logical(snakemake@params[["generate_spliced_PTMs"]])
+PTM_chunk = as.integer(snakemake@params[["PTM_chunk"]])
 
 ### CPUs
 # Ncpu = availableCores(methods = "Slurm")
@@ -219,13 +221,6 @@ peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pat
   mutate(AA = paste0(str_split_fixed(AA_length, "_", 2)[,1],"_")) %>%
   mutate(filename = str_split_fixed(file, pattern = AA, 2)[,2]) %>%
   left_join(select(Master_table_expanded, filename, PTMs))
-  # mutate(PTMs = str_split_fixed(file, pattern = AA_length, 2)[,2]) %>%
-  # mutate(PTMs = ifelse(str_starts(PTMs, "_"), str_sub(PTMs, 2), PTMs)) %>%
-  # mutate(PTMs = str_split_fixed(PTMs, pattern = Proteome, 2)[,1]) %>%
-  # mutate(PTMs = str_split_fixed(PTMs, "_", n = 2)[,2]) %>%
-  # mutate(PTMs = str_remove_all(PTMs, regex("_[\\d+]+_"))) %>%
-  # mutate(PTMs = ifelse(PTMs == "NA", NA, PTMs))  %>%
-  # mutate(PTMs = ifelse(PTMs == "", NA, PTMs))  
 
 if (operation_mode == "Update") {
   # Don't use absolute path when checking for file completeness
@@ -252,7 +247,7 @@ if (operation_mode == "Update") {
 #   peptide_chunks <- peptide_chunks[peptide_chunks$Splice_type == "PCP",]
 #   peptide_chunks <- peptide_chunks[peptide_chunks$Proteome == "SwissProt_UP000005640",]
 # Proteome_i = "SwissProt_UP000005640"
-# enzyme_type = "PCP"
+# enzyme_type = "PSP"
 # peptide_chunks <- peptide_chunks %>%
 #   mutate(PTMs = ifelse(PTMs == "Minimal", NA, PTMs))
 # }
@@ -303,7 +298,7 @@ if (nrow(peptide_chunks) == 0) {
       
       ### ---------------------------- (4) Compute MW --------------------------------------
       ### Define chunking strategy
-      chunk_size = 10 * 10^5
+      chunk_size = PTM_chunk
       n_chunks = ceiling((nrow(input) / chunk_size))
       print(paste0("Creating ", n_chunks, " chunks"))       
 
@@ -319,7 +314,8 @@ if (nrow(peptide_chunks) == 0) {
       # PTMs to be generated
       PTM_list <- peptide_chunks_tmp$PTMs[peptide_chunks_tmp$Splice_type == enzyme_type] %>%
         str_split(pattern = "\\|") %>%
-        unlist()
+        unlist() %>%
+        str_squish()
       PTM_list <- PTM_list[!(PTM_list == "")] %>% unique() %>% na.omit() %>% as.character()
       
       if (generate_spliced_PTMs == FALSE) {
@@ -346,7 +342,6 @@ if (nrow(peptide_chunks) == 0) {
                                                                                                NmaxMod = max_variable_PTM, 
                                                                                                mods_input = mods)))]
             PTMcombinations <- rbindlist(PTMcombinations$PTMcombinations) %>%
-              unique() %>%
               .[!is.na(ids)]
             
             # If there have been PTMs generated
@@ -356,7 +351,8 @@ if (nrow(peptide_chunks) == 0) {
               names(PTM_MW_out) <- MS_mass_lists$mass_list
               names(PTM_pep_stats) <- MS_mass_lists$mass_list
               
-              PTM_stats_all <- PTMcombinations[, .(All_PTM = uniqueN(ids)), by = peptide] %>%
+              PTM_stats_all <- PTMcombinations[, .(All_PTM = .N,
+                                                   unique_PTM = uniqueN(ids)), by = peptide] %>%
                 as_tibble()
               
               for (j in 1:nrow(MS_mass_lists)) {

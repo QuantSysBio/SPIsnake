@@ -27,15 +27,17 @@ print("Loaded functions. Loading the data")
 print(sessionInfo())
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
+# Wildcard
+filename = snakemake@output[[1]]
+
 # {
 #   ### Manual startup
 #   filename = "results/DB_exhaustive/PSP_indices/10_25.rds"
-#   Ncpu = availableCores(27)
-#   max_protein_length = 100
+#   Ncpu = availableCores(7)
+#   max_protein_length = 500
 #   directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
 # }
-# Wildcard
-filename = snakemake@output[[1]]
+
 filename <- str_remove(filename, ".rds") %>%
   str_split_fixed(pattern = fixed("DB_exhaustive/PSP_indices/"), n = Inf)
 params <- filename[,2] %>%

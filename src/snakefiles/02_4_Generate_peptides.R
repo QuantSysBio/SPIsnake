@@ -55,7 +55,7 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(directory, "/peptide_seqences")))
 #   suppressWarnings(dir.create(paste0(directory, "/peptide_mapping")))
 #   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-#   filename = "results/DB_exhaustive/Seq_stats/10_PCP_25_intergenic_15183907_17714557_1.fasta"
+#   filename = "results/DB_exhaustive/Seq_stats/10_cis-PSP_25_proteome_expressed_gencode_1_43578_11.fasta.csv.gz"
 #   index_length = 1
 #   max_protein_length = 100
 #   exclusion_pattern <- "(U|X|\\*)"
@@ -192,8 +192,10 @@ if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
            peptide = value) %>%
     as.data.table()
   setkey(PCP, peptide, protein)
-  PCP$type <- "PCP"
-  PCP <- PCP[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers),]
+  PCP <- PCP %>% 
+    .[,index := str_sub(peptide, start = 1, end = index_length)] %>%
+    .[!str_detect(peptide, exclusion_pattern), .(peptide, protein), by=index] %>%
+    .[, type := "PCP"]
   
   # gc()
   print(Sys.time())
@@ -216,6 +218,7 @@ if (grepl("cis-PSP", Splice_type) == TRUE) {
   
   # Generate PSP sequences
   PSP <- bettermc::mclapply(X = inputs, 
+                            Nmers = Nmers,
                             FUN = Generate_PSP_2,
                             mc.cores = Ncpu,
                             mc.cleanup = TRUE, 
@@ -226,8 +229,10 @@ if (grepl("cis-PSP", Splice_type) == TRUE) {
   PSP <- setDT(stack(PSP))
   setnames(PSP, c("peptide", "protein"))
   setkey(PSP, peptide, protein)
-  PSP$type <- "PSP"
-  PSP <- PSP[!(str_detect(peptide, exclusion_pattern) | !str_length(peptide) == Nmers),]
+  PSP <- PSP %>% 
+    .[,index := str_sub(peptide, start = 1, end = index_length)] %>%
+    .[!str_detect(peptide, exclusion_pattern), .(peptide, protein), by=index] %>%
+    .[, type := "PSP"]
   
   print(Sys.time())
   print("Computed PCP/PSP")
@@ -260,7 +265,6 @@ print(Sys.time())
 data.table::setDTthreads(Ncpu)
 if (exists("PCP")) {
   PCP %>% 
-    .[,index := str_sub(peptide, start = 1, end = index_length)] %>% 
     .[, write_fst(unique(.SD), paste0(directory, "/peptide_mapping/PCP_map_", .BY, "_", filename, ".fst"), compress = fst_compression), 
       by=index, .SDcols=c("protein", "peptide")] %>% 
     .[, write_fst(unique(.SD), paste0(directory, "/peptide_seqences/PCP_", .BY, "_", filename, ".fst"), compress = fst_compression), 
@@ -270,7 +274,6 @@ if (exists("PCP")) {
 }
 if (exists("PSP")) {
   PSP %>% 
-    .[,index := str_sub(peptide, start = 1, end = index_length)] %>% 
     .[, write_fst(unique(.SD), paste0(directory, "/peptide_mapping/PSP_map_", .BY, "_", filename, ".fst"), compress = fst_compression), 
       by=index, .SDcols=c("protein", "peptide")] %>% 
     .[, write_fst(unique(.SD), paste0(directory, "/peptide_seqences/PSP_", .BY, "_", filename, ".fst"), compress = fst_compression), 
