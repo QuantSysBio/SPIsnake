@@ -62,7 +62,7 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 # 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/M_8.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/L_8.csv"
 #   filename <- filename %>%
 #     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
@@ -247,7 +247,8 @@ if (operation_mode == "Update") {
 #   peptide_chunks <- peptide_chunks[peptide_chunks$Splice_type == "PCP",]
 #   peptide_chunks <- peptide_chunks[peptide_chunks$Proteome == "SwissProt_UP000005640",]
 # Proteome_i = "proteome_expressed_gencode"
-enCzyme_type = "PCP"
+# enzyme_type = "PSP"
+# PTM = "OpenSearch"
 # peptide_chunks <- peptide_chunks %>%
 #   mutate(PTMs = ifelse(PTMs == "Minimal", NA, PTMs))
 # }
@@ -295,7 +296,7 @@ if (nrow(peptide_chunks) == 0) {
         unique()
       cat("Reading in", Proteome_i, enzyme_type, "sequences: Done\n",
           as.character(Sys.time()), "\n")
-      
+
       ### ---------------------------- (4) Compute MW --------------------------------------
       ### Define chunking strategy
       chunk_size = PTM_chunk
@@ -309,7 +310,6 @@ if (nrow(peptide_chunks) == 0) {
       
       cat("MW", enzyme_type, ": Done\n",
           as.character(Sys.time()), "\n")
-      
       ### ---------------------------- (5) PTM generation --------------------------------------
       # PTMs to be generated
       PTM_list <- peptide_chunks_tmp$PTMs[peptide_chunks_tmp$Splice_type == enzyme_type] %>%
@@ -325,9 +325,12 @@ if (nrow(peptide_chunks) == 0) {
       }
       
       if (length(PTM_list) > 0 & ignore_generate_spliced_PTMs) {
+        mzList <- rbindlist(MS_mass_lists_data, idcol = "mzList")[,.(mzList, MW_Min, MW_Max)] %>%
+          setkey(MW_Min, MW_Max, mzList)
+        
         for (PTM in PTM_list) {
           # Load PTM table
-          mods <- vroom(paste0("data/modifications/", PTM, ".csv"), show_col_types = F) 
+          mods <- vroom(paste0("data/modifications/", PTM, ".csv"), show_col_types = F, num_threads = Ncpu) 
           
           # Prepare peptides
           counter_fst = 1
@@ -339,11 +342,11 @@ if (nrow(peptide_chunks) == 0) {
             PTMcombinations <- PTMcombinations[, PTMcombinations := parallel::mcmapply(getPTMcombinations_fast_vec, 
                                                                                        peptide, MW, max_variable_PTM, 
                                                                                        list(mods), 
-                                                                             SIMPLIFY = T, 
-                                                                             mc.cores = Ncpu, 
-                                                                             mc.preschedule = T, 
-                                                                             USE.NAMES = F, 
-                                                                             mc.cleanup = T)]
+                                                                                       SIMPLIFY = T, 
+                                                                                       mc.cores = Ncpu, 
+                                                                                       mc.preschedule = T, 
+                                                                                       USE.NAMES = F, 
+                                                                                       mc.cleanup = T)]
             print("got PTM combinations")
             
             PTMcombinations <- rbindlist(PTMcombinations$PTMcombinations, use.names = F) %>%
@@ -352,53 +355,35 @@ if (nrow(peptide_chunks) == 0) {
             
             # If there have been PTMs generated
             if (!(nrow(PTMcombinations) == 1 & anyNA(PTMcombinations$ids))) {
-              PTM_MW_out <- vector(mode = "list", length = nrow(MS_mass_lists))          
-              PTM_pep_stats <- vector(mode = "list", length = nrow(MS_mass_lists))
-              names(PTM_MW_out) <- MS_mass_lists$mass_list
-              names(PTM_pep_stats) <- MS_mass_lists$mass_list
-              
               PTM_stats_all <- PTMcombinations[, .(All_PTM = .N,
-                                                   Unique_PTM = uniqueN(ids)), keyby = .(peptide)] %>%
-                as_tibble()
-              
-              for (j in 1:nrow(MS_mass_lists)) {
-                MS_mass_list <- MS_mass_lists$mass_list[j]
-                mzList <- MS_mass_lists_data[[j]]
-                
-                # MW filter
-                PTM_MW_out[[j]] <- PTMcombinations[MW %inrange% mzList[,c("MW_Min", "MW_Max")]]
-                PTM_pep_stats[[j]] <- PTM_MW_out[[j]][, .(All_MW_filtered_PTM = .N,
-                                                          Unique_MW_filtered_PTM = uniqueN(ids)), keyby = .(peptide)] 
-              }
+                                                   Unique_PTM = uniqueN(ids)), keyby = .(peptide)]
+              PTMcombinations[,MW_Min:=MW]
+              PTMcombinations[,MW_Max:=MW]
+              PTM_MW_out <- foverlaps(x = PTMcombinations, y = mzList, 
+                                      by.x=c("MW_Min","MW_Max"),
+                                      by.y=c("MW_Min", "MW_Max"), nomatch=0L)
+              PTM_MW_out[, c("i.MW_Min", "i.MW_Max", "MW_Min", "MW_Max"):=NULL] 
+              PTM_MW_out <- unique(PTM_MW_out)
               print("filtered by MW")
               
               # Save modified peptides
               counter_fst = counter_fst + 1
-              
-              rbindlist(PTM_MW_out, idcol = "mzList") %>%
-                as_tibble() %>%
+              PTM_MW_out %>%
                 vroom_write(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, ".csv.gz"), 
                             delim = ",", append = T, num_threads = Ncpu)
               
-              rbindlist(PTM_pep_stats, idcol = "mzList") %>%
-                as_tibble() %>%
-                right_join(PTM_stats_all) %>%
-                relocate(peptide, All_PTM, Unique_PTM, All_MW_filtered_PTM, Unique_MW_filtered_PTM, mzList) %>% 
-                arrange(peptide, mzList) %>%
+              # Save stats
+              PTM_MW_out[, .(Unique_MW_filtered_PTM = uniqueN(ids)), keyby = .(peptide, mzList)] %>%
+                .[PTM_stats_all, on = .(peptide), allow.cartesian = TRUE] %>%
+                relocate(peptide, All_PTM, Unique_PTM, Unique_MW_filtered_PTM, mzList) %>%
                 vroom_write(paste0(
                   dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, ".csv.gz"), 
                   delim = ",", append = T, num_threads = Ncpu)
             } 
-            rm(PTMcombinations, PTM_MW_out, PTM_pep_stats, MS_mass_list, mzList, PTM_stats_all)
+            rm(PTMcombinations, PTM_MW_out, PTM_stats_all)
           } # end input_i
         } # end PTM
       } # end PTM generation
-      
-      # Re-start the cluster
-      cl <- parallel::makeForkCluster(Ncpu)
-      cl <- parallelly::autoStopCluster(cl)
-      setDTthreads(Ncpu)
-      
       ### ---------------------------- (6) MW & RT matching --------------------------------------
       for (j in 1:nrow(MS_mass_lists)) {
         print(MS_mass_lists$mass_list[j])
