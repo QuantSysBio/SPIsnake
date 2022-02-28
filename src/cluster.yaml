@@ -1,6 +1,6 @@
 __default__:
   partition: "elbe"
-  time: 12:00:00
+  time: 3-00:00:00
   nodes: 1
   ncpus: "{resources.ncpus}"
   mem: "{resources.mem}"
