@@ -245,12 +245,12 @@ if (operation_mode == "Update") {
 ### FOR TESTING !
 # if ("SwissProt_UP000005640" %in% peptide_chunks$Proteome) {
 #   peptide_chunks <- peptide_chunks[peptide_chunks$Splice_type == "PCP",]
-#   peptide_chunks <- peptide_chunks[peptide_chunks$Proteome == "SwissProt_UP000005640",]
+#   peptide_chunks <- peptide_chunks[peptide_chunks$Proteome == "proteome_expressed_gencode",]
 # Proteome_i = "proteome_expressed_gencode"
-# enzyme_type = "PSP"
-# PTM = "OpenSearch"
+# enzyme_type = "PCP"
+# PTM = "5-defaults"
 # peptide_chunks <- peptide_chunks %>%
-#   mutate(PTMs = ifelse(PTMs == "Minimal", NA, PTMs))
+#   mutate(PTMs = ifelse(PTMs == "5-defaults", NA, PTMs))
 # }
 
 # End the script if no files to be updated
@@ -317,6 +317,7 @@ if (nrow(peptide_chunks) == 0) {
         unlist() %>%
         str_squish()
       PTM_list <- PTM_list[!(PTM_list == "")] %>% unique() %>% na.omit() %>% as.character()
+      PTM_list <- PTM_list[!PTM_list == "OpenSearch"]
       
       if (generate_spliced_PTMs == FALSE) {
         ignore_generate_spliced_PTMs = !(enzyme_type == "PSP" | enzyme_type == "cis-PSP")
@@ -326,6 +327,7 @@ if (nrow(peptide_chunks) == 0) {
       
       if (length(PTM_list) > 0 & ignore_generate_spliced_PTMs) {
         mzList <- rbindlist(MS_mass_lists_data, idcol = "mzList")[,.(mzList, MW_Min, MW_Max)] %>%
+          unique() %>%
           setkey(MW_Min, MW_Max, mzList)
         
         for (PTM in PTM_list) {
@@ -350,20 +352,22 @@ if (nrow(peptide_chunks) == 0) {
             print("got PTM combinations")
             
             PTMcombinations <- rbindlist(PTMcombinations$PTMcombinations, use.names = F) %>%
-              .[!is.na(ids)]
+              .[!is.na(ids)] %>%
+              .[, id := rowid(peptide, ids)] %>%
+              .[, c("MW_Min", "MW_Max") := MW]
             print("rbind combinations")
             
             # If there have been PTMs generated
             if (!(nrow(PTMcombinations) == 1 & anyNA(PTMcombinations$ids))) {
               PTM_stats_all <- PTMcombinations[, .(All_PTM = .N,
                                                    Unique_PTM = uniqueN(ids)), keyby = .(peptide)]
-              PTMcombinations[,MW_Min:=MW]
-              PTMcombinations[,MW_Max:=MW]
+              
               PTM_MW_out <- foverlaps(x = PTMcombinations, y = mzList, 
                                       by.x=c("MW_Min","MW_Max"),
-                                      by.y=c("MW_Min", "MW_Max"), nomatch=0L)
-              PTM_MW_out[, c("i.MW_Min", "i.MW_Max", "MW_Min", "MW_Max"):=NULL] 
-              PTM_MW_out <- unique(PTM_MW_out)
+                                      by.y=c("MW_Min", "MW_Max"), nomatch=0L) %>%
+                .[, c("i.MW_Min", "i.MW_Max", "MW_Min", "MW_Max"):=NULL] %>%
+                unique() %>%
+                .[, id := NULL]
               print("filtered by MW")
               
               # Save modified peptides
@@ -373,9 +377,11 @@ if (nrow(peptide_chunks) == 0) {
                             delim = ",", append = T, num_threads = Ncpu)
               
               # Save stats
-              PTM_MW_out[, .(Unique_MW_filtered_PTM = uniqueN(ids)), keyby = .(peptide, mzList)] %>%
+              PTM_MW_out %>%
+                .[, .(All_MW_filtered_PTM = .N,
+                      Unique_MW_filtered_PTM = uniqueN(ids)), keyby = .(peptide, mzList)] %>%
                 .[PTM_stats_all, on = .(peptide), allow.cartesian = TRUE] %>%
-                relocate(peptide, All_PTM, Unique_PTM, Unique_MW_filtered_PTM, mzList) %>%
+                relocate(peptide, All_PTM, Unique_PTM, All_MW_filtered_PTM, Unique_MW_filtered_PTM, mzList) %>%
                 vroom_write(paste0(
                   dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, ".csv.gz"), 
                   delim = ",", append = T, num_threads = Ncpu)
@@ -487,25 +493,10 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
         not_empty_MS_mass_list <- nrow(tmp) > 0
         if (not_empty_MS_mass_list) {
 
-          # tmp <- mzList[tmp, on=.(MW_Min <= MW, MW_Max >= MW, 
-          #                          RT_Min <= RT_pred, RT_Max >= RT_pred), nomatch=0, 
-          #                .(peptide, MW, RT_pred)]
-          
-          tmp <- tmp %>%
-            split(by = "chunks", drop = T, keep.by = FALSE) %>%
-            bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
-                               FUN = function(x){
-                                 x[mzList, on=.(MW <= MW_Max, MW >= MW_Min, 
-                                                RT_pred <= RT_Max, RT_pred >= RT_Min), nomatch=0, 
-                                   .(peptide)] 
-                               }) %>%
-            rbindlist() %>%
-            unique() %>%
-            as_tibble() %>%
-            left_join(tmp) %>%
-            select(-chunks)
+          tmp <- mzList[tmp, on=.(MW_Min <= MW, MW_Max >= MW,
+                                   RT_Min <= RT_pred, RT_Max >= RT_pred), nomatch=0,
+                         .(peptide, MW, RT_pred)]
         }
-        
         cat("2D MW/RT filter: Done\n",
             as.character(Sys.time()), "\n")
         
