@@ -45,15 +45,15 @@ suppressPackageStartupMessages(library(vroom))
 #   cl <- parallelly::autoStopCluster(cl)
 #   source("src/snakefiles/functions.R")
 # 
-#   proteome <- "data/reference/expressed_CDS_frameshift.fasta"
+#   proteome <- "data/reference/SPL_canonical.fasta"
 #   proteome_name <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
 #   proteome_name <- unlist(strsplit(proteome_name, ".fasta", fixed = T))[1]
 #   directory=paste0("results/DB_exhaustive/Fasta_chunks/", proteome_name)
 # 
-#   proteome_index <- vroom("data/reference/expressed_CDS_frameshift.fasta.fai",
+#   proteome_index <- vroom("data/reference/SPL_canonical.fasta.fai",
 #                           delim = "\t", col_names = c("NAME", "LENGTH", "OFFSET", "LINEBASES", "LINEWIDTH"), num_threads = Ncpu, show_col_types = F)
 # 
-#   prot_cluster <- vroom("results/Cluster/expressed_CDS_frameshift/expressed_CDS_frameshift_cluster.tsv",
+#   prot_cluster <- vroom("results/Cluster/SPL_canonical/SPL_canonical_cluster.tsv",
 #                         col_names = c("V1", "V2"), delim = "\t", num_threads = Ncpu, show_col_types = F)
 #   Master_table <- read.csv("Master_table.csv") %>%
 #     as_tibble()  %>%
@@ -65,7 +65,7 @@ suppressPackageStartupMessages(library(vroom))
 #   min_protein_length = 8
 #   # dat <- dat[width(dat) >= min_protein_length]
 # 
-#   max_length=500
+#   max_length=2000
 #   overlap_length=MiSl*2
 #   maxE = Master_table$MaxE
 #   replace_I_with_L = FALSE
@@ -125,9 +125,7 @@ print(paste("Replace I with L:", replace_I_with_L))
 ### Output dir
 directory = snakemake@params[["directory"]]
 directory <- paste0(directory, "/", proteome_name)
-suppressWarnings(
-  dir.create(directory)
-)
+suppressWarnings(dir.create(directory))
 
 ### ---------------------------- (2) Proteome pre-processing --------------------------------------
 # Define number of chunks
@@ -179,7 +177,7 @@ for (input_chunk in 1:input_chunks) {
   
   # Split long entries into chunks
   long_entries <- split(long_entries, f = rep(1:Ncpu, length.out=length(long_entries), each=ceiling(length(long_entries)/Ncpu)))
-  long_entries <- mclapply(long_entries, Split_max_length3, max_length=max_length, overlap_length=MiSl*2, mc.preschedule = T, mc.cores = Ncpu)
+  long_entries <- mclapply(long_entries, Split_max_length, max_length=max_length, overlap_length=MiSl*2, mc.preschedule = T, mc.cores = Ncpu)
   long_entries <- lapply(long_entries, function(x){unlist(AAStringSetList(x), use.names = T)})
   long_entries <- unlist(AAStringSetList(long_entries), use.names = F)
   
