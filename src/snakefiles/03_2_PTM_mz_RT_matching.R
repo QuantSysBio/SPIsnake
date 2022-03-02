@@ -29,6 +29,7 @@ suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(R.utils))
 suppressPackageStartupMessages(library(reticulate))
 suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(stringi))
 suppressPackageStartupMessages(library(vroom))
 suppressPackageStartupMessages(library(arrangements))
 
