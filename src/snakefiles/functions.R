@@ -240,32 +240,30 @@ regression_stats <- function(obs, pred){
 
 
 ### ---------------------------- PTM generation ----------------------------
+find_ka <- Vectorize(function(aa, mods_input){
+  which(mods_input$Site %in% aa & mods_input$Position=="Anywhere")
+}, SIMPLIFY = T, USE.NAMES = F)
 
 getPTMcombinations_fast <- function(s = peptide, m = MW, NmaxMod=max_variable_PTM, mods_input=mods){
-  aa = strsplit(s,split="")[[1]]
   
   kn = which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term")
   kc = which(mods_input$Site=="C-term" & mods_input$Position=="Any C-term")
-  
-  ka = list()
-  for(i in 1:length(aa)){
-    ka[[i]] = which(mods_input$Site%in%aa[i] & mods_input$Position=="Anywhere")
-  }
-  ka = unlist(ka)
+  ka = unlist(find_ka(aa = strsplit(s, split="")[[1]], 
+                      mods_input = list(mods_input)))
   
   modIndex = c(kn,kc,ka)
   modId = mods_input$Id[modIndex]
   modSite = mods_input$Site[modIndex]
   modPos = mods_input$Position[modIndex]
-  modDelta = as.numeric(as.vector(mods_input$MonoMass[modIndex]))
+  modDelta = as.numeric(mods_input$MonoMass[modIndex])
   
   # get all combinations of NmaxMod modifications
   combi = list()
   combi[[1]] = c(1:length(modIndex))
   
   if(NmaxMod>1 & length(modIndex)>1){
-    for(i in 2:min(NmaxMod,length(modIndex))){
-      combi[[i]] <- arrangements::combinations(c(1:length(modIndex)),i)
+    for(i in 2:min(NmaxMod, length(modIndex))){
+      combi[[i]] <- arrangements::combinations(c(1:length(modIndex)), i)
     }
   }
   
@@ -276,18 +274,18 @@ getPTMcombinations_fast <- function(s = peptide, m = MW, NmaxMod=max_variable_PT
   
   if(NmaxMod>1 & length(modIndex)>1){
     for(i in 2:min(NmaxMod,length(modIndex))){
-      deltaMass[[i]] <- rowSums(matrix(modDelta[combi[[i]]],dim(combi[[i]])[1],i))
+      deltaMass[[i]] <- rowSums(matrix(data = modDelta[combi[[i]]],
+                                       nrow = dim(combi[[i]])[1], 
+                                       ncol = i))
       
-      IDs[[i]] = matrix(modId[combi[[i]]],dim(combi[[i]])[1],i)
-      IDs[[i]] <- do.call(stringi::stri_join, c(input=as.data.frame(IDs[[i]], stringsAsFactors = F), sep=";"))
+      IDs[[i]] <- stri_join_list(x = split(modId[combi[[i]]], f = rep(1:dim(combi[[i]])[1], times = i)), sep=";")
     }
   }
   
   # generate final mod sequences with delta Masses
-  PTMcombinations = data.table(peptide = rep(s,sum(unlist(lapply(deltaMass,length)))),
+  PTMcombinations = data.table(peptide = s,
                                ids = unlist(IDs),
-                               MW = m+unlist(deltaMass))
+                               MW = m + unlist(deltaMass))
   return(PTMcombinations)
 }
-
-getPTMcombinations_fast_vec <- Vectorize(getPTMcombinations_fast, vectorize.args = c("s", "m"), SIMPLIFY = F)
+getPTMcombinations_fast_vec <- Vectorize(getPTMcombinations_fast2, vectorize.args = c("s", "m"), SIMPLIFY = F)
