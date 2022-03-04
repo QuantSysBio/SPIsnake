@@ -204,10 +204,10 @@ computeMZ_biostrings <- function(seq){
     aa1 = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
     aa2 = c(71.037114, 156.101111, 114.042927, 115.026943, 103.009185, 129.042593, 128.058578, 57.021464, 137.058912, 113.084064, 113.084064, 128.094963, 131.040485, 147.068414, 97.052764, 87.032028, 101.047679, 186.079313, 163.06332, 99.068414)
     aa3 = letterFrequency(seq, letters = aa1) %*% diag(aa2)
-    MW=rowSums(aa3)+18.01528
+    MW=rowSums(aa3)+18.01056
     ## add NA for zero values
     # MW=round(MW, digits = 5)
-    MW[MW==18.01528] = NA
+    MW[MW==18.01056] = NA
   }
   return(MW)
 }
