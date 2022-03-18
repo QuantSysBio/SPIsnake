@@ -10,7 +10,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(data.table))
@@ -32,7 +32,7 @@ filename = snakemake@output[[1]]
 
 # {
 #   ### Manual startup
-#   filename = "results/DB_exhaustive/PSP_indices/10_25.rds"
+#   filename = "results/DB_exhaustive/PSP_indices/8_30.rds"
 #   Ncpu = availableCores(7)
 #   max_protein_length = 500
 #   directory = "/home/yhorokh/SNAKEMAKE/SPIsnake-main/results/DB_exhaustive"
@@ -82,15 +82,21 @@ suppressWarnings(dir.create(paste0(directory, "/PSP_indices")))
     seq_sampl <- paste0(sample(c("A","T","G","C"), n, replace=T),collapse="")
     index_list[[n]] <- seq_sampl
   }
+  index_list <- unlist(index_list)
+  index_list <- rev(index_list)
   
-  ## randomization leads to balanced core usage
-  index_list <- sample(index_list) 
-  ncharz <- sapply(index_list, nchar) ## this will later allow to reorder the sample
+  # Generate PSP indices
+  index_list <- split(index_list, f = rep(1:Ncpu, length.out=length(index_list)))
+  index_list_result <- bettermc::mclapply(index_list, mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=T, mc.retry = 3,
+                                          CutAndPaste_seq_return_sp_vec, nmer = Nmers, MiSl=MiSl)
+  index_list_result <- unlist(index_list_result, recursive = F, use.names = F)
+  index_list_result <- index_list_result[!unlist(lapply(index_list_result, is.null))]
   
-  index_list_result <- bettermc::mclapply(index_list, mc.cores = Ncpu, mc.cleanup=T, mc.preschedule=F, mc.retry = 3,
-                                CutAndPaste_seq_return_sp, nmer = Nmers, MiSl=MiSl)
-  
-  index_list_result <- index_list_result[order(ncharz)]
+  # Reorder results by increasing length
+  index_list_result <- index_list_result[match(sort(unlist(lapply(index_list_result, nrow))), 
+                                               unlist(lapply(index_list_result, nrow)))]
+  index_list_result <- c(vector("list", max_protein_length - length(index_list_result)), index_list_result)
+  names(index_list_result) <- 1:max_protein_length
 }
 
 ### ---------------------------- (3) Export --------------------------------------
@@ -119,3 +125,4 @@ parallel::stopCluster(cl)
 print("----- garbage collection -----")
 gc() %>%
   print()
+sink()

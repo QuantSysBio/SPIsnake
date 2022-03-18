@@ -44,7 +44,8 @@ rule Index_proteome:
         dir_cluster_proteome=join(dir_cluster, "{proteome}/{proteome}"),
         dir_tmp=join(dir_cluster, "{proteome}/tmp")
     shell:
-        "samtools faidx {input.proteome} --output {output.prot_index} &> {log}"
+        "sed 's, ,_,g' -i {input.proteome} ;\
+        samtools faidx {input.proteome} --output {output.prot_index} &> {log}"
 
 
 rule Cluster_proteome:
@@ -83,8 +84,7 @@ rule Split_proteome_chunks:
         proteome = join(dir_reference, '{proteome}.fasta'),
         prot_index = join(dir_reference, '{proteome}.fasta.fai'),
         prot_cluster = join(dir_cluster, "{proteome}/{proteome}_cluster.tsv"),
-        Master_table = features["Master_table"],
-        functions = "src/snakefiles/functions.R"
+        Master_table = features["Master_table"]
     output:
         Split_dir = directory(join(dir_DB_Fasta_chunks, "{proteome}")),
         Split_proteomes = touch(join(dir_DB_Fasta_chunks, ".Split_proteome_chunks_{proteome}.done"))

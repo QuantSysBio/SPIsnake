@@ -13,7 +13,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(data.table))
@@ -83,6 +83,7 @@ train <- train %>%
   rename(RT = rt,
          peptide = s) %>%
   select(dataset, peptide, RT) %>%
+  unique() %>%
   split(~dataset, drop = T)
 
 # Save files
@@ -332,3 +333,4 @@ data.frame(number = seq_along(cmd_RT_test),
            cmd = cmd_RT_test)  %>%
   vroom_write(delim = ",", append = FALSE,
               file =  unlist(snakemake@output[["cmd_RT_test"]]), col_names = T)
+sink()

@@ -15,7 +15,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(Biostrings))
@@ -275,7 +275,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
       # Save fasta
       fasta_chunk <- AAStringSet(x = keep_pep$peptide)
       names(fasta_chunk) <- keep_pep$header
-      writeXStringSet(fasta_chunk, append = T, format = "fasta",
+      writeXStringSet(unique(fasta_chunk), append = T, format = "fasta",
                       filepath = paste0(dir_DB_out, "/", biol_group, ".fasta"))
     }
     # Return stats for a biological group
@@ -367,3 +367,4 @@ Summary_stats %>%
               names_from = Filtering_step, values_from = c(`# peptides`)) %>%
   vroom_write(delim = ",", append = FALSE, col_names = TRUE,
               file = unlist(snakemake@output[["Summary_stats"]]))
+sink()

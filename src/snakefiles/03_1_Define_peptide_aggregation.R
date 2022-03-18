@@ -11,7 +11,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
@@ -94,3 +94,4 @@ vroom_write(Peptide_aggregation_table, delim = ",", append = FALSE,
 
 # vroom_write(Peptide_aggregation_table, delim = ",", append = FALSE,
 #             file = paste0(dir_DB_PTM_mz, "/Peptide_aggregation_table.csv"))
+sink()

@@ -15,7 +15,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(data.table))
@@ -189,3 +189,4 @@ IC50_filter_stats <- bettermc::mclapply(X = output_files_unique, mc.cores = Ncpu
 IC50_filter_stats %>%
   vroom_write(append = FALSE, col_names = TRUE, delim = ",",
               file = unlist(snakemake@output[["IC50_filter_stats"]]))
+sink()

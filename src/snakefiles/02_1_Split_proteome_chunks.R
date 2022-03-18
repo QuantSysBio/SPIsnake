@@ -11,7 +11,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(bettermc))
@@ -45,15 +45,15 @@ suppressPackageStartupMessages(library(vroom))
 #   cl <- parallelly::autoStopCluster(cl)
 #   source("src/snakefiles/functions.R")
 # 
-#   proteome <- "data/reference/SPL_canonical.fasta"
+#   proteome <- "data/reference/SwissProt_UP000005640.fasta"
 #   proteome_name <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
 #   proteome_name <- unlist(strsplit(proteome_name, ".fasta", fixed = T))[1]
 #   directory=paste0("results/DB_exhaustive/Fasta_chunks/", proteome_name)
 # 
-#   proteome_index <- vroom("data/reference/SPL_canonical.fasta.fai",
+#   proteome_index <- vroom("data/reference/SwissProt_UP000005640.fasta.fai",
 #                           delim = "\t", col_names = c("NAME", "LENGTH", "OFFSET", "LINEBASES", "LINEWIDTH"), num_threads = Ncpu, show_col_types = F)
 # 
-#   prot_cluster <- vroom("results/Cluster/SPL_canonical/SPL_canonical_cluster.tsv",
+#   prot_cluster <- vroom("results/Cluster/SwissProt_UP000005640/SwissProt_UP000005640_cluster.tsv",
 #                         col_names = c("V1", "V2"), delim = "\t", num_threads = Ncpu, show_col_types = F)
 #   Master_table <- read.csv("Master_table.csv") %>%
 #     as_tibble()  %>%
@@ -61,17 +61,17 @@ suppressPackageStartupMessages(library(vroom))
 #     select(Proteome, MaxE, Splice_type, Min_Interv_length)
 # 
 #   # max intervening sequence length
-#   MiSl <- 25
-#   min_protein_length = 8
+# MiSl <- c(25, 50)
+# min_protein_length = 8
 #   # dat <- dat[width(dat) >= min_protein_length]
 # 
-#   max_length=2000
+#   max_length=500
 #   overlap_length=MiSl*2
 #   maxE = Master_table$MaxE
 #   replace_I_with_L = FALSE
 # }
 
-source(snakemake@input[["functions"]])
+source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 print(sessionInfo())
 
@@ -86,7 +86,7 @@ cl <- parallelly::autoStopCluster(cl)
 # Protein database
 proteome <- as.character(snakemake@input[["proteome"]])
 proteome_index <- vroom(as.character(snakemake@input[["prot_index"]]), delim = "\t", show_col_types = FALSE,
-                   col_names = c("NAME", "LENGTH", "OFFSET", "LINEBASES", "LINEWIDTH"), num_threads = Ncpu)
+                        col_names = c("NAME", "LENGTH", "OFFSET", "LINEBASES", "LINEWIDTH"), num_threads = Ncpu)
 
 # Keep only proteome name
 proteome_name <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
@@ -97,21 +97,22 @@ prot_cluster <- vroom(snakemake@input[["prot_cluster"]], col_names = c("V1", "V2
 
 # Master table
 Master_table <- read.csv(snakemake@input[["Master_table"]]) %>%
- as_tibble()  %>%
- filter(Proteome == proteome_name) %>%
- select(Proteome, MaxE, Splice_type, Min_Interv_length)
+  as_tibble() %>%
+  filter(Proteome == proteome_name) %>%
+  select(Proteome, MaxE, Splice_type, Min_Interv_length) %>%
+  unique()
 
+### Params:
 # max intervening sequence length
 MiSl <- as.numeric(Master_table$Min_Interv_length)
 print(paste("max_intervening_length:", MiSl))
 
-### Params:
 # Input proteome filter
 min_protein_length = snakemake@params[["min_protein_length"]]
 print(paste("min_protein_length:", min_protein_length))
 
 # Proteome chunks
-max_length=as.numeric(snakemake@params[["max_protein_length"]])
+max_length=as.integer(snakemake@params[["max_protein_length"]])
 overlap_length=MiSl*2
 
 # Chunk size
@@ -141,14 +142,22 @@ if (!(nrow(proteome_index) == nrow(prot_cluster))) {
   prot_cluster <- prot_cluster[!duplicated(prot_cluster),]
 }
 
-input_chunks <- ceiling(sum(proteome_index$seqlength) / maxE)
-input_chunks_positions <- rep(1:input_chunks, length.out=nrow(prot_cluster), each=ceiling(nrow(prot_cluster)/input_chunks))
+input_chunks <- unique(ceiling(sum(proteome_index$seqlength) / maxE))
+input_chunks_positions <- rep(1:input_chunks, length.out=nrow(prot_cluster), 
+                              each=ceiling(nrow(prot_cluster)/input_chunks))
 
 protein_counter_start = 1
 protein_counter_end = 0
 
 for (input_chunk in 1:input_chunks) {
   print(paste0("Processing ", input_chunk, " / ", input_chunks))
+  
+  # Extract Uniprot headers like in mmseqs2
+  if (FALSE %in% (proteome_index$desc %in% prot_cluster$V2)) {
+    proteome_index$desc <- ifelse(stri_detect_regex(proteome_index$desc, pattern = "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"),
+                         stri_extract(proteome_index$desc, regex = "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"),
+                         proteome_index$desc)
+  }
   keep <- prot_cluster[input_chunks_positions == input_chunk,]
   keep <- proteome_index[proteome_index$desc %in% keep$V2,]
   dat <- readAAStringSet(keep)
@@ -171,82 +180,97 @@ for (input_chunk in 1:input_chunks) {
     dat <- chartr("I", "L", dat)
   }
   
-  # Separate long and short entries
-  short_entries <- dat[width(dat) <= max_length]
-  long_entries <- dat[width(dat) > max_length]
-  
-  # Split long entries into chunks
-  long_entries <- split(long_entries, f = rep(1:Ncpu, length.out=length(long_entries), each=ceiling(length(long_entries)/Ncpu)))
-  long_entries <- mclapply(long_entries, Split_max_length, max_length=max_length, overlap_length=MiSl*2, mc.preschedule = T, mc.cores = Ncpu)
-  long_entries <- lapply(long_entries, function(x){unlist(AAStringSetList(x), use.names = T)})
-  long_entries <- unlist(AAStringSetList(long_entries), use.names = F)
-  
-  # Re-merge and order
-  dat <- c(short_entries, long_entries)
-  long_entry_names <- names(dat) %>%
-    as_tibble() %>%
-    mutate(V2 = str_split_fixed(value, "\\.\\|chunk", 2)[,1]) %>%
-    right_join(select(prot_cluster_chunk, V2))
-  dat <- dat[long_entry_names$value]
-  
-  # Estimate chunks
-  for (i in 1:nrow(Master_table)) {
-    maxE <- Master_table$MaxE[i]
-    orderedProteomeEntries <- names(dat)
-    L = width(dat)
+  for (MiSl_i in seq_along(MiSl)) {
+    print(paste("MiSl", MiSl[[MiSl_i]]))
     
-    # empirically derived for proteins > 300 aa
-    k = grep("PSP",as.vector(Master_table$Splice_type[i]))
-    if(length(k)>0){numPSP = L*350}
-    if(length(k)==0){numPSP = L*1}
+    # Separate long and short entries
+    short_entries <- dat[width(dat) <= max_length]
+    long_entries <- dat[width(dat) > max_length]
     
-    cumNum = rep(NA,length(L))
-    cumNum[1] = numPSP[1]
-    for(j in 2:length(L)){
-      cumNum[j] = cumNum[j-1]+numPSP[j]
+    if (length(long_entries) > 0) {
+      # Split long entries into chunks
+      long_entries <- split(long_entries, f = rep(1:Ncpu, length.out=length(long_entries), each=ceiling(length(long_entries)/Ncpu)))
+      long_entries <- bettermc::mclapply(long_entries, Split_max_length, max_length=max_length, overlap_length=2*MiSl[[MiSl_i]],
+                               mc.cleanup = T, mc.preschedule = T, mc.cores = Ncpu, mc.retry = 3)
+      # long_entries <- lapply(long_entries, Split_max_length, max_length=max_length, overlap_length=2*MiSl[[MiSl_i]])
+      long_entries <- lapply(long_entries, function(x){unlist(AAStringSetList(x), use.names = T)})
+      long_entries <- unlist(AAStringSetList(long_entries), use.names = F)
+      
+      # Re-merge and order
+      dat_split <- c(short_entries, long_entries)
+      long_entry_names <- names(dat_split) %>%
+        as_tibble() %>%
+        mutate(V2 = str_split_fixed(value, "\\.\\|chunk", 2)[,1]) %>%
+        right_join(select(prot_cluster_chunk, V2))
+    } else {
+      dat_split <- dat
+      long_entry_names <- names(dat_split) %>%
+        as_tibble() %>%
+        mutate(V2 = value) %>%
+        right_join(select(prot_cluster_chunk, V2))
     }
+    dat_split <- dat_split[long_entry_names$value]
     
-    # find intervals for this Nmer Pi
-    b = 1
-    index = 0
-    Pi = 0
-    maxi = 0
-    start_time <- Sys.time()
-    
-    Pi = rep(-1,length(cumNum))
-    index = which(cumNum==max(cumNum[which(cumNum<=b*maxE)]))
-    Pi[b] = index
-    b = b+1
-    maxi = index
-    
-    while(maxi<length(L)){
-      index = which(cumNum==max(cumNum[which(cumNum[-c(1:maxi)]<=b*maxE)]))
-      Pi[b] = index+maxi
+    # Estimate chunks
+    for (i in 1:nrow(Master_table)) {
+      maxE <- Master_table$MaxE[i]
+      orderedProteomeEntries <- names(dat_split)
+      L = width(dat_split)
+      
+      # empirically derived for proteins > 300 aa
+      k = grep("PSP",as.vector(Master_table$Splice_type[i]))
+      if(length(k)>0){numPSP = L*350}
+      if(length(k)==0){numPSP = L*1}
+      
+      cumNum = rep(NA,length(L))
+      cumNum[1] = numPSP[1]
+      for(j in 2:length(L)){
+        cumNum[j] = cumNum[j-1]+numPSP[j]
+      }
+      
+      # find intervals for this Nmer Pi
+      b = 1
+      index = 0
+      Pi = 0
+      maxi = 0
+      start_time <- Sys.time()
+      
+      Pi = rep(-1,length(cumNum))
+      index = which(cumNum==max(cumNum[which(cumNum<=b*maxE)]))
+      Pi[b] = index
       b = b+1
-      maxi = maxi+index
-      print(maxi)
+      maxi = index
+      
+      while(maxi<length(L)){
+        index = which(cumNum==max(cumNum[which(cumNum[-c(1:maxi)]<=b*maxE)]))
+        Pi[b] = index+maxi
+        b = b+1
+        maxi = maxi+index
+        print(maxi)
+      }
+      Pi <- c(0, Pi[!Pi == -1])
+      end_time <- Sys.time()
+      print(end_time- start_time)
+      
+      # Create fasta files for every chunk
+      nF = length(Pi)-1
+      
+      # Export .fasta
+      print("exporting FASTA chunks")
+      suppressWarnings(dir.create(directory))
+      Save_prot_chunk_biostrings(dat=dat_split, 
+                                 nF=nF, 
+                                 Pi=Pi,
+                                 MiSl=MiSl[[MiSl_i]],
+                                 orderedProteomeEntries=orderedProteomeEntries, 
+                                 directory=directory,
+                                 proteome_name = proteome_name,
+                                 protein_counter_start=protein_counter_start,
+                                 protein_counter_end=protein_counter_end,
+                                 maxE=maxE)
     }
-    Pi <- c(0, Pi[!Pi == -1])
-    end_time <- Sys.time()
-    print(end_time- start_time)
-    
-    # Create fasta files for every chunk
-    nF = length(Pi)-1
-    
-    # Export .fasta
-    print("exporting FASTA chunks")
-    suppressWarnings(dir.create(directory))
-    Save_prot_chunk_biostrings(dat=dat, 
-                               nF=nF, 
-                               Pi=Pi,
-                               orderedProteomeEntries=orderedProteomeEntries, 
-                               directory=directory,
-                               proteome_name = proteome_name,
-                               protein_counter_start=protein_counter_start,
-                               protein_counter_end=protein_counter_end,
-                               maxE=maxE)
   }
   protein_counter_start <- protein_counter_start + nrow(keep)
-  rm(short_entries, long_entries, dat)
+  rm(short_entries, long_entries, dat, dat_split)
 }
-
+sink()

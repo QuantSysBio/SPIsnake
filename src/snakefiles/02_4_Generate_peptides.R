@@ -13,11 +13,12 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(cleaver))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(fst))
@@ -55,15 +56,15 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(directory, "/peptide_seqences")))
 #   suppressWarnings(dir.create(paste0(directory, "/peptide_mapping")))
 #   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-#   filename = "results/DB_exhaustive/Seq_stats/10_cis-PSP_25_proteome_expressed_gencode_1_43578_11.fasta.csv.gz"
+#   filename = "results/DB_exhaustive/Seq_stats/5_26_factor xa_2_25_Measles_CDS_6_frame_1_48_1.fasta.csv.gz"
 #   index_length = 1
-#   max_protein_length = 100
+#   max_protein_length = 500
 #   exclusion_pattern <- "(U|X|\\*)"
 #   fst_compression = 100
 # 
 #   Ncpu = 7
-#   # cl <- parallel::makeForkCluster(Ncpu)
-#   # cl <- parallelly::autoStopCluster(cl, debug=T)
+#   cl <- parallel::makeForkCluster(Ncpu)
+#   cl <- parallelly::autoStopCluster(cl, debug=T)
 #   data.table::setDTthreads(Ncpu)
 # 
 #   filename <- str_remove(filename, ".csv.gz") %>%
@@ -73,10 +74,16 @@ print(sessionInfo())
 # 
 #   params <- Master_table_expanded[Master_table_expanded$filename == filename,]
 #   print(t(params))
-# 
-#   Nmers = as.numeric(params$N_mers)
-#   MiSl = as.numeric(params$Min_Interv_length)
 #   Splice_type = as.character(params$Splice_type)
+#   MiSl = as.numeric(params$Min_Interv_length)
+#   # Nmers
+#   if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
+#     # For PCP and cis-PSP corresponds to Nmer to be produced
+#     Nmers = as.numeric(params$N_mers)
+#   } else {
+#     # For cleaver digestions defines min and max peptide length
+#     Nmers = as.numeric(unlist(str_split(params$N_mers, "_", 2)))
+#   }
 # 
 #   index_list_result = paste(Nmers, MiSl, sep = "_")
 #   if (grepl("cis-PSP", Splice_type)==T) {
@@ -90,6 +97,7 @@ print(sessionInfo())
 #   # Keep only proteome name
 #   proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
 #   proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
+# enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
 # }
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
@@ -126,14 +134,20 @@ dat = readAAStringSet(proteome)
 proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
 proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
 
-# Nmers
-Nmers = as.numeric(params$N_mers)
+# Splice type
+Splice_type = as.character(params$Splice_type)
 
 # max intervening sequence length
 MiSl = as.numeric(params$Min_Interv_length)
 
-# Splice type
-Splice_type = as.character(params$Splice_type)
+# Nmers
+if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
+  # For PCP and cis-PSP corresponds to Nmer to be produced
+  Nmers = as.numeric(params$N_mers)
+} else {
+  # For cleaver digestions defines min and max peptide length
+  Nmers = as.numeric(unlist(str_split(params$N_mers, "_", 2)))
+}
 
 # CPUs
 Ncpu = snakemake@params[["cpus_for_R"]]
@@ -161,15 +175,18 @@ if (grepl("cis-PSP", Splice_type)==T) {
 # fst compression level
 fst_compression = as.integer(snakemake@params[["fst_compression"]])
 
-### ---------------------------- (2) Compute PCP --------------------------------------
-print(Sys.time())
-print(paste("Starting length: ", Nmers))
+# Cleaver params
+enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
 
-# Pre-filter and sort input sequences
-dat_sort <- dat[width(dat) >= Nmers]
-dat_sort <- dat_sort[order(width(dat_sort), decreasing = T),]
+### ---------------------------- (2) Cleave PCP --------------------------------------
+print(Sys.time())
+dat_sort <- dat[width(dat) >= min(Nmers)]
 
 if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
+  
+  # Pre-filter and sort input sequences
+  print(paste("Starting length: ", Nmers))
+  dat_sort <- dat_sort[order(width(dat_sort), decreasing = T),]
   print("Computing PCP")
   
   split_chunks <- rep(1:(5*Ncpu), length.out=length(dat_sort))
@@ -204,7 +221,7 @@ if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
   Seq_stats <- PCP
 } 
 
-### ---------------------------- (3) Compute PSP --------------------------------------
+### ---------------------------- (3) Splice PSP --------------------------------------
 if (grepl("cis-PSP", Splice_type) == TRUE) {
   print("Computing cis-PSP")
   
@@ -240,18 +257,80 @@ if (grepl("cis-PSP", Splice_type) == TRUE) {
   Seq_stats <- rbindlist(list(PCP, PSP))
 } 
 
-# Add peptide length
-Seq_stats <- Seq_stats %>%
-  lazy_dt() %>%
-  group_by(protein, type) %>%
-  summarise(total_peptides = n(),
-            unique_peptides = n_distinct(peptide)) %>%
-  mutate(length = Nmers) %>%
-  as.data.table()
+### ---------------------------- (4) Cleave enzymatic digestions --------------------------------------
+if (str_detect(Splice_type, str_c(enzymes, collapse = "|"))) {
+  
+  enzym <- str_split_fixed(Splice_type, "_", 2)[,1]
+  missedCleavages <- str_split_fixed(Splice_type, "_", 2)[,2]
+  
+  print(paste("Computing digestions by", enzym, "with", missedCleavages, "missed cleavages"))
+  print(paste("Peptides of length:", min(Nmers), "-", max(Nmers), "will be kept"))
+  
+  # Generate in silico enzymatic digestions
+  dat_sort <- dat[width(dat) >= min(Nmers)]
+  split_chunks <- rep(1:(5*Ncpu), length.out=length(dat_sort))
+  enzym_out <- split(dat_sort, split_chunks) %>%
+    bettermc::mclapply(FUN = cleave,
+                       enzym = enzym, 
+                       missedCleavages = 0:missedCleavages,
+                       custom = NULL, 
+                       unique = FALSE,
+                       mc.cores = Ncpu,
+                       mc.cleanup = TRUE, 
+                       mc.preschedule = TRUE, 
+                       mc.force.fork = TRUE, 
+                       mc.retry = 3)
+  
+  # Tidy format
+  enzym_out <- rbindlist(lapply(enzym_out, as.data.table)) %>%
+    lazy_dt() %>%
+    select(value, group_name) %>%
+    rename(protein = group_name,
+           peptide = value) %>%
+    as.data.table()
+  setkey(enzym_out, peptide, protein)
+  enzym_out <- enzym_out %>% 
+    .[,index := str_sub(peptide, start = 1, end = index_length)] %>%
+    .[!str_detect(peptide, exclusion_pattern), .(peptide, protein, index), by=index] %>%
+    .[,length := str_length(peptide)] %>%
+    .[inrange(length, lower = min(Nmers), upper = max(Nmers), incbounds=TRUE), .(peptide, length, protein), by=index] %>%
+    .[, type := Splice_type] 
+  
+  print(Sys.time())
+  print(paste("Computed", Splice_type))
+  
+  Seq_stats <- enzym_out
+  if (nrow(enzym_out) == 0) {
+    rm(enzym_out)
+  }
+}
 
-print("Added length")
+### ---------------------------- (5) Save stats --------------------------------------
+if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
+  # Add peptide length
+  setkey(Seq_stats, protein, type)
+  Seq_stats <- Seq_stats %>%
+    lazy_dt() %>%
+    group_by(protein, type) %>%
+    summarise(total_peptides = n(),
+              unique_peptides = n_distinct(peptide)) %>%
+    mutate(length = Nmers) %>%
+    as.data.table()
+  
+  print("Added length")
+} else if (str_detect(Splice_type, str_c(enzymes, collapse = "|"))) {
+  # Add peptide length
+  setkey(Seq_stats, protein, type, length)
+  Seq_stats <- Seq_stats %>%
+    lazy_dt() %>%
+    group_by(protein, type, length) %>%
+    summarise(total_peptides = n(),
+              unique_peptides = n_distinct(peptide)) %>%
+    as.data.table()
+  
+  print("Added length")
+}
 
-### ---------------------------- (4) Save stats --------------------------------------
 Seq_stats_dir <- paste0(directory, "/Seq_stats/")
 suppressWarnings(dir.create(Seq_stats_dir))
 
@@ -261,7 +340,7 @@ vroom_write(Seq_stats,
 print("Saved sequence stats")
 print(Sys.time())
 
-### ------------------------------------------ (5) Save peptides and mapping ------------------------------------------
+### ------------------------------------------ (6) Save peptides and mapping ------------------------------------------
 data.table::setDTthreads(Ncpu)
 if (exists("PCP")) {
   PCP %>% 
@@ -279,6 +358,15 @@ if (exists("PSP")) {
     .[, write_fst(unique(.SD), paste0(directory, "/peptide_seqences/PSP_", .BY, "_", filename, ".fst"), compress = fst_compression), 
       by=index, .SDcols=c("peptide")]
   print("Saved PSP")
+  print(Sys.time())
+}
+if (exists("enzym_out")) {
+  enzym_out %>% 
+    .[, write_fst(unique(.SD), paste0(directory, "/peptide_mapping/", Splice_type, "_map_", .BY, "_", filename, ".fst"), compress = fst_compression), 
+      by=index, .SDcols=c("protein", "peptide")] %>% 
+    .[, write_fst(unique(.SD), paste0(directory, "/peptide_seqences/", Splice_type, "_", .BY, "_", filename, ".fst"), compress = fst_compression), 
+      by=index, .SDcols=c("peptide")]
+  print("Saved enzym_out")
   print(Sys.time())
 }
 
@@ -305,3 +393,4 @@ parallel::stopCluster(cl)
 print("----- garbage collection -----")
 gc() %>%
   print()
+sink()

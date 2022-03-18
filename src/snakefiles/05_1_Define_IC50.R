@@ -10,7 +10,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(dplyr))
@@ -83,3 +83,4 @@ t(cmds[1,])
 cmds %>%
   vroom_write(delim = ",", append = FALSE, col_names = TRUE,
               file =  unlist(snakemake@output[["cmd_netMHCpan"]]))
+sink()

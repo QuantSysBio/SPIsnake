@@ -32,6 +32,7 @@ Split_max_length <- function(x, max_length=500, overlap_length=MiSl*2){
 Save_prot_chunk_biostrings <- function(dat, 
                                        nF=nF, 
                                        Pi=Pi,
+                                       MiSl=MiSl,
                                        orderedProteomeEntries=orderedProteomeEntries, 
                                        directory=directory,
                                        proteome_name=proteome_name,
@@ -43,7 +44,7 @@ Save_prot_chunk_biostrings <- function(dat,
     end=Pi[j+1]
     
     writeXStringSet(x = dat[orderedProteomeEntries[start:end]], 
-                    filepath = paste0(directory, "/", maxE, "_", proteome_name, "_", protein_counter_start, "_", protein_counter_end, "_", j,".fasta"))
+                    filepath = paste0(directory, "/", "maxE_", maxE, "_MiSl_", MiSl, "_", proteome_name, "_", protein_counter_start, "_", protein_counter_end, "_", j,".fasta"))
   }
 }
 
@@ -155,7 +156,7 @@ CutAndPaste_seq_return_sp <- function(inputSequence,nmer,MiSl){
     print("cp, cpNmer")
     #print(cp)
     #print(cpNmer)
-    CPseq = translateCP(cpNmer,peptide)
+    #CPseq = translateCP(cpNmer,peptide)
     # print("CP translated")
     
     if(length(cp[,1])>1){
@@ -167,6 +168,11 @@ CutAndPaste_seq_return_sp <- function(inputSequence,nmer,MiSl){
     }
   }
 }
+
+CutAndPaste_seq_return_sp_vec <- Vectorize(CutAndPaste_seq_return_sp, 
+                                           vectorize.args = "inputSequence", 
+                                           SIMPLIFY = F, 
+                                           USE.NAMES = F)
 
 Generate_PSP_2 <- function(protein_inputs, Nmers){
   stri_join(extractAt(protein_inputs[[1]], IRanges(start = protein_inputs[[2]][,1], 
@@ -288,4 +294,4 @@ getPTMcombinations_fast <- function(s = peptide, m = MW, NmaxMod=max_variable_PT
                                MW = m + unlist(deltaMass))
   return(PTMcombinations)
 }
-getPTMcombinations_fast_vec <- Vectorize(getPTMcombinations_fast2, vectorize.args = c("s", "m"), SIMPLIFY = F)
+getPTMcombinations_fast_vec <- Vectorize(getPTMcombinations_fast, vectorize.args = c("s", "m"), SIMPLIFY = F)

@@ -12,7 +12,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dplyr))
@@ -35,6 +35,9 @@ Master_table <- read.csv(snakemake@input[["Master_table"]])
 directory = snakemake@params[["directory"]]
 print(directory)
 
+# Cleaver params
+enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", 'pepsin1.3', "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
+
 ### Find chunks
 proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fasta", recursive = TRUE) %>%
   strsplit(split = "/", fixed = TRUE) %>%
@@ -42,15 +45,20 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
   t() %>%
   as_tibble() %>%
   rename(Proteome=V1, chunk=V2) %>%
-  mutate(MaxE = str_split_fixed(chunk, pattern = fixed("_"), n = 2)[,1]) %>%
-  mutate(chunk = str_split_fixed(chunk, pattern = fixed("_"), n = 2)[,2]) %>%
-  mutate_at("MaxE", as.numeric) 
+  mutate(MaxE = str_split_fixed(str_sub(chunk, start = 6), pattern = fixed("_"), n = 2)[,1]) %>%
+  mutate(Min_Interv_length = str_split_fixed(chunk, pattern = fixed("_"), n = 5)[,4]) %>%
+  mutate(chunk = str_split_fixed(chunk, pattern = fixed("_"), n = 5)[,5]) %>%
+  mutate_at(c("MaxE", "Min_Interv_length"), as.numeric) 
 
 # Tidy format for Master table
 {
   Master_table_expanded <- Master_table %>% 
+    mutate(Splice_type_lower = str_to_lower(Splice_type)) %>%
+    filter(!str_detect(Splice_type_lower, str_c(enzymes, collapse = "|"))) %>%
+    select(-Splice_type_lower) %>%
+    
     ### N-mers
-    mutate(tmp_group = paste(Proteome,`Splice_type`, N_mers, sep="_")) %>%
+    mutate(tmp_group = paste(Proteome,`Splice_type`, N_mers, Min_Interv_length, sep="_")) %>%
     group_by(tmp_group) %>%
     
     mutate(N_mers = str_replace_all(N_mers, pattern = "_", replacement = ",")) %>%
@@ -58,6 +66,7 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     mutate(N_mers=as.integer(N_mers)) %>% 
     expand(Proteome, `Splice_type`, full_seq(N_mers, 1), Min_Interv_length, MaxE) %>%
     rename(N_mers = "full_seq(N_mers, 1)") %>%
+    mutate(N_mers=as.character(N_mers)) %>% 
     
     ### Splice type
     separate_rows(`Splice_type`, sep=",") %>% 
@@ -70,6 +79,7 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     ### Attributes to keep from Master_table and peptide chunk files
     left_join(select(Master_table, Proteome, PTMs)) %>%
     left_join(proteome_chunks) %>%
+    unique() %>%
     
     ### Create a future wildcard
     mutate(filename = paste(N_mers, Splice_type, Min_Interv_length, chunk, sep = "_")) %>%
@@ -77,8 +87,42 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     ### Sanity check for redundancies
     ungroup() %>%
     select(-tmp_group) %>%
-    unique() 
+    unique()
+  
+  if (TRUE %in% str_detect(str_to_lower(Master_table$Splice_type), str_c(enzymes, collapse = "|"))) {
+    Master_table_enzyme <- Master_table %>%
+      mutate(Splice_type = str_to_lower(Splice_type)) %>%
+      filter(str_detect(Splice_type, str_c(enzymes, collapse = "|"))) %>%
+      
+      # Grouping variable
+      mutate(tmp_group = paste(Proteome,`Splice_type`, N_mers, Min_Interv_length, sep="_")) %>%
+      group_by(tmp_group) %>%
+      
+      # Extract enzyme specificity and missed cleavages
+      mutate(enzym = str_extract(Splice_type, pattern = str_c(enzymes, collapse = "|"))) %>%
+      mutate(Splice_type = str_remove_all(Splice_type, pattern = str_c(enzymes, collapse = "|"))) %>%
+      mutate(missedCleavages = as.integer(str_extract(Splice_type, pattern = "\\d{1,2}"))) %>%
+      mutate(missedCleavages = ifelse(is.na(missedCleavages), 0, missedCleavages)) %>%
+      mutate(Splice_type = paste(enzym, missedCleavages, sep = "_")) %>%
+      dplyr::select(-c("enzym", "missedCleavages")) %>%
+      left_join(proteome_chunks) %>%
+      
+      ### Create a future wildcard
+      mutate(filename = paste(N_mers, Splice_type, Min_Interv_length, chunk, sep = "_")) %>%
+      arrange(filename) %>%
+      ### Sanity check for redundancies
+      ungroup() %>%
+      select(-tmp_group) %>%
+      unique()
   }
+  }
+
+### Common output
+if (exists("Master_table_expanded") & exists("Master_table_enzyme")) {
+  Master_table_expanded <- bind_rows(Master_table_expanded, Master_table_enzyme)
+} else if (!exists("Master_table_expanded") & exists("Master_table_enzyme")) {
+  Master_table_expanded <- Master_table_enzyme
+} 
 
 # Tidy format for indices
 ### PSP
@@ -94,3 +138,4 @@ PSP_indices <- Master_table_expanded %>%
 ### Output
 fwrite(Master_table_expanded, file = unlist(snakemake@output[["Master_table_expanded"]]))
 fwrite(PSP_indices, file = unlist(snakemake@output[["PSP_indices"]]))
+sink()

@@ -10,7 +10,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log, append=TRUE, type=c("output", "message"))
+sink(log, append=TRUE, type=c("output", "message"), split = TRUE)
 
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
@@ -52,3 +52,4 @@ if (!RT_dataset == "nan") {
   suppressWarnings(dir.create(str_remove_all(out, pattern = "/model.json") ))
   system(paste("touch", out))
 }
+sink()

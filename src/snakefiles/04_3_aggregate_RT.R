@@ -10,7 +10,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(data.table))
@@ -188,3 +188,4 @@ for (i in 1:length(gg_out)) {
 # Performance dt
 vroom_write(RT_Performance_df, delim = ",", append = FALSE,
             file = unlist(snakemake@output[["RT_Performance_df"]]))
+sink()

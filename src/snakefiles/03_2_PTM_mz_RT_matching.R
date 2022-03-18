@@ -16,7 +16,7 @@
 
 ### Log
 log <- file(snakemake@log[[1]], open="wt")
-sink(log)
+sink(log, split = TRUE)
 
 suppressPackageStartupMessages(library(Biostrings))
 suppressPackageStartupMessages(library(data.table))
@@ -44,7 +44,7 @@ print(sessionInfo())
   vroom_dir = "/tmp/vroom"
   suppressWarnings(dir.create(vroom_dir))
   Sys.setenv(VROOM_TEMP_PATH = vroom_dir)
-  Sys.getenv("VROOM_TEMP_PATH") %>%print()
+  Sys.getenv("VROOM_TEMP_PATH") %>% print()
   
   tmp_file = tempfile()
   print(tmp_file)
@@ -166,6 +166,9 @@ rcond = None
 # Proteinogenic AAs
 AA = c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y")
 
+# Cleaver params
+enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
+
 ### Mass_lists
 # Only user defined lists will be used 
 MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
@@ -206,14 +209,19 @@ if (operation_mode == "Update") {
 
 ### ---------------------------- (3) Define file processing --------------------------------------
 # Select all files with the same {AA-index}{length}
+AA_lengths <- Master_table_expanded %>%
+  select(N_mers) %>%
+  tidyr::expand_grid(AA) %>%
+  tidyr::unite(AA_length, AA, N_mers, sep = "_") %>%
+  pull(AA_length) %>%
+  str_c(collapse = "|")
+
 peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pattern = ".fst", full.names = T) %>%
   as_tibble() %>%
   mutate(file = str_remove_all(value, ".fst")) %>%
   mutate(file = str_split_fixed(file, "/peptide_seqences/", n = 2)[,2]) %>%
   mutate(Splice_type = str_split_fixed(file, "_", n = 2)[,1]) %>%
-  mutate(file = str_sub(file, start = nchar(Splice_type) + 2)) %>%
-  mutate(AA_length = str_c(str_split_fixed(file, "_", n = 3)[,1],
-                           str_split_fixed(file, "_", n = 3)[,2], sep = "_")) %>%
+  mutate(AA_length = str_extract(file, AA_lengths)) %>%
   filter(AA_length == filename) %>%
   # add proteome
   mutate(Proteome = str_extract(file, str_c(unique(Master_table_expanded$Proteome), collapse = "|"))) %>%
@@ -318,7 +326,7 @@ if (nrow(peptide_chunks) == 0) {
         unlist() %>%
         str_squish()
       PTM_list <- PTM_list[!(PTM_list == "")] %>% unique() %>% na.omit() %>% as.character()
-      PTM_list <- PTM_list[!PTM_list == "OpenSearch"]
+      # PTM_list <- PTM_list[!PTM_list == "OpenSearch"]
       
       if (generate_spliced_PTMs == FALSE) {
         ignore_generate_spliced_PTMs = !(enzyme_type == "PSP" | enzyme_type == "cis-PSP")
@@ -407,11 +415,30 @@ if (nrow(peptide_chunks) == 0) {
         tmp <- input[MW %inrange% mzList[,c("MW_Min", "MW_Max")], .(peptide, MW), by = chunks]
         
         # Save stats
-        mz_stats_ij = tibble(Proteome = Proteome_i,
-                             Splice_type = enzyme_type,
-                             mass_list = MS_mass_list,
-                             unique_peptides = nrow(input),
-                             mz_matched_peptides = nrow(tmp))
+        if (enzyme_type %in% enzymes) {
+          a <- input %>%
+            .[,length:=str_length(peptide)] %>%
+            .[, .(unique_peptides = .N), keyby = .(length)]
+          
+          mz_stats_ij <- tmp %>%
+            .[,length:=str_length(peptide)] %>%
+            .[, .(mz_matched_peptides = .N), keyby = .(length)] %>%
+            full_join(as_tibble(a)) %>%
+            mutate(Proteome = Proteome_i,
+                   Splice_type = enzyme_type,
+                   mass_list = MS_mass_list) %>%
+            relocate(Proteome, Splice_type, mass_list, unique_peptides, mz_matched_peptides) %>%
+            mutate(unique_peptides = ifelse(is.na(unique_peptides), 0, unique_peptides)) %>%
+            mutate(mz_matched_peptides = ifelse(is.na(mz_matched_peptides), 0, mz_matched_peptides)) %>%
+            as_tibble()
+          rm(a)
+        } else {
+          mz_stats_ij = tibble(Proteome = Proteome_i,
+                               Splice_type = enzyme_type,
+                               mass_list = MS_mass_list,
+                               unique_peptides = nrow(input),
+                               mz_matched_peptides = nrow(tmp))
+        }
         cat("MW filter: Done\n",
             as.character(Sys.time()), "\n")
 
@@ -502,8 +529,25 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
             as.character(Sys.time()), "\n")
         
         # Update stats after RT filter
-        mz_stats_ij$mz_RT_matched_peptides = nrow(tmp)
-        mz_stats = rbind(mz_stats, mz_stats_ij)
+        # Save stats
+        if (enzyme_type %in% enzymes) {
+          a <- tmp %>%
+            .[,length:=str_length(peptide)] %>%
+            .[, .(mz_RT_matched_peptides = .N), keyby = .(length)]
+          
+          mz_stats_ij <- mz_stats_ij %>%
+            full_join(as_tibble(a)) %>%
+            relocate(Proteome, Splice_type, mass_list, unique_peptides, mz_matched_peptides, mz_RT_matched_peptides) %>%
+            mutate(unique_peptides = ifelse(is.na(unique_peptides), 0, unique_peptides)) %>%
+            mutate(mz_matched_peptides = ifelse(is.na(mz_matched_peptides), 0, mz_matched_peptides)) %>%
+            mutate(mz_RT_matched_peptides = ifelse(is.na(mz_RT_matched_peptides), 0, mz_RT_matched_peptides)) %>%
+            as_tibble()
+          mz_stats = rbind(mz_stats, mz_stats_ij)
+          rm(a)
+        } else {
+          mz_stats_ij$mz_RT_matched_peptides = nrow(tmp)
+          mz_stats = rbind(mz_stats, mz_stats_ij)
+        }
         
         ### Save filtered peptides
         if (nrow(tmp) > 0) {
@@ -537,7 +581,7 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   for (allele in alleles) {
     IC50_aggregation <- IC50_aggregation_table$Filename[IC50_aggregation_table$`MHC-I_alleles` == allele] %>%
       str_c(collapse = "|")
-    keep <- str_ends(names(filename_exports), IC50_aggregation)
+    keep <- str_ends(names(filename_exports), IC50_aggregation) & str_starts(names(filename_exports), "PCP|PSP")
     
     if (TRUE %in% keep) {
       # Export all unique peptides for a given allele
@@ -579,15 +623,20 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
       left_join(mz_stats) %>%
       rbind(processed_files) 
   }
+  save_peptide_chunks <- save_peptide_chunks %>%
+    mutate(AA = ifelse(str_ends(AA, "_"), str_remove_all(AA, "_"), AA))
+  if (!"length" %in% colnames(save_peptide_chunks)) {
+    save_peptide_chunks$length <- str_split_fixed(save_peptide_chunks$AA_length, "_", 2)[,2]
+  }
+  
   vroom_write(save_peptide_chunks, delim = ",", num_threads = Ncpu,
               unlist(snakemake@output[["chunk_aggregation_status"]]))
   vroom_write(save_peptide_chunks, 
               paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/", filename, ".csv"),
               delim = ",", num_threads = Ncpu, append = FALSE)
-  
 } # End peptide processing
 
-### --------------------------------------(9) Cluster termination & stats --------------------------------------
+## --------------------------------------(9) Cluster termination & stats --------------------------------------
 print("----- removing cluster -----")
 print(cl)
 parallel::stopCluster(cl)
@@ -617,3 +666,4 @@ showConnections() %>%
 print("----- garbage collection -----")
 gc() %>%
   print()
+sink()
