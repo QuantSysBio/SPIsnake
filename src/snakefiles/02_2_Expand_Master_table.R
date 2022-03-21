@@ -50,8 +50,8 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
   mutate(chunk = str_split_fixed(chunk, pattern = fixed("_"), n = 5)[,5]) %>%
   mutate_at(c("MaxE", "Min_Interv_length"), as.numeric) 
 
-# Tidy format for Master table
-{
+# Tidy format for Master table: PCP & PSP
+if (TRUE %in% str_detect(str_to_lower(Master_table$Splice_type), str_c("pcp", "psp", "cis-psp", collapse = "|"))) {
   Master_table_expanded <- Master_table %>% 
     mutate(Splice_type_lower = str_to_lower(Splice_type)) %>%
     filter(!str_detect(Splice_type_lower, str_c(enzymes, collapse = "|"))) %>%
@@ -72,8 +72,8 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     separate_rows(`Splice_type`, sep=",") %>% 
     mutate(`Splice_type`=str_squish(`Splice_type`)) %>%
     mutate(`Splice_type`= ifelse(`Splice_type`=="PSP", 
-            str_replace_all(`Splice_type`, pattern = fixed("PSP"), replacement = "cis-PSP"),
-            `Splice_type`)) %>%
+                                 str_replace_all(`Splice_type`, pattern = fixed("PSP"), replacement = "cis-PSP"),
+                                 `Splice_type`)) %>%
     mutate(`Splice_type`=str_replace_all(`Splice_type`, pattern = "Cis-PSP", replacement = "cis-PSP")) %>%
     
     ### Attributes to keep from Master_table and peptide chunk files
@@ -88,34 +88,35 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
     ungroup() %>%
     select(-tmp_group) %>%
     unique()
-  
-  if (TRUE %in% str_detect(str_to_lower(Master_table$Splice_type), str_c(enzymes, collapse = "|"))) {
-    Master_table_enzyme <- Master_table %>%
-      mutate(Splice_type = str_to_lower(Splice_type)) %>%
-      filter(str_detect(Splice_type, str_c(enzymes, collapse = "|"))) %>%
-      
-      # Grouping variable
-      mutate(tmp_group = paste(Proteome,`Splice_type`, N_mers, Min_Interv_length, sep="_")) %>%
-      group_by(tmp_group) %>%
-      
-      # Extract enzyme specificity and missed cleavages
-      mutate(enzym = str_extract(Splice_type, pattern = str_c(enzymes, collapse = "|"))) %>%
-      mutate(Splice_type = str_remove_all(Splice_type, pattern = str_c(enzymes, collapse = "|"))) %>%
-      mutate(missedCleavages = as.integer(str_extract(Splice_type, pattern = "\\d{1,2}"))) %>%
-      mutate(missedCleavages = ifelse(is.na(missedCleavages), 0, missedCleavages)) %>%
-      mutate(Splice_type = paste(enzym, missedCleavages, sep = "_")) %>%
-      dplyr::select(-c("enzym", "missedCleavages")) %>%
-      left_join(proteome_chunks) %>%
-      
-      ### Create a future wildcard
-      mutate(filename = paste(N_mers, Splice_type, Min_Interv_length, chunk, sep = "_")) %>%
-      arrange(filename) %>%
-      ### Sanity check for redundancies
-      ungroup() %>%
-      select(-tmp_group) %>%
-      unique()
-  }
-  }
+}
+
+# Tidy format for Master table: cleaver
+if (TRUE %in% str_detect(str_to_lower(Master_table$Splice_type), str_c(enzymes, collapse = "|"))) {
+  Master_table_enzyme <- Master_table %>%
+    mutate(Splice_type = str_to_lower(Splice_type)) %>%
+    filter(str_detect(Splice_type, str_c(enzymes, collapse = "|"))) %>%
+    
+    # Grouping variable
+    mutate(tmp_group = paste(Proteome,`Splice_type`, N_mers, Min_Interv_length, sep="_")) %>%
+    group_by(tmp_group) %>%
+    
+    # Extract enzyme specificity and missed cleavages
+    mutate(enzym = str_extract(Splice_type, pattern = str_c(enzymes, collapse = "|"))) %>%
+    mutate(Splice_type = str_remove_all(Splice_type, pattern = str_c(enzymes, collapse = "|"))) %>%
+    mutate(missedCleavages = as.integer(str_extract(Splice_type, pattern = "\\d{1,2}"))) %>%
+    mutate(missedCleavages = ifelse(is.na(missedCleavages), 0, missedCleavages)) %>%
+    mutate(Splice_type = paste(enzym, missedCleavages, sep = "_")) %>%
+    dplyr::select(-c("enzym", "missedCleavages")) %>%
+    left_join(proteome_chunks) %>%
+    
+    ### Create a future wildcard
+    mutate(filename = paste(N_mers, Splice_type, Min_Interv_length, chunk, sep = "_")) %>%
+    arrange(filename) %>%
+    ### Sanity check for redundancies
+    ungroup() %>%
+    select(-tmp_group) %>%
+    unique()
+}
 
 ### Common output
 if (exists("Master_table_expanded") & exists("Master_table_enzyme")) {
