@@ -63,7 +63,7 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 # 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/L_8.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/C_13.csv"
 #   filename <- filename %>%
 #     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
@@ -565,46 +565,48 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
   
   ### ----------------------------- Prepare NetMHCPan inputs ----------------------------- 
   # filename_exports <- list.files("results/DB_PTM_mz/unique_peptides_mz_RT_matched/", pattern = "L_8", full.names = T)
-  filename_exports <- filename_exports[file.exists(filename_exports)]
-  names(filename_exports) <- str_split_fixed(filename_exports, "/unique_peptides_mz_RT_matched/", 2)[,2] %>%
-    str_remove(".fst")
-  
-  # Define IC50 aggregation
-  IC50_aggregation_table <- Experiment_design %>%
-    filter(!(is.na(`MHC-I_alleles`) | is.na(Affinity_threshold))) %>%
-    tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]", ) %>%
-    mutate(`MHC-I_alleles` = str_squish(`MHC-I_alleles`),
-           Affinity_threshold = str_squish(Affinity_threshold)) 
-  IC50_aggregation_table
-  
-  alleles <- IC50_aggregation_table$`MHC-I_alleles` %>% unique() %>% na.omit()
-  for (allele in alleles) {
-    IC50_aggregation <- IC50_aggregation_table$Filename[IC50_aggregation_table$`MHC-I_alleles` == allele] %>%
-      str_c(collapse = "|")
-    keep <- str_ends(names(filename_exports), IC50_aggregation) & str_starts(names(filename_exports), "PCP|PSP")
+  if (!is.null(filename_exports)) {
+    filename_exports <- filename_exports[file.exists(filename_exports)]
+    names(filename_exports) <- str_split_fixed(filename_exports, "/unique_peptides_mz_RT_matched/", 2)[,2] %>%
+      str_remove(".fst")
     
-    if (TRUE %in% keep) {
-      # Export all unique peptides for a given allele
-      peptide_exports <- filename_exports[keep] %>%
-        bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
-                           FUN = read_fst, as.data.table = TRUE, columns = "peptide") %>%
-        rbindlist() %>%
-        setkey("peptide")
+    # Define IC50 aggregation
+    IC50_aggregation_table <- Experiment_design %>%
+      filter(!(is.na(`MHC-I_alleles`) | is.na(Affinity_threshold))) %>%
+      tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]", ) %>%
+      mutate(`MHC-I_alleles` = str_squish(`MHC-I_alleles`),
+             Affinity_threshold = str_squish(Affinity_threshold)) 
+    IC50_aggregation_table
+    
+    alleles <- IC50_aggregation_table$`MHC-I_alleles` %>% unique() %>% na.omit()
+    for (allele in alleles) {
+      IC50_aggregation <- IC50_aggregation_table$Filename[IC50_aggregation_table$`MHC-I_alleles` == allele] %>%
+        str_c(collapse = "|")
+      keep <- str_ends(names(filename_exports), IC50_aggregation) & str_starts(names(filename_exports), "PCP|PSP")
       
+      if (TRUE %in% keep) {
+        # Export all unique peptides for a given allele
+        peptide_exports <- filename_exports[keep] %>%
+          bettermc::mclapply(mc.cores = Ncpu, mc.retry = retry_times, mc.cleanup=T, mc.preschedule=T, 
+                             FUN = read_fst, as.data.table = TRUE, columns = "peptide") %>%
+          rbindlist() %>%
+          setkey("peptide")
+        
         peptide_exports[, netMHCpan_split := ceiling(seq_along(peptide)/netMHCpan_chunk)] %>%
           split(by = "netMHCpan_split", drop = T, keep.by = T) %>%
           bettermc::mclapply(mc.cores = 2, mc.cleanup=T, mc.preschedule=F, FUN = function(x){
-              netMHCpan_split <- x$netMHCpan_split[[1]]
-              
-              unique(x)[, .(peptide)] %>% 
-                vroom_write(file = paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan/", 
-                                          filename, "_", allele, "_ch_", netMHCpan_split ,".tsv"),
-                            delim = "\t", num_threads = Ncpu, append = FALSE, col_names = FALSE)            
-              
+            netMHCpan_split <- x$netMHCpan_split[[1]]
+            
+            unique(x)[, .(peptide)] %>% 
+              vroom_write(file = paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan/", 
+                                        filename, "_", allele, "_ch_", netMHCpan_split ,".tsv"),
+                          delim = "\t", num_threads = Ncpu, append = FALSE, col_names = FALSE)            
+            
           }) %>%
           capture.output()
+      }
     }
-  } 
+  }
   ### --------------------------------------(8) Chunk aggregation status (Snakemake output) --------------------------------------
   # First export: Snakemake Wildcard
   # Second export: Memory for future updates
