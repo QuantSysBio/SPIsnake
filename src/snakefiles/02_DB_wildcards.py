@@ -39,7 +39,8 @@ rule Index_proteome:
         "R_env_reticulate.yaml"
     resources:
         ncpus = config["max_cpus"],
-        mem = config["max_mem"]
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         dir_cluster_proteome=join(dir_cluster, "{proteome}/{proteome}"),
         dir_tmp=join(dir_cluster, "{proteome}/tmp")
@@ -64,7 +65,8 @@ rule Cluster_proteome:
         "R_env_reticulate.yaml"
     resources:
         ncpus = config["max_cpus"],
-        mem = config["max_mem"]
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         dir_cluster_proteome=join(dir_cluster, "{proteome}/{proteome}"),
         dir_tmp=join(dir_cluster, "{proteome}/tmp")
@@ -96,7 +98,8 @@ rule Split_proteome_chunks:
         "R_env_reticulate.yaml"
     resources:
         ncpus = 1,
-        mem = config["max_mem"]
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         min_protein_length = features["DB"]["min_protein_length"],
         max_protein_length = features["DB"]["max_protein_length"],
@@ -124,7 +127,8 @@ rule Expand_Master_table:
         "R_env_reticulate.yaml"
     resources:
         ncpus = 1,
-        mem = config["max_mem"]
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         directory=dir_DB_exhaustive
     script:
@@ -181,7 +185,8 @@ rule Generate_PSP_indices:
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         ncpus = config["cpus_critical"],
-        mem = config["max_mem"]
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         directory=dir_DB_exhaustive,
         AA_index_length=features["DB"]["AA_index_length"],
@@ -247,7 +252,8 @@ rule Generate_peptides:
         "R_env_reticulate.yaml"
     resources:
         ncpus = config["cpus_critical"],
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         directory=dir_DB_exhaustive,
         dir_DB_Fasta_chunks=dir_DB_Fasta_chunks,

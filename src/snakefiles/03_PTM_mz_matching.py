@@ -12,7 +12,8 @@ rule Define_peptide_aggregation:
         "R_env_reticulate.yaml"
     resources:
         ncpus = config["max_cpus"],
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         AA_index_length=features["DB"]["AA_index_length"],
         dir_DB_exhaustive=dir_DB_exhaustive,
@@ -79,7 +80,8 @@ rule PTM_mz_RT_matching:
         "R_env_reticulate.yaml"
     resources:
         ncpus = config["cpus_critical"],
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["match_time"]
     params:
         dir_DB_exhaustive=dir_DB_exhaustive,
         dir_DB_PTM_mz=dir_DB_PTM_mz,

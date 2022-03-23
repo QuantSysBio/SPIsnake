@@ -13,7 +13,8 @@ rule Define_IC50:
         "R_env_reticulate.yaml"
     resources:
         ncpus = config["max_cpus"],
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         dir_IC50=dir_IC50,
         dir_DB_PTM_mz=dir_DB_PTM_mz,
@@ -66,7 +67,8 @@ rule aggregate_IC50_prediction:
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         ncpus = config["max_cpus"],
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         fst_compression = features["DB"]["fst_compression"],
         minimal_output_headers = features["DB"]["minimal_output_headers"],
@@ -92,7 +94,8 @@ rule predict_MHC_affinity:
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         ncpus = config["max_cpus"],
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         fst_compression = features["DB"]["fst_compression"],
         dir_IC50=dir_IC50

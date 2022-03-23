@@ -12,7 +12,8 @@ rule Define_RT_train:
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         ncpus = 1,
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         method=features["RT_filter"]["method"],
         n_folds=features["RT_filter"]["n_folds"],
@@ -69,7 +70,8 @@ rule aggregate_RT:
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         ncpus = 1,
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["max_time"]
     params:
         method=features["RT_filter"]["method"]
     script:
@@ -89,7 +91,8 @@ rule RT_train:
         "R_env_reticulate.yaml"
     resources: # 1 per node at the time
         ncpus = config["max_cpus"],
-        mem = config["max_mem"] 
+        mem = config["max_mem"],
+        time = config["max_time"]
     script:
         "04_2_RT_train.R"
 

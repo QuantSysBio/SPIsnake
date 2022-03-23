@@ -2,3 +2,5 @@ max_cpus: 72
 cpus_critical: 1
 max_mem: 240G
 min_mem: 3G
+max_time: 20-00:00:00
+match_time: 3-00:00:00
