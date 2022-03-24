@@ -19,6 +19,9 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(stringi))
+
+source("src/snakefiles/functions.R")
+print("Loaded functions. Loading the data")
 print(sessionInfo())
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
@@ -35,9 +38,6 @@ Master_table <- read.csv(snakemake@input[["Master_table"]])
 directory = snakemake@params[["directory"]]
 print(directory)
 
-# Cleaver params
-enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", 'pepsin1.3', "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
-
 ### Find chunks
 proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fasta", recursive = TRUE) %>%
   strsplit(split = "/", fixed = TRUE) %>%
@@ -51,7 +51,7 @@ proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".fa
   mutate_at(c("MaxE", "Min_Interv_length"), as.numeric) 
 
 # Tidy format for Master table: PCP & PSP
-if (TRUE %in% str_detect(str_to_lower(Master_table$Splice_type), str_c("pcp", "psp", "cis-psp", collapse = "|"))) {
+if (TRUE %in% str_detect(Master_table$Splice_type, "PCP|PSP|cis-PSP|Cis-PSP")) {
   Master_table_expanded <- Master_table %>% 
     mutate(Splice_type_lower = str_to_lower(Splice_type)) %>%
     filter(!str_detect(Splice_type_lower, str_c(enzymes, collapse = "|"))) %>%

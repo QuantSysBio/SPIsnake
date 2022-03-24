@@ -1,3 +1,15 @@
+### ---------------------------- Common variables ----------------------------
+monoisotopic_masses <- data.frame(
+  AA = c("A","C","D","E","F","G","H","I","K","L","M","N","P","Q","R","S","T","V","W","Y"),
+  mass = c(71.037114,103.009185,115.026943,129.042593,147.068414,57.021464,137.058912,113.084064,128.094963,113.084064,131.040485,114.042927,97.052764,128.058578,156.101111,87.032028,101.047679,99.068414,186.079313,163.06332)
+)
+
+# Proteinogenic AAs
+AA = monoisotopic_masses$AA
+
+# Cleaver params
+enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
+
 ### ---------------------------- Proteome pre-processing ----------------------------
 Split_max_length <- function(x, max_length=500, overlap_length=MiSl*2){
   lapply(x, function(x){
@@ -200,16 +212,14 @@ read_MW_file <- function(file, num_threads){
     as.data.table()
 }
 
-computeMZ_biostrings <- function(seq){
+computeMZ_biostrings <- function(seq, AAs = monoisotopic_masses$AA, masses = monoisotopic_masses$mass){
   seq = AAStringSet(seq)
   
   if(length(seq) < 1){
     MW = NA
   }
   if(length(seq) > 0){
-    aa1 = c("A", "R", "N", "D", "C", "E", "Q", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V")
-    aa2 = c(71.037114, 156.101111, 114.042927, 115.026943, 103.009185, 129.042593, 128.058578, 57.021464, 137.058912, 113.084064, 113.084064, 128.094963, 131.040485, 147.068414, 97.052764, 87.032028, 101.047679, 186.079313, 163.06332, 99.068414)
-    aa3 = letterFrequency(seq, letters = aa1) %*% diag(aa2)
+    aa3 = letterFrequency(seq, letters = AAs) %*% diag(masses)
     MW=rowSums(aa3)+18.01056
     ## add NA for zero values
     # MW=round(MW, digits = 5)
@@ -295,3 +305,40 @@ getPTMcombinations_fast <- function(s = peptide, m = MW, NmaxMod=max_variable_PT
   return(PTMcombinations)
 }
 getPTMcombinations_fast_vec <- Vectorize(getPTMcombinations_fast, vectorize.args = c("s", "m"), SIMPLIFY = F)
+
+getPTMcombinations_fixed <- function(s = peptide, m = MW, mods_input=mods){
+  
+  kn = which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term")
+  kc = which(mods_input$Site=="C-term" & mods_input$Position=="Any C-term")
+  ka = unlist(find_ka(aa = strsplit(s, split="")[[1]], 
+                      mods_input = list(mods_input)))
+  
+  modIndex = c(kn,kc,ka)
+  modId = na.omit(mods_input$Id[modIndex])
+  modDelta = na.omit(as.numeric(mods_input$MonoMass[modIndex]))
+  
+  # generate final mod sequences with delta Masses
+  PTM_fixed = data.table(peptide = s,
+                         ids = str_c(sort(modId), collapse = ";"),
+                         MW = m + sum(modDelta))
+  return(PTM_fixed)
+}
+getPTMcombinations_fixed_vec <- Vectorize(getPTMcombinations_fixed, vectorize.args = c("s", "m"), SIMPLIFY = F)
+
+getPTMcombinations_fixed_mass <- function(s = peptide, m = MW, mods_input=mods){
+  
+  kn = which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term")
+  kc = which(mods_input$Site=="C-term" & mods_input$Position=="Any C-term")
+  ka = unlist(find_ka(aa = strsplit(s, split="")[[1]], 
+                      mods_input = list(mods_input)))
+  
+  modIndex = c(kn,kc,ka)
+  modDelta = na.omit(as.numeric(mods_input$MonoMass[modIndex]))
+  
+  # final peptide mass
+  MW = m + sum(modDelta)
+  return(MW)
+}
+getPTMcombinations_fixed_mass_vec <- Vectorize(getPTMcombinations_fixed_mass, vectorize.args = c("s", "m"), SIMPLIFY = F)
+
+

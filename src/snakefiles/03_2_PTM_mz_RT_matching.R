@@ -63,7 +63,7 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory")))
 # 
 #   # Wildcard
-#   filename = "results/DB_PTM_mz/chunk_aggregation_status/C_13.csv"
+#   filename = "results/DB_PTM_mz/chunk_aggregation_status/L_8.csv"
 #   filename <- filename %>%
 #     str_split_fixed(pattern = fixed("chunk_aggregation_status/"), n = 2)
 #   filename <- filename[,2] %>%
@@ -163,12 +163,6 @@ import numpy
 rcond = None
 ")}
 
-# Proteinogenic AAs
-AA = c("A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y")
-
-# Cleaver params
-enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
-
 ### Mass_lists
 # Only user defined lists will be used 
 MS_mass_lists <- list.files("data/MS_mass_lists", pattern = ".txt") %>%
@@ -229,6 +223,7 @@ peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pat
   # add PTM
   mutate(AA = paste0(str_split_fixed(AA_length, "_", 2)[,1],"_")) %>%
   mutate(filename = str_split_fixed(file, pattern = AA, 2)[,2]) %>%
+  mutate(AA = str_split_fixed(AA, "_", 2)[,1]) %>%
   left_join(select(Master_table_expanded, filename, PTMs))
 
 if (operation_mode == "Update") {
@@ -319,38 +314,183 @@ if (nrow(peptide_chunks) == 0) {
       
       cat("MW", enzyme_type, ": Done\n",
           as.character(Sys.time()), "\n")
+      
       ### ---------------------------- (5) PTM generation --------------------------------------
-      # PTMs to be generated
+      ### Define fixed_mods ~ mass_lists
+      mods_fixed <- unique(na.omit(Experiment_design$modifications_fixed))
+      
+      Experiment_design_fixed_mods <- Experiment_design %>%
+        select(Filename, modifications_fixed) %>%
+        rename(mzList_fixed_mods = Filename)
+      
+      fixed_mods <- lapply(Experiment_design_fixed_mods$modifications_fixed, function(x){
+        if (is.na(x)) {
+          tibble(Id = "none",
+                 Site = "none",
+                 Position = "none",
+                 MonoMass = 0)
+        } else {
+          vroom(paste0("data/modifications_fixed/", x, ".csv"), show_col_types = FALSE)
+        }
+      })
+      names(fixed_mods) <- Experiment_design_fixed_mods$mzList_fixed_mods
+      
+      ### Define variable_mods ~ proteomes
       PTM_list <- peptide_chunks_tmp$PTMs[peptide_chunks_tmp$Splice_type == enzyme_type] %>%
         str_split(pattern = "\\|") %>%
         unlist() %>%
         str_squish()
       PTM_list <- PTM_list[!(PTM_list == "")] %>% unique() %>% na.omit() %>% as.character()
       # PTM_list <- PTM_list[!PTM_list == "OpenSearch"]
+      # PTM_list <- c()
       
+      ### PTMs for spliced peptides
       if (generate_spliced_PTMs == FALSE) {
         ignore_generate_spliced_PTMs = !(enzyme_type == "PSP" | enzyme_type == "cis-PSP")
       } else {
         ignore_generate_spliced_PTMs = TRUE
       }
       
-      if (length(PTM_list) > 0 & ignore_generate_spliced_PTMs) {
+      ### PTMs: fixed and/or variable
+      if (length(PTM_list) > 0 & length(mods_fixed) > 0) {
+        PTM_mode = "Fixed_&_variable"
+      } else if (length(PTM_list) > 0 & length(mods_fixed) == 0) {
+        PTM_mode = "Variable_only"
+      } else if (length(PTM_list) == 0 & length(mods_fixed) > 0) {
+        PTM_mode = "Fixed_only"
+      } else if (length(PTM_list) == 0 & length(mods_fixed) == 0) {
+        PTM_mode = "No_mods"
+      }
+      print(paste0("PTM mode: ", PTM_mode))
+      
+      if (PTM_mode != "No_mods" & ignore_generate_spliced_PTMs) {
         mzList <- rbindlist(MS_mass_lists_data, idcol = "mzList")[,.(mzList, MW_Min, MW_Max)] %>%
           unique() %>%
           setkey(MW_Min, MW_Max, mzList)
         
         for (PTM in PTM_list) {
-          # Load PTM table
-          mods <- vroom(paste0("data/modifications/", PTM, ".csv"), show_col_types = F, num_threads = Ncpu) 
+          ### Load PTM table
+          if (PTM_mode == "Fixed_only") {
+            mods <- tibble(Id = "none",
+                           Site = "none",
+                           Position = "none",
+                           MonoMass = 0)
+          } else {
+            mods <- vroom(paste0("data/modifications/", PTM, ".csv"), show_col_types = F, num_threads = Ncpu) 
+          }
           
           # Prepare peptides
           counter_fst = 1
           for (input_i in 1:n_chunks) {
             print(paste("Generating PTMs for:", PTM, input_i))
-            
-            # Additional split to reduce RAM usage
+            ### Additional split to reduce RAM usage
             PTMcombinations <- input[chunks == input_i, .(peptide, MW)]
-            PTMcombinations <- PTMcombinations[, PTMcombinations := parallel::mcmapply(getPTMcombinations_fast_vec, 
+            if (nrow(PTMcombinations) == 1) {
+              PTMcombinations <- rbind(PTMcombinations, PTMcombinations)
+            }
+            
+            if (length(mods_fixed) > 0) {
+              
+              ### (1) Add fixed mods per mass_list
+              fm_out <- list()
+              fm_seq <- list()
+              for (fm in names(fixed_mods)) {
+                fm_PTMs <- select(fixed_mods[[fm]], Site, Position)
+                
+                fa = filter(fm_PTMs, fm_PTMs$Position=="Anywhere") %>% pull(Site)
+                fc = filter(fm_PTMs, Site=="C-term" & fm_PTMs$Position=="Any C-term") %>% pull(Site)
+                fn = filter(fm_PTMs, Site=="N-term" & fm_PTMs$Position=="Any N-term") %>% pull(Site)
+                
+                PTMcombinations_fm <- list()
+                if (length(fa) > 0) {
+                  PTMcombinations_fm[["fa"]] <- PTMcombinations %>%
+                    filter(str_detect(peptide, str_c(fa, sep = "|"))) %>%
+                    as.data.table()
+                } 
+                if (length(fc) > 0) {
+                  PTMcombinations_fm[["fc"]] <- PTMcombinations %>%
+                    filter(str_ends(peptide, str_c(fc, sep = "|"))) %>%
+                    as.data.table()
+                } 
+                if (length(fn) > 0) {
+                  PTMcombinations_fm[["fa"]] <- PTMcombinations %>%
+                    filter(str_starts(peptide, str_c(fn, sep = "|"))) %>%
+                    as.data.table()
+                } 
+                PTMcombinations_fm <- rbindlist(PTMcombinations_fm)
+                fm_seq[[fm]] <- PTMcombinations_fm
+                if (nrow(PTMcombinations_fm) > 0) {
+                  PTMcombinations_fm <- PTMcombinations_fm[, PTMcombinations := parallel::mcmapply(getPTMcombinations_fixed_vec, 
+                                                                                                   peptide, MW, 
+                                                                                                   list(fixed_mods[[fm]]), 
+                                                                                                   SIMPLIFY = T, 
+                                                                                                   mc.cores = Ncpu, 
+                                                                                                   mc.preschedule = T, 
+                                                                                                   USE.NAMES = F, 
+                                                                                                   mc.cleanup = T)]
+                  PTMcombinations_fm <- rbindlist(PTMcombinations_fm$PTMcombinations, use.names = F) 
+                  
+                  ### Generate variable mods per mass list in peptides with fixed mods
+                  mods_fm <- anti_join(mods, fm_PTMs)
+                  if (PTM_mode == "Fixed_&_variable") {
+                    # mods_fm <- mods_fm[1:20,]
+                    PTMcombinations_fm2 <- PTMcombinations_fm[, PTMcombinations := parallel::mcmapply(getPTMcombinations_fast_vec, 
+                                                                                                      peptide, MW, max_variable_PTM,
+                                                                                                      list(mods_fm), 
+                                                                                                      SIMPLIFY = T, 
+                                                                                                      mc.cores = Ncpu, 
+                                                                                                      mc.preschedule = T, 
+                                                                                                      USE.NAMES = F, 
+                                                                                                      mc.cleanup = T)]
+                    PTMcombinations_fm2 <- PTMcombinations_fm2$PTMcombinations
+                    names(PTMcombinations_fm2) <- PTMcombinations_fm$ids
+                    PTMcombinations_fm2 <- rbindlist(PTMcombinations_fm2, use.names = T, idcol = "fixed_mods")  
+                    PTMcombinations_fm2 <- PTMcombinations_fm2[,ids:=paste(fixed_mods, ids, sep = ";")] %>%
+                      .[,fixed_mods:=NULL] 
+                    
+                    fm_out[[fm]] <- PTMcombinations_fm2
+                    rm(PTMcombinations_fm, PTMcombinations_fm2)
+                  } else {
+                    fm_out[[fm]] <- PTMcombinations_fm
+                    rm(PTMcombinations_fm)
+                  }
+                }
+              } # end fixed mod ~ mass_list
+              
+              ### (2) Find all peptides without fixed mods
+              fm_seq <- fm_seq[unlist(lapply(fm_seq, nrow)) > 0]
+              if (length(fm_seq) > 0) {
+                vm_out <- PTMcombinations[!peptide %in% rbindlist(fm_seq)$peptide,]
+                if (nrow(vm_out) > 0 ) {
+                  vm_out <- vm_out[, PTMcombinations := parallel::mcmapply(getPTMcombinations_fast_vec, 
+                                                                           peptide, MW, max_variable_PTM, 
+                                                                           list(mods), 
+                                                                           SIMPLIFY = T, 
+                                                                           mc.cores = Ncpu, 
+                                                                           mc.preschedule = T, 
+                                                                           USE.NAMES = F, 
+                                                                           mc.cleanup = T)]
+                  vm_seq <- vm_out[,.(peptide, MW)]
+                } else {
+                  vm_seq <- vm_out[,.(peptide, MW)]
+                }
+              }
+              
+              ### (3) Find all peptides without fixed mods not common between mass lists
+              ###     Generate their variable PTMs
+              uv_out <- list()
+              uv_seq <- list()
+              for (fm in names(fixed_mods)) {
+                
+                if (exists("vm_seq")) {
+                  uv_out[[fm]] <- PTMcombinations[!peptide %in% vm_seq$peptide,]
+                } else {
+                  uv_out[[fm]] <- PTMcombinations
+                }
+                uv_out[[fm]] <- uv_out[[fm]][!peptide %in% fm_seq[[fm]]$peptide,]
+                
+                if(nrow(uv_out[[fm]]) > 0){
+                  uv_out[[fm]] <- uv_out[[fm]][, PTMcombinations := parallel::mcmapply(getPTMcombinations_fast_vec, 
                                                                                        peptide, MW, max_variable_PTM, 
                                                                                        list(mods), 
                                                                                        SIMPLIFY = T, 
@@ -358,25 +498,72 @@ if (nrow(peptide_chunks) == 0) {
                                                                                        mc.preschedule = T, 
                                                                                        USE.NAMES = F, 
                                                                                        mc.cleanup = T)]
-            print("got PTM combinations")
-            
-            PTMcombinations <- rbindlist(PTMcombinations$PTMcombinations, use.names = F) %>%
-              .[!is.na(ids)] %>%
-              .[, id := rowid(peptide, ids)] %>%
-              .[, c("MW_Min", "MW_Max") := MW]
-            print("rbind combinations")
+                  uv_seq[[fm]] <- uv_out[[fm]][,.(peptide, MW)]
+                } else {
+                  uv_out[[fm]] <- NULL
+                }
+              }
+              ### (4) Find all peptides without fixed mods not common between mass lists
+              # 4.1 fixed ~ mass list
+              # fm <- rbindlist(fm_out, idcol = "mass_list_tag")$PTMcombinations
+              # names(fm) <- rbindlist(fm_out, idcol = "mass_list_tag")$mass_list_tag
+              PTMcombinations_list <- list()
+              PTMcombinations_list$fm <- rbindlist(fm_out, idcol = "mass_list_tag")
+              
+              # 4.2 unique ~ mass list
+              uv <- rbindlist(uv_out, idcol = "mass_list_tag")$PTMcombinations
+              names(uv) <- rbindlist(uv_out, idcol = "mass_list_tag")$mass_list_tag
+              PTMcombinations_list$uv <- rbindlist(uv, idcol = "mass_list_tag")
+              
+              # 4.3 all variable mods common across mass lists
+              if (exists("vm_out")) {
+                vm <- vm_out$PTMcombinations
+                vm <- rbindlist(vm)
+                vm[,mass_list_tag:="common_variable_mods"]
+                PTMcombinations_list$vm <- vm
+              }
+              
+              PTMcombinations_list <- PTMcombinations_list[unlist(lapply(PTMcombinations_list, ncol)) == 4]
+              PTMcombinations <- rbindlist(PTMcombinations_list, use.names = T) %>%
+                .[!is.na(MW)] %>%
+                .[, id := rowid(peptide, ids)] %>%
+                .[, c("MW_Min", "MW_Max") := MW]
+              # table(select(as_tibble(unique(select(PTMcombinations, mass_list_tag, peptide))),-peptide))
+              
+              #### end fixed mods 
+            } else { 
+              # No fixed, only variable mods
+              PTMcombinations <- PTMcombinations[, PTMcombinations := parallel::mcmapply(getPTMcombinations_fast_vec, 
+                                                                                         peptide, MW, max_variable_PTM, 
+                                                                                         list(mods), 
+                                                                                         SIMPLIFY = T, 
+                                                                                         mc.cores = Ncpu, 
+                                                                                         mc.preschedule = T, 
+                                                                                         USE.NAMES = F, 
+                                                                                         mc.cleanup = T)]
+              print("got PTM combinations")
+              
+              PTMcombinations <- rbindlist(PTMcombinations$PTMcombinations, use.names = F) %>%
+                .[!is.na(ids)] %>%
+                .[, id := rowid(peptide, ids)] %>%
+                .[, c("MW_Min", "MW_Max") := MW] %>%
+                .[,mass_list_tag:="common_variable_mods"]
+              print("rbind combinations")
+            }
             
             # If there have been PTMs generated
             if (!(nrow(PTMcombinations) == 1 & anyNA(PTMcombinations$ids))) {
               PTM_stats_all <- PTMcombinations[, .(All_PTM = .N,
-                                                   Unique_PTM = uniqueN(ids)), keyby = .(peptide)]
+                                                   Unique_PTM = uniqueN(ids)), keyby = .(peptide, mass_list_tag)]
               
               PTM_MW_out <- foverlaps(x = PTMcombinations, y = mzList, 
                                       by.x=c("MW_Min","MW_Max"),
                                       by.y=c("MW_Min", "MW_Max"), nomatch=0L) %>%
                 .[, c("i.MW_Min", "i.MW_Max", "MW_Min", "MW_Max"):=NULL] %>%
                 unique() %>%
-                .[, id := NULL]
+                .[, id := NULL] %>%
+                # Keep combinations where mzList matches mass_list_tag or common variable mods
+                .[(mzList == mass_list_tag) | (mass_list_tag == "common_variable_mods"),] 
               print("filtered by MW")
               
               # Save modified peptides
@@ -388,16 +575,18 @@ if (nrow(peptide_chunks) == 0) {
               # Save stats
               PTM_MW_out %>%
                 .[, .(All_MW_filtered_PTM = .N,
-                      Unique_MW_filtered_PTM = uniqueN(ids)), keyby = .(peptide, mzList)] %>%
-                .[PTM_stats_all, on = .(peptide), allow.cartesian = TRUE] %>%
-                relocate(peptide, All_PTM, Unique_PTM, All_MW_filtered_PTM, Unique_MW_filtered_PTM, mzList) %>%
+                      Unique_MW_filtered_PTM = uniqueN(ids)), keyby = .(peptide, mzList, mass_list_tag)] %>%
+                .[PTM_stats_all, on = .(peptide, mass_list_tag), allow.cartesian = TRUE] %>%
+                relocate(peptide, mass_list_tag, mzList, All_PTM, Unique_PTM, All_MW_filtered_PTM, Unique_MW_filtered_PTM) %>%
+                .[, All_MW_filtered_PTM := fifelse(is.na(All_MW_filtered_PTM), 0, All_MW_filtered_PTM)] %>%
+                .[, Unique_MW_filtered_PTM := fifelse(is.na(Unique_MW_filtered_PTM), 0, Unique_MW_filtered_PTM)] %>%
                 vroom_write(paste0(
                   dir_DB_PTM_mz, "/stats_PTM/", enzyme_type, "_", filename, "_", Proteome_i, "_", PTM, ".csv.gz"), 
                   delim = ",", append = T, num_threads = Ncpu)
             } 
             rm(PTMcombinations, PTM_MW_out, PTM_stats_all)
           } # end input_i
-        } # end PTM
+        } # end only variable PTM
       } # end PTM generation
       ### ---------------------------- (6) MW & RT matching --------------------------------------
       for (j in 1:nrow(MS_mass_lists)) {
@@ -411,8 +600,25 @@ if (nrow(peptide_chunks) == 0) {
         # Calibration input
         mzList = MS_mass_lists_data[[j]]
         
+        # Copy peptides into a new data.table
+        tmp <- data.table::copy(input)
+        
+        # If there are fixed mods - re-compute MW for these peptides
+        mods_fixed_j <- fixed_mods[[MS_mass_lists$mass_list[j]]]
+        if (!mods_fixed_j$Id[[1]] == "none") {
+          tmp <- tmp[str_detect(peptide, str_c(mods_fixed_j$Site, collapse = "|")), 
+                           MW := parallel::mcmapply(getPTMcombinations_fixed_mass_vec, 
+                                                                   peptide, MW, 
+                                                                   list(mods_fixed_j), 
+                                                                   SIMPLIFY = T, 
+                                                                   mc.cores = Ncpu, 
+                                                                   mc.preschedule = T, 
+                                                                   USE.NAMES = F, 
+                                                                   mc.cleanup = T)]
+        }
+        
         # MW filter block-wise
-        tmp <- input[MW %inrange% mzList[,c("MW_Min", "MW_Max")], .(peptide, MW), by = chunks]
+        tmp <- tmp[MW %inrange% mzList[,c("MW_Min", "MW_Max")], .(peptide, MW), by = chunks]
         
         # Save stats
         if (enzyme_type %in% enzymes) {

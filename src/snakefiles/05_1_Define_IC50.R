@@ -58,21 +58,27 @@ dir_DB_PTM_mz = snakemake@params[["dir_DB_PTM_mz"]]
 
 ### ---------------------------- (2) Define cmds: netMHCpan prediction --------------------------------------
 cmds <- tibble(file = list.files(paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan"), pattern = ".tsv"),
-                   size = file.size(list.files(paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan"), pattern = ".tsv", full.names = T))) %>%
-  mutate(N_mer = str_split_fixed(file, "_", Inf)[,2]) %>%
-  mutate(allele = str_split_fixed(file, pattern = paste0("_", N_mer, "_"), Inf)[,2]) %>%
-  mutate(allele = str_split_fixed(allele, pattern = paste0("_ch_"), Inf)[,1]) %>%
-  arrange(desc(N_mer), desc(size)) %>% 
-  mutate(cmd_block = rep(1:3, length.out = n())) %>%
-  arrange(cmd_block, desc(N_mer), desc(size)) %>%
-  mutate(cmds = paste(netMHCpan,
-                      "-BA", "-inptype 1",
-                      "-a", allele,
-                      "-l", N_mer, 
-                      "-p -f", paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan/", file),
-                      ">", paste0(dir_IC50,"/netMHCpan_output/", file, ".txt"),
-                      "-v"))
-t(cmds[1,])
+                   size = file.size(list.files(paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan"), pattern = ".tsv", full.names = T))) 
+
+if (nrow(cmds) > 0) {
+  cmds <- cmds %>%
+    mutate(N_mer = str_split_fixed(file, "_", Inf)[,2]) %>%
+    mutate(allele = str_split_fixed(file, pattern = paste0("_", N_mer, "_"), Inf)[,2]) %>%
+    mutate(allele = str_split_fixed(allele, pattern = paste0("_ch_"), Inf)[,1]) %>%
+    arrange(desc(N_mer), desc(size)) %>% 
+    mutate(cmd_block = rep(1:3, length.out = n())) %>%
+    arrange(cmd_block, desc(N_mer), desc(size)) %>%
+    mutate(cmds = paste(netMHCpan,
+                        "-BA", "-inptype 1",
+                        "-a", allele,
+                        "-l", N_mer, 
+                        "-p -f", paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpan/", file),
+                        ">", paste0(dir_IC50,"/netMHCpan_output/", file, ".txt"),
+                        "-v"))
+  t(cmds[1,])
+} else {
+  cmds$cmd_block <- 0
+}
 
 ### ---------------------------- (4) Export --------------------------------------
 ### Peptide_file - column for wildcards

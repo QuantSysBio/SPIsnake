@@ -114,6 +114,13 @@ Experiment_design_expanded <- Experiment_design %>%
 Experiment_design_expanded
 
 {
+  AA_lengths <- Master_table_expanded %>%
+    select(N_mers) %>%
+    tidyr::expand_grid(AA) %>%
+    tidyr::unite(AA_length, AA, N_mers, sep = "_") %>%
+    pull(AA_length) %>%
+    str_c(collapse = "|")
+  
   Mass_list_files <- Experiment_design$Filename %>%
     unique() %>%
     str_c(collapse = "|")
@@ -122,8 +129,9 @@ Experiment_design_expanded
     as_tibble() %>%
     mutate(Mass_list_file = str_extract(value, pattern = Mass_list_files)) %>%
     mutate(enzyme_type = str_split_fixed(value, "_", n = 4)[,1]) %>%
-    mutate(AA = str_split_fixed(value, "_", n = 4)[,2]) %>%
-    mutate(Nmer = str_split_fixed(value, "_", n = 4)[,3]) %>%
+    mutate(AA_length = str_extract(value, AA_lengths)) %>%
+    mutate(AA = str_split_fixed(AA_length, "_", n = 2)[,1]) %>%
+    mutate(Nmer = str_sub(AA_length, start = 2 + str_length(AA))) %>%
     unite(col = AA_length, AA, Nmer, sep = "_") %>%
     left_join(select(Experiment_design_expanded, Filename, Biological_group, `Output non-binders`), 
               by = c("Mass_list_file" = "Filename")) %>%
@@ -142,14 +150,12 @@ Experiment_design_expanded
   pep_map <- list.files(paste0(dir_DB_exhaustive, "/peptide_mapping"), pattern = ".fst", full.names = F) %>%
     as_tibble() %>%
     mutate(enzyme_type = str_split_fixed(value, "_map_", n = 2)[,1]) %>%
-    mutate(AA_length = str_split_fixed(value, "_map_", n = 2)[,2]) %>%
+    mutate(AA_length = str_extract(value, AA_lengths)) %>%
     mutate(AA = str_split_fixed(AA_length, "_", n = 2)[,1]) %>%
-    mutate(Nmer = str_split_fixed(AA_length, "_", n = 3)[,2]) %>%
+    mutate(Nmer = str_sub(AA_length, start = 2 + str_length(AA))) %>%
     unite(col = AA_length, AA, Nmer, sep = "_") %>%
     mutate(Proteome = str_extract(value, pattern = Proteomes)) %>%
     filter(!str_starts(AA_length, "_")) %>%
-    # filter(AA_length %in% c(MW_RT_output$AA_length[MW_RT_output$`Output non-binders` == T], IC50_output$AA_length)) %>%
-    # filter(AA_length %in% IC50_output$AA_length) %>%
     as.data.table() %>%
     split(by = "AA_length")
   pep_map
@@ -188,7 +194,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     peptide_mapping[, enzyme_type := str_split_fixed(file, "\\|", 2)[,1]]
     peptide_mapping[, Proteome := str_split_fixed(file, "\\|", 2)[,2]]
     peptide_mapping$file <- NULL
-    peptide_mapping[, protein := str_split_fixed(protein, "\\|chunk:", 2)[,1]]
+    peptide_mapping[, protein := str_split_fixed(protein, "\\.|chunk:", 2)[,1]]
     peptide_mapping <- unique(peptide_mapping)
     peptide_mapping
   }
@@ -205,8 +211,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
   for (biol_group in Biological_groups) {
     
     MW_RT_biol_group <- MW_RT_x %>%
-      filter(Biological_group %in% biol_group) %>%
-      mutate(IC50_filtered_peptides = NA)
+      filter(Biological_group %in% biol_group) 
     MW_RT_biol_group_pep <- vector(mode = "list", length = nrow(MW_RT_biol_group))
     
     # Join IC50 with MW_RT information
@@ -226,17 +231,37 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
           as.data.table()
       }
     }
-    # Report number of predicted binders per mass_list file
-    MW_RT_biol_group$IC50_filtered_peptides <- bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
-                                                                  MW_RT_biol_group_pep, FUN = function(x){
-                                                                    x %>%
-                                                                      filter(!is.na(`Aff(nM)`)) %>%
-                                                                      filter(Predicted_binder == T) %>%
-                                                                      select(peptide) %>%
-                                                                      as_tibble() %>%
-                                                                      n_distinct()
-                                                                  }) %>%
-      unlist()
+    ### Report number of predicted binders per mass_list file
+    # # Single peptide length
+    # MW_RT_biol_group$IC50_filtered_peptides <- bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
+    #                                                               MW_RT_biol_group_pep, FUN = function(x){
+    #                                                                 x %>%
+    #                                                                   filter(!is.na(`Aff(nM)`)) %>%
+    #                                                                   filter(Predicted_binder == T) %>%
+    #                                                                   select(peptide) %>%
+    #                                                                   as_tibble() %>%
+    #                                                                   n_distinct()
+    #                                                               }) %>%
+    #   unlist()
+    IC50_filtered_stats <- bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
+                       MW_RT_biol_group_pep, FUN = function(x){
+                         x[,length:=str_length(peptide)] %>% 
+                           split(x$length) %>%
+                           lapply(function(df){
+                             df %>%
+                               filter(!is.na(`Aff(nM)`)) %>%
+                               filter(Predicted_binder == T) %>%
+                               select(peptide) %>%
+                               as_tibble() %>%
+                               n_distinct()
+                           }) %>%
+                           stack() %>%
+                           rename(IC50_filtered_peptides = values,
+                                  length = ind)
+                         }) %>%
+      bind_rows()
+    
+    MW_RT_biol_group <- expand_grid(MW_RT_biol_group, IC50_filtered_stats)
     
     # Proceed with non-empty data.tables
     keep <- lapply(lapply(MW_RT_biol_group_pep, dim), `[[`, 1) > 0
@@ -285,17 +310,18 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
 }) %>%
   bind_rows()
 
-
 ### ---------------------------- (3) Summarize filtering stats --------------------------------------
 MW_RT_stats <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_status"), full.names = T) %>%
   bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
                      FUN = vroom, show_col_types = F, num_threads = 1, delim = ",") %>%
   rbindlist() %>%
-  select(-c("value", "file", "PTMs","Time", "mass_list_file")) %>%
+  # select(-c("value", "file", "PTMs","Time", "mass_list_file")) %>%
   filter(!is.na(unique_peptides)) %>%
   unique() %>%
   as_tibble() %>%
-  rename(enzyme_type = Splice_type)
+  rename(enzyme_type = Splice_type) %>%
+  mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
+  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA))
 MW_RT_stats
 
 ### Add peptide filtering information from other steps
@@ -306,6 +332,7 @@ tmp <- Experiment_design_expanded %>%
 
 Summary_stats <- DB_reduction_IC50 %>%
   as_tibble() %>%
+  mutate(length = as.integer(as.character(length))) %>%
   rename(mass_list = Mass_list_file) %>%
   mutate(Proteome = str_extract(value, pattern = str_c(unique(Master_table_expanded$Proteome), 
                                                        collapse = "|"))) %>%
@@ -360,10 +387,10 @@ for (i in seq_along(gg)) {
 # Stats
 Summary_stats %>%
   # Summarize
-  group_by(mass_list, enzyme_type, Proteome, Filtering_step, Length) %>%
+  group_by(mass_list, enzyme_type, Proteome, Filtering_step, length) %>%
   summarise(`# peptides` = sum(`# peptides`)) %>%
   mutate(`log10 # peptides` = log10(`# peptides` + 1)) %>%
-  pivot_wider(id_cols = c("mass_list", "enzyme_type", "Proteome", "Length"), 
+  pivot_wider(id_cols = c("mass_list", "enzyme_type", "Proteome", "length"), 
               names_from = Filtering_step, values_from = c(`# peptides`)) %>%
   vroom_write(delim = ",", append = FALSE, col_names = TRUE,
               file = unlist(snakemake@output[["Summary_stats"]]))

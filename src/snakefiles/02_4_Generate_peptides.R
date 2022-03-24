@@ -56,7 +56,7 @@ print(sessionInfo())
 #   suppressWarnings(dir.create(paste0(directory, "/peptide_seqences")))
 #   suppressWarnings(dir.create(paste0(directory, "/peptide_mapping")))
 #   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-#   filename = "results/DB_exhaustive/Seq_stats/5_26_factor xa_2_25_Measles_CDS_6_frame_1_48_1.fasta.csv.gz"
+#   filename = "results/DB_exhaustive/Seq_stats/13_trypsin_2_5_SwissProt_UP000005640_1_20371_1.fasta.csv.gz"
 #   index_length = 1
 #   max_protein_length = 500
 #   exclusion_pattern <- "(U|X|\\*)"
@@ -72,7 +72,9 @@ print(sessionInfo())
 #   filename <- filename[,2]
 #   print(filename)
 # 
-#   params <- Master_table_expanded[Master_table_expanded$filename == filename,]
+#   params <- Master_table_expanded[Master_table_expanded$filename == filename,] %>%
+#     select(Proteome, Splice_type, N_mers, Min_Interv_length, chunk) %>%
+#     unique()
 #   print(t(params))
 #   Splice_type = as.character(params$Splice_type)
 #   MiSl = as.numeric(params$Min_Interv_length)
@@ -121,7 +123,9 @@ filename = snakemake@output[[1]]
   print(filename)
 }
 
-params <- Master_table_expanded[Master_table_expanded$filename == filename,]
+params <- Master_table_expanded[Master_table_expanded$filename == filename,] %>%
+  select(Proteome, Splice_type, N_mers, Min_Interv_length, chunk) %>%
+  unique()
 print(t(params))
 
 ### Extract parameters
