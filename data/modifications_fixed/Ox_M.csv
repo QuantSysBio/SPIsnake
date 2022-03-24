@@ -1,0 +1,3 @@
+Id,UnimodId,Name,Description,Composition,AvgMass,MonoMass,Site,Position,Classification,SpecGroup,NeutralLoss,LastModified,Approved,Hidden
+Carbamidomethyl:C,4,Carbamidomethyl,Iodoacetamide derivative,H(3) C(2) N O,57.0513,57.021464,C,Anywhere,Chemical derivative,1,FALSE,2017-10-09 10:27:10,TRUE,FALSE
+Oxidation:M,35,Oxidation,Oxidation or Hydroxylation,O,15.9994,15.994915,M,Anywhere,Artefact,8,FALSE,2017-10-06 17:05:11,FALSE,FALSE
