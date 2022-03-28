@@ -44,7 +44,7 @@ If necessary, deposit your data in the correct directory using `sftp`, `scp` or 
 `conda activate SPIsnake`
 - Submit the job to the `elbe` partition. (You can get an overview about which compute nodes are assigned to which partition by calling `sinfo`.)  
 ```
-snakemake --use-singularity --cluster-config src/cluster.yaml --cluster "sbatch -p {cluster.partition} -N {cluster.nodes} -c {cluster.ncpus} -t {cluster.time} --mem {cluster.mem} --job-name {cluster.job-name} -o {cluster.output} -D {cluster.chdir} --exclusive" --conda-frontend conda -j 3 -w 36000 --restart-times 3
+snakemake --use-singularity --cluster-config src/cluster.yaml --cluster "sbatch -p {cluster.partition} -N {cluster.nodes} -c {cluster.ncpus} -t {cluster.time} --mem {cluster.mem} --job-name {cluster.job-name} -o {cluster.output} -D {cluster.chdir} --exclusive" --conda-frontend conda -j 3 -w 36000 --restart-times 3 --resources load=100
 ```
 - Detach from the screen session by pressing `Ctrl+a+d`. You can resume to the session to check the progress via `screen -r spisnake`
 
