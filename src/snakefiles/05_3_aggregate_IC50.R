@@ -226,23 +226,11 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
           right_join(y = read_fst(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]]))) %>%
           lazy_dt() %>%
           filter(!is.na(MW)) %>%
-          filter(Predicted_binder == T) %>%
           unique() %>%
           as.data.table()
       }
     }
     ### Report number of predicted binders per mass_list file
-    # # Single peptide length
-    # MW_RT_biol_group$IC50_filtered_peptides <- bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
-    #                                                               MW_RT_biol_group_pep, FUN = function(x){
-    #                                                                 x %>%
-    #                                                                   filter(!is.na(`Aff(nM)`)) %>%
-    #                                                                   filter(Predicted_binder == T) %>%
-    #                                                                   select(peptide) %>%
-    #                                                                   as_tibble() %>%
-    #                                                                   n_distinct()
-    #                                                               }) %>%
-    #   unlist()
     IC50_filtered_stats <- bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
                        MW_RT_biol_group_pep, FUN = function(x){
                          x[,length:=str_length(peptide)] %>% 
