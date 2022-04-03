@@ -59,7 +59,7 @@ print(sessionInfo())
 #   filename = "results/DB_exhaustive/Seq_stats/13_trypsin_2_5_SwissProt_UP000005640_1_20371_1.fasta.csv.gz"
 #   index_length = 1
 #   max_protein_length = 500
-#   exclusion_pattern <- "(U|X|\\*)"
+#   exclusion_pattern <- "(O|U|X|\\*)"
 #   fst_compression = 100
 # 
 #   Ncpu = 7
@@ -162,7 +162,7 @@ data.table::setDTthreads(Ncpu)
 print(paste0("number of CPUs: ", Ncpu))
 
 # Exclusion pattern: peptides with these letters will be omitted
-exclusion_pattern <- "(U|X|\\*)"
+exclusion_pattern <- "(O|U|X|\\*)"
 
 # Save into chunks according to first N letters
 index_length = as.integer(snakemake@params[["AA_index_length"]])
