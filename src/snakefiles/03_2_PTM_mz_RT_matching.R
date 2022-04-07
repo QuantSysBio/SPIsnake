@@ -180,6 +180,7 @@ RT_calibration_lists <- list.files("data/RT_calibration", pattern = ".csv") %>%
   rename(RT_list_file = value) %>%
   mutate(AA_length = filename) 
 
+
 ### ---------------------------- (2) Operation mode --------------------------------------
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/")))
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory/")))
@@ -190,7 +191,10 @@ suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpa
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/stats_PTM/")))
 
 # Check if there exist previous outputs to be updated:
-processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory"), pattern = paste0(filename, ".csv"))
+processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory"), pattern = paste0(filename, ".csv")) %>%
+  mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
+  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
+  mutate(AA = as.character(AA))
 
 operation_mode = ifelse(length(processed_files) > 0, "Update", "Generation")
 print(Sys.time())
@@ -224,14 +228,21 @@ peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pat
   mutate(AA = paste0(str_split_fixed(AA_length, "_", 2)[,1],"_")) %>%
   mutate(filename = str_split_fixed(file, pattern = AA, 2)[,2]) %>%
   mutate(AA = str_split_fixed(AA, "_", 2)[,1]) %>%
-  left_join(select(Master_table_expanded, filename, PTMs))
+  left_join(select(Master_table_expanded, filename, PTMs)) %>%
+  # Security for coersion to logical 
+  mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
+  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
+  mutate(AA = as.character(AA))
 
 if (operation_mode == "Update") {
   # Don't use absolute path when checking for file completeness
   tmp1 <- peptide_chunks %>%
     select(-value) %>%
     left_join(MS_mass_lists)
-  tmp2 <- select(processed_files, colnames(tmp1))
+  tmp2 <- select(processed_files, colnames(tmp1)) %>%
+    mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
+    mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
+    mutate(AA = as.character(AA))
   keep <- anti_join(tmp1, tmp2)
   
   # For new peptide sequences
