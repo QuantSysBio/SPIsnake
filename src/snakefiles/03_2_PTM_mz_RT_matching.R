@@ -191,10 +191,7 @@ suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/unique_peptides_for_NetMHCpa
 suppressWarnings(dir.create(paste0(dir_DB_PTM_mz, "/stats_PTM/")))
 
 # Check if there exist previous outputs to be updated:
-processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory"), pattern = paste0(filename, ".csv")) %>%
-  mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
-  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
-  mutate(AA = as.character(AA))
+processed_files <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_memory"), pattern = paste0(filename, ".csv")) 
 
 operation_mode = ifelse(length(processed_files) > 0, "Update", "Generation")
 print(Sys.time())
