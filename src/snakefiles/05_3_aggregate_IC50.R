@@ -61,20 +61,6 @@ fst_compression = as.integer(snakemake@params[["fst_compression"]])
 # Header size
 minimal_output_headers = as.logical(snakemake@params[["minimal_output_headers"]])
 
-# create temporary directory for vroom
-{
-  Sys.getenv("TMPDIR") %>% print()
-  Sys.getenv("VROOM_TEMP_PATH") %>% print()
-  
-  vroom_dir = "/tmp/vroom"
-  suppressWarnings(dir.create(vroom_dir))
-  Sys.setenv(VROOM_TEMP_PATH = vroom_dir)
-  Sys.getenv("VROOM_TEMP_PATH") %>% print()
-  
-  tmp_file = tempfile()
-  print(tmp_file)
-}
-
 ### ---------------------------- (1) Read inputs ----------------------------
 # Experiment_design
 Experiment_design <- fread(snakemake@input[["Experiment_design"]]) 
@@ -217,7 +203,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
   }
   # biol_group=Biological_groups[[2]]
   for (biol_group in Biological_groups) {
-    print(biol_group)
+    # print(biol_group)
     
     MW_RT_biol_group <- MW_RT_x %>%
       filter(Biological_group %in% biol_group) 
@@ -225,7 +211,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     
     # Join IC50 with MW_RT information
     for (i in seq_along(MW_RT_biol_group_pep)) {
-      print(i)
+      # print(i)
       
       # Load 2D filtered peptides
       MW_RT_biol_group_pep[[i]] <- read_fst(paste0(dir_DB_PTM_mz, "/unique_peptides_mz_RT_matched/", MW_RT_biol_group$value[[i]]), as.data.table = T)
@@ -259,7 +245,8 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
                                                     }) %>%
                                                     stack() %>%
                                                     rename(IC50_filtered_peptides = values,
-                                                           length = ind)
+                                                           length = ind) %>%
+                                                    mutate(length = as.integer(as.character(length)))
                                                 } else {
                                                   out <- tibble(IC50_filtered_peptides = 0,
                                                                 length = 0)
@@ -267,7 +254,8 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
                                               }) %>%
       bind_rows()
     
-    MW_RT_biol_group <- expand_grid(MW_RT_biol_group, IC50_filtered_stats)
+    # MW_RT_biol_group <- expand_grid(MW_RT_biol_group, IC50_filtered_stats)
+    MW_RT_biol_group <- bind_cols(MW_RT_biol_group, IC50_filtered_stats)
     
     # Proceed with non-empty data.tables
     keep <- lapply(lapply(MW_RT_biol_group_pep, dim), `[[`, 1) > 0
