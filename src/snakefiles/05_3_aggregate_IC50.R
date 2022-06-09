@@ -61,6 +61,20 @@ fst_compression = as.integer(snakemake@params[["fst_compression"]])
 # Header size
 minimal_output_headers = as.logical(snakemake@params[["minimal_output_headers"]])
 
+# create temporary directory for vroom
+{
+  Sys.getenv("TMPDIR") %>% print()
+  Sys.getenv("VROOM_TEMP_PATH") %>% print()
+  
+  vroom_dir = "/tmp/vroom"
+  suppressWarnings(dir.create(vroom_dir))
+  Sys.setenv(VROOM_TEMP_PATH = vroom_dir)
+  Sys.getenv("VROOM_TEMP_PATH") %>% print()
+  
+  tmp_file = tempfile()
+  print(tmp_file)
+}
+
 ### ---------------------------- (1) Read inputs ----------------------------
 # Experiment_design
 Experiment_design <- fread(snakemake@input[["Experiment_design"]]) 
@@ -311,13 +325,13 @@ MW_RT_stats <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_status"), fu
   bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
                      FUN = fread, nThread = 1, sep = ",") %>%
   rbindlist() %>%
-  # select(-c("value", "file", "PTMs","Time", "mass_list_file")) %>%
   filter(!is.na(unique_peptides)) %>%
-  unique() %>%
   as_tibble() %>%
   rename(enzyme_type = Splice_type) %>%
   mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
-  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA))
+  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
+  select(-c("value", "Time", "filename", "file", "AA_length", "AA", "PTMs"))  %>%
+  unique() 
 MW_RT_stats
 
 ### Add peptide filtering information from other steps
@@ -325,6 +339,7 @@ tmp <- Experiment_design_expanded %>%
   select(Filename, Biological_group, "Output non-binders") %>%
   rename(mass_list = Filename) %>%
   unique()
+tmp
 
 Summary_stats <- DB_reduction_IC50 %>%
   as_tibble() %>%
@@ -332,26 +347,30 @@ Summary_stats <- DB_reduction_IC50 %>%
   rename(mass_list = Mass_list_file) %>%
   mutate(Proteome = str_extract(value, pattern = str_c(unique(Master_table_expanded$Proteome), 
                                                        collapse = "|"))) %>%
-  right_join(MW_RT_stats) %>%
+  
+  select(-c("value", "AA_length")) 
+Summary_stats
+
+Summary_stats <- MW_RT_stats %>%
+  left_join(Summary_stats) %>%
   # Fill in NAs that appear due to complete removal of AA_Nmer at 2D filter step
   mutate(IC50_filtered_peptides = ifelse(is.na(IC50_filtered_peptides), 0, IC50_filtered_peptides)) %>%
   select(-c("Biological_group", "Output non-binders")) %>%
   left_join(tmp) %>%
-  mutate(value = ifelse(is.na(value), paste0(enzyme_type, "_", AA_length, "_", Proteome, "_", mass_list, ".fst"), value)) %>%
   # Reshape for plotting
   pivot_longer(cols = contains("_peptides"), names_to = c("Filtering_step"), values_to = "# peptides") %>%
-  mutate(`log10 # peptides` = log10(`# peptides` + 1),
-         Length = str_split_fixed(AA_length, "_", 2)[,2]) %>%
+  mutate(`log10 # peptides` = log10(`# peptides` + 1)) %>%
   mutate(Filtering_step = str_remove(Filtering_step, "_peptides")) %>%
-  mutate(Filtering_step = factor(Filtering_step, levels = c("unique", "mz_matched", "mz_RT_matched", "IC50_filtered")))
+  mutate(Filtering_step = factor(Filtering_step, levels = c("unique", "mz_matched", "mz_RT_matched", "IC50_filtered"))) %>%
+  unique()
 
 ### Plot DB size reduction
 gg$DB_reduction <- Summary_stats %>%
   # Summarize
-  group_by(mass_list, enzyme_type, Proteome, Filtering_step, Length) %>%
+  group_by(mass_list, enzyme_type, Proteome, Filtering_step, length) %>%
   summarise(`# peptides` = sum(`# peptides`)) %>%
   mutate(`log10 # peptides` = log10(`# peptides` + 1)) %>%
-  mutate(Length = as.factor(Length)) %>%
+  mutate(Length = as.factor(length)) %>%
   
   # Plot
   ggplot(aes(y=`log10 # peptides`, x=as.factor(Filtering_step), group=interaction(Proteome, Length))) + 
@@ -391,3 +410,12 @@ Summary_stats %>%
   fwrite(sep = ",", append = FALSE, col.names = TRUE,
          file = unlist(snakemake@output[["Summary_stats"]]))
 sink()
+
+# Summary_stats %>%
+#   group_by(mass_list, enzyme_type, Proteome, Filtering_step, length) %>%
+#   summarise(`# peptides` = sum(`# peptides`)) %>%
+#   mutate(`log10 # peptides` = log10(`# peptides` + 1)) %>%
+#   pivot_wider(id_cols = c("mass_list", "enzyme_type", "Proteome", "length"),
+#               names_from = Filtering_step, values_from = c(`# peptides`)) %>%
+#   fwrite(sep = ",", append = FALSE, col.names = TRUE,
+#          file = paste0(dir_DB_out, "/Summary_stats.csv"))
