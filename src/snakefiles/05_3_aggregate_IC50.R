@@ -33,14 +33,14 @@ print(sessionInfo())
 
 # {
 #   ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-#   ### setwd("/data/SPIsnake/K562_all_PCP")
-#   Master_table_expanded <- vroom("results/DB_exhaustive/Master_table_expanded.csv", show_col_types = FALSE)
-#   Experiment_design <- vroom("data/Experiment_design.csv", show_col_types = FALSE)
+#   ### setwd("/data/SPIsnake/K562_expressed_PCP_SPIsnakeVersion20220218")
+#   Master_table_expanded <- fread("results/DB_exhaustive/Master_table_expanded.csv")
+#   Experiment_design <- fread("data/Experiment_design.csv")
 #   dir_DB_exhaustive = "results/DB_exhaustive/"
 #   dir_DB_PTM_mz = "results/DB_PTM_mz"
 #   dir_IC50 = "results/IC50/"
 #   dir_DB_out = "results/DB_out"
-#   cmd_netMHCpan <- vroom(paste0(dir_IC50, "cmd_netMHCpan.csv"), show_col_types = FALSE)
+#   cmd_netMHCpan <- fread(paste0(dir_IC50, "cmd_netMHCpan.csv"))
 #   fst_compression = 100
 #   minimal_output_headers = TRUE
 # }
@@ -60,20 +60,6 @@ fst_compression = as.integer(snakemake@params[["fst_compression"]])
 
 # Header size
 minimal_output_headers = as.logical(snakemake@params[["minimal_output_headers"]])
-
-# create temporary directory for vroom
-{
-  Sys.getenv("TMPDIR") %>% print()
-  Sys.getenv("VROOM_TEMP_PATH") %>% print()
-  
-  vroom_dir = "/tmp/vroom"
-  suppressWarnings(dir.create(vroom_dir))
-  Sys.setenv(VROOM_TEMP_PATH = vroom_dir)
-  Sys.getenv("VROOM_TEMP_PATH") %>% print()
-  
-  tmp_file = tempfile()
-  print(tmp_file)
-}
 
 ### ---------------------------- (1) Read inputs ----------------------------
 # Experiment_design
@@ -108,6 +94,7 @@ IC50_output
 
 # Add non-binder MW_RT filter outputs if necessary
 Experiment_design_expanded <- Experiment_design %>%
+  as_tibble() %>%
   mutate(`MHC-I_alleles` = ifelse(is.na(`MHC-I_alleles`), "", `MHC-I_alleles`)) %>%
   mutate(Affinity_threshold = ifelse(is.na(Affinity_threshold), "", Affinity_threshold)) %>%
   tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]") %>%
@@ -117,6 +104,7 @@ Experiment_design_expanded
 
 {
   AA_lengths <- Master_table_expanded %>%
+    as_tibble() %>%
     select(N_mers) %>%
     tidyr::expand_grid(AA) %>%
     tidyr::unite(AA_length, AA, N_mers, sep = "_") %>%
