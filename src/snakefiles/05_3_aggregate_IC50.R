@@ -33,7 +33,7 @@ print(sessionInfo())
 
 # {
 #   ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-#   ### setwd("/data/SPIsnake/K562_expressed_PCP_SPIsnakeVersion20220218")
+#   ### setwd("/data/SPIsnake/K562_expressed_trypsin")
 #   Master_table_expanded <- fread("results/DB_exhaustive/Master_table_expanded.csv")
 #   Experiment_design <- fread("data/Experiment_design.csv")
 #   dir_DB_exhaustive = "results/DB_exhaustive/"
@@ -99,7 +99,8 @@ Experiment_design_expanded <- Experiment_design %>%
   mutate(Affinity_threshold = ifelse(is.na(Affinity_threshold), "", Affinity_threshold)) %>%
   tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]") %>%
   mutate(`MHC-I_alleles` = str_squish(`MHC-I_alleles`),
-         Affinity_threshold = str_squish(Affinity_threshold)) 
+         Affinity_threshold = str_squish(Affinity_threshold)) %>%
+  dplyr::mutate(`Output non-binders` = TRUE) # !!! Only for this dataset !!!
 Experiment_design_expanded
 
 {
@@ -151,6 +152,11 @@ Experiment_design_expanded
   pep_map
 }
 
+### Remove processed chunks
+pep_map_done <- list.files("results/DB_out/chunks/", ".csv") %>%
+  str_remove(pattern = ".csv")
+pep_map <- pep_map[!names(pep_map) %in% pep_map_done]
+
 # --------------------------------------- Main --------------------------------------
 # x=pep_map[[3]]
 DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
@@ -164,7 +170,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     IC50_pep <- IC50_x %>%
       pull(value) %>%
       as.list() %>%
-      bettermc::mclapply(mc.cores = Ncpu, mc.progress = F, mc.preschedule = F, FUN = read_fst, as.data.table = TRUE) %>%
+      lapply(FUN = read_fst, as.data.table = TRUE) %>%
       rbindlist()
     
     if (nrow(IC50_pep) == 0) {
@@ -176,11 +182,12 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
       setkey(IC50_pep, "peptide")
     }
   }
+  print("Loaded IC50")
   
   # Load peptide-protein mappings
   {
     peptide_mapping <- paste0(dir_DB_exhaustive, "/peptide_mapping/", x$value) %>%
-      bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,  mc.preschedule = F, FUN = read_fst, as.data.table = TRUE)
+      lapply(FUN = read_fst, as.data.table = TRUE)
     names(peptide_mapping) <- paste(x$enzyme_type, x$Proteome, sep = "|")
     
     peptide_mapping <- rbindlist(peptide_mapping, idcol="file")
@@ -193,6 +200,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     peptide_mapping
   }
   fst::threads_fst(nr_of_threads = Ncpu)
+  print("Loaded peptide_mapping")
   
   # Load MW RT and define biological groups
   {
@@ -203,7 +211,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     Biological_groups <- unique(MW_RT_x$Biological_group)
     Biological_groups_stats <- vector(mode = "list", length = length(Biological_groups))
   }
-  # biol_group=Biological_groups[[2]]
+  # biol_group=Biological_groups[[1]]
   for (biol_group in Biological_groups) {
     # print(biol_group)
     
@@ -231,6 +239,8 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
           as.data.table()
       }
     }
+    print("Merged 2D filtered peptides")
+    
     ### Report number of predicted binders per mass_list file
     IC50_filtered_stats <- bettermc::mclapply(mc.cores = Ncpu, mc.progress = F,
                                               MW_RT_biol_group_pep, FUN = function(x){
@@ -253,11 +263,20 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
                                                   out <- tibble(IC50_filtered_peptides = 0,
                                                                 length = 0)
                                                 }
-                                              }) %>%
-      bind_rows()
+                                              }) 
+    print("IC50 stats done")
     
-    # MW_RT_biol_group <- expand_grid(MW_RT_biol_group, IC50_filtered_stats)
-    MW_RT_biol_group <- bind_cols(MW_RT_biol_group, IC50_filtered_stats)
+    if (unique(MW_RT_biol_group$enzyme_type) %in% c("PCP", "PSP")) {
+      IC50_filtered_stats <- bind_rows(IC50_filtered_stats)
+      MW_RT_biol_group <- bind_cols(MW_RT_biol_group, IC50_filtered_stats)
+      
+    } else {
+      names(IC50_filtered_stats) <- MW_RT_biol_group$value
+      IC50_filtered_stats <- bind_rows(IC50_filtered_stats, .id = "value")
+      
+      MW_RT_biol_group <- MW_RT_biol_group %>%
+        left_join(IC50_filtered_stats, by = "value")
+    }
     
     # Proceed with non-empty data.tables
     keep <- lapply(lapply(MW_RT_biol_group_pep, dim), `[[`, 1) > 0
@@ -273,6 +292,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
         unique() %>%
         as_tibble() %>%
         relocate(peptide, enzyme_type, Proteome, protein, MW, RT_pred, MHC, `Aff(nM)`) 
+      print("Mergeed with peptide mapping")
       
       # Save tabular
       fwrite(keep_pep, file = paste0(dir_DB_out, "/", biol_group, ".csv"), sep = ",", append = T, nThread = Ncpu)
@@ -292,12 +312,16 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
           summarise(header=paste(header,collapse=';')) %>%
           as.data.table()
       }
+      print("Done fasta headers")
+      
       # Save fasta
       fasta_chunk <- AAStringSet(x = keep_pep$peptide)
       names(fasta_chunk) <- keep_pep$header
       fasta_chunk <- unique(fasta_chunk)
       writeXStringSet(fasta_chunk, append = T, format = "fasta",
                       filepath = paste0(dir_DB_out, "/", biol_group, ".fasta"))
+      
+      print("Done fasta export")
     }
     # Return stats for a biological group
     Biological_groups_stats[[biol_group]] <- MW_RT_biol_group
@@ -318,7 +342,7 @@ MW_RT_stats <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_status"), fu
   rename(enzyme_type = Splice_type) %>%
   mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
   mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
-  select(-c("value", "Time", "filename", "file", "AA_length", "AA", "PTMs"))  %>%
+  select(-c("value", "Time", "filename", "file", "AA_length", "AA", "PTMs")) %>%
   unique() 
 MW_RT_stats
 
@@ -336,7 +360,8 @@ Summary_stats <- DB_reduction_IC50 %>%
   mutate(Proteome = str_extract(value, pattern = str_c(unique(Master_table_expanded$Proteome), 
                                                        collapse = "|"))) %>%
   
-  select(-c("value", "AA_length")) 
+  select(-c("value", "AA_length")) %>%
+  filter(!length == 0)
 Summary_stats
 
 Summary_stats <- MW_RT_stats %>%
@@ -347,7 +372,6 @@ Summary_stats <- MW_RT_stats %>%
   left_join(tmp) %>%
   # Reshape for plotting
   pivot_longer(cols = contains("_peptides"), names_to = c("Filtering_step"), values_to = "# peptides") %>%
-  mutate(`log10 # peptides` = log10(`# peptides` + 1)) %>%
   mutate(Filtering_step = str_remove(Filtering_step, "_peptides")) %>%
   mutate(Filtering_step = factor(Filtering_step, levels = c("unique", "mz_matched", "mz_RT_matched", "IC50_filtered"))) %>%
   unique()
@@ -407,3 +431,4 @@ sink()
 #               names_from = Filtering_step, values_from = c(`# peptides`)) %>%
 #   fwrite(sep = ",", append = FALSE, col.names = TRUE,
 #          file = paste0(dir_DB_out, "/Summary_stats.csv"))
+# save.image("results/DB_out/R_env.RData")
