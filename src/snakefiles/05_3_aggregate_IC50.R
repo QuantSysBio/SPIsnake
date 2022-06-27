@@ -31,19 +31,38 @@ suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(vroom))
 print(sessionInfo())
 
-# {
-#   ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-#   ### setwd("/data/SPIsnake/K562_expressed_trypsin")
-#   Master_table_expanded <- fread("results/DB_exhaustive/Master_table_expanded.csv")
-#   Experiment_design <- fread("data/Experiment_design.csv")
-#   dir_DB_exhaustive = "results/DB_exhaustive/"
-#   dir_DB_PTM_mz = "results/DB_PTM_mz"
-#   dir_IC50 = "results/IC50/"
-#   dir_DB_out = "results/DB_out"
-#   cmd_netMHCpan <- fread(paste0(dir_IC50, "cmd_netMHCpan.csv"))
-#   fst_compression = 100
-#   minimal_output_headers = TRUE
-# }
+### ---------------------------- (1) Read inputs ----------------------------
+if (exists("snakemake")) {
+  # Experiment_design
+  Experiment_design <- fread(snakemake@input[["Experiment_design"]]) 
+  Master_table_expanded <- fread(snakemake@input[["Master_table_expanded"]])
+  cmd_netMHCpan <- fread(snakemake@input[["cmd_netMHCpan"]])
+  
+  # Output dirs
+  dir_DB_exhaustive = snakemake@params[["dir_DB_exhaustive"]]
+  dir_DB_PTM_mz = snakemake@params[["dir_DB_PTM_mz"]]
+  dir_DB_out = snakemake@params[["dir_DB_out"]]
+  dir_IC50 = snakemake@params[["dir_IC50"]]
+  
+  # fst compression level
+  fst_compression = as.integer(snakemake@params[["fst_compression"]])
+  
+  # Header size
+  minimal_output_headers = as.logical(snakemake@params[["minimal_output_headers"]])
+  
+} else {
+  ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+  ### setwd("/data/SPIsnake/K562_proteome_expressed_PSP_SPIsnakeVersion20220218")
+  Master_table_expanded <- fread("results/DB_exhaustive/Master_table_expanded.csv")
+  Experiment_design <- fread("data/Experiment_design.csv")
+  dir_DB_exhaustive = "results/DB_exhaustive/"
+  dir_DB_PTM_mz = "results/DB_PTM_mz"
+  dir_IC50 = "results/IC50/"
+  dir_DB_out = "results/DB_out"
+  cmd_netMHCpan <- fread(paste0(dir_IC50, "cmd_netMHCpan.csv"))
+  fst_compression = 100
+  minimal_output_headers = TRUE
+}
 
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
@@ -55,23 +74,7 @@ cl <- parallel::makeForkCluster(Ncpu)
 cl <- parallelly::autoStopCluster(cl)
 setDTthreads(Ncpu)
 
-# fst compression level
-fst_compression = as.integer(snakemake@params[["fst_compression"]])
-
-# Header size
-minimal_output_headers = as.logical(snakemake@params[["minimal_output_headers"]])
-
-### ---------------------------- (1) Read inputs ----------------------------
-# Experiment_design
-Experiment_design <- fread(snakemake@input[["Experiment_design"]]) 
-Master_table_expanded <- fread(snakemake@input[["Master_table_expanded"]])
-cmd_netMHCpan <- fread(snakemake@input[["cmd_netMHCpan"]])
-
-# Output dirs
-dir_DB_exhaustive = snakemake@params[["dir_DB_exhaustive"]]
-dir_DB_PTM_mz = snakemake@params[["dir_DB_PTM_mz"]]
-dir_DB_out = snakemake@params[["dir_DB_out"]]
-dir_IC50 = snakemake@params[["dir_IC50"]]
+### Folders
 suppressWarnings(dir.create(dir_DB_out))
 suppressWarnings(dir.create(paste0(dir_DB_out, "/plots")))
 suppressWarnings(dir.create(paste0(dir_DB_out, "/chunks")))
@@ -99,8 +102,7 @@ Experiment_design_expanded <- Experiment_design %>%
   mutate(Affinity_threshold = ifelse(is.na(Affinity_threshold), "", Affinity_threshold)) %>%
   tidyr::separate_rows(`MHC-I_alleles`, Affinity_threshold, sep = "[|]") %>%
   mutate(`MHC-I_alleles` = str_squish(`MHC-I_alleles`),
-         Affinity_threshold = str_squish(Affinity_threshold)) %>%
-  dplyr::mutate(`Output non-binders` = TRUE) # !!! Only for this dataset !!!
+         Affinity_threshold = str_squish(Affinity_threshold)) 
 Experiment_design_expanded
 
 {
@@ -211,7 +213,7 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
     Biological_groups <- unique(MW_RT_x$Biological_group)
     Biological_groups_stats <- vector(mode = "list", length = length(Biological_groups))
   }
-  # biol_group=Biological_groups[[1]]
+  # biol_group=Biological_groups[[2]]
   for (biol_group in Biological_groups) {
     # print(biol_group)
     
@@ -263,20 +265,12 @@ DB_reduction_IC50 <- lapply(pep_map, FUN = function(x){
                                                   out <- tibble(IC50_filtered_peptides = 0,
                                                                 length = 0)
                                                 }
-                                              }) 
+                                              }) %>%
+      bind_rows()
     print("IC50 stats done")
     
-    if (unique(MW_RT_biol_group$enzyme_type) %in% c("PCP", "PSP")) {
-      IC50_filtered_stats <- bind_rows(IC50_filtered_stats)
-      MW_RT_biol_group <- bind_cols(MW_RT_biol_group, IC50_filtered_stats)
-      
-    } else {
-      names(IC50_filtered_stats) <- MW_RT_biol_group$value
-      IC50_filtered_stats <- bind_rows(IC50_filtered_stats, .id = "value")
-      
-      MW_RT_biol_group <- MW_RT_biol_group %>%
-        left_join(IC50_filtered_stats, by = "value")
-    }
+    # MW_RT_biol_group <- expand_grid(MW_RT_biol_group, IC50_filtered_stats)
+    MW_RT_biol_group <- bind_cols(MW_RT_biol_group, IC50_filtered_stats)
     
     # Proceed with non-empty data.tables
     keep <- lapply(lapply(MW_RT_biol_group_pep, dim), `[[`, 1) > 0
@@ -341,7 +335,14 @@ MW_RT_stats <- list.files(paste0(dir_DB_PTM_mz, "/chunk_aggregation_status"), fu
   as_tibble() %>%
   rename(enzyme_type = Splice_type) %>%
   mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
-  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
+  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) 
+
+if (!is.null(MW_RT_stats$length)) {
+  MW_RT_stats <- MW_RT_stats %>%
+    mutate(length = as.integer(str_split_fixed(AA_length, "_", 2)[,2]))
+}
+
+MW_RT_stats <- MW_RT_stats %>%
   select(-c("value", "Time", "filename", "file", "AA_length", "AA", "PTMs")) %>%
   unique() 
 MW_RT_stats
@@ -352,6 +353,13 @@ tmp <- Experiment_design_expanded %>%
   rename(mass_list = Filename) %>%
   unique()
 tmp
+
+# Load processed chunks
+DB_reduction_IC50 <- list.files(paste0(dir_DB_out, "/chunks/"), 
+                                pattern =  ".csv", recursive = T, full.names = T) %>%
+  lapply(fread) %>%
+  rbindlist() %>%
+  as_tibble() 
 
 Summary_stats <- DB_reduction_IC50 %>%
   as_tibble() %>%
@@ -412,23 +420,22 @@ for (i in seq_along(gg)) {
 }
 
 # Stats
-Summary_stats %>%
+Summary_stats_out <- Summary_stats %>%
   # Summarize
   group_by(mass_list, enzyme_type, Proteome, Filtering_step, length) %>%
   summarise(`# peptides` = sum(`# peptides`)) %>%
   mutate(`log10 # peptides` = log10(`# peptides` + 1)) %>%
   pivot_wider(id_cols = c("mass_list", "enzyme_type", "Proteome", "length"), 
-              names_from = Filtering_step, values_from = c(`# peptides`)) %>%
-  fwrite(sep = ",", append = FALSE, col.names = TRUE,
-         file = unlist(snakemake@output[["Summary_stats"]]))
-sink()
+              names_from = Filtering_step, values_from = c(`# peptides`))
 
-# Summary_stats %>%
-#   group_by(mass_list, enzyme_type, Proteome, Filtering_step, length) %>%
-#   summarise(`# peptides` = sum(`# peptides`)) %>%
-#   mutate(`log10 # peptides` = log10(`# peptides` + 1)) %>%
-#   pivot_wider(id_cols = c("mass_list", "enzyme_type", "Proteome", "length"),
-#               names_from = Filtering_step, values_from = c(`# peptides`)) %>%
-#   fwrite(sep = ",", append = FALSE, col.names = TRUE,
-#          file = paste0(dir_DB_out, "/Summary_stats.csv"))
-# save.image("results/DB_out/R_env.RData")
+if (exists("snakemake")) {
+  Summary_stats_out %>%
+    fwrite(sep = ",", append = FALSE, col.names = TRUE,
+           file = unlist(snakemake@output[["Summary_stats"]]))
+  sink()
+} else {
+  Summary_stats_out %>%
+    fwrite(sep = ",", append = FALSE, col.names = TRUE,
+           file = paste0(dir_DB_out, "/Summary_stats.csv"))
+}
+save.image("results/DB_out/R_env.RData")
