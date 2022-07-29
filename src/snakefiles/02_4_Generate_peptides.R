@@ -261,6 +261,7 @@ if (grepl("cis-PSP", Splice_type) == TRUE) {
   Seq_stats <- rbindlist(list(PCP, PSP))
 } 
 
+
 ### ---------------------------- (4) Cleave enzymatic digestions --------------------------------------
 if (str_detect(Splice_type, str_c(enzymes, collapse = "|"))) {
   
@@ -272,18 +273,38 @@ if (str_detect(Splice_type, str_c(enzymes, collapse = "|"))) {
   
   # Generate in silico enzymatic digestions
   dat_sort <- dat[width(dat) >= min(Nmers)]
+  
+  ### Add the same sequences without N-terminal Met
+  {
+    add_X <- dat_sort[str_starts(dat_sort, "M|X")]
+    add_X <- subseq(add_X, start = 2, end = ifelse(width(add_X) >= 2*max(Nmers), 2*max(Nmers), width(add_X)))
+    dat_sort <- c(dat_sort, add_X)
+  }
+  
   split_chunks <- rep(1:(5*Ncpu), length.out=length(dat_sort))
-  enzym_out <- split(dat_sort, split_chunks) %>%
-    bettermc::mclapply(FUN = cleave,
-                       enzym = enzym, 
-                       missedCleavages = 0:missedCleavages,
-                       custom = NULL, 
-                       unique = FALSE,
-                       mc.cores = Ncpu,
-                       mc.cleanup = TRUE, 
-                       mc.preschedule = TRUE, 
-                       mc.force.fork = TRUE, 
-                       mc.retry = 3)
+  if (enzym == "trypsin") {
+    enzym_out <- split(dat_sort, split_chunks) %>%
+      bettermc::mclapply(FUN = cleave,
+                         missedCleavages = 0:missedCleavages,
+                         custom = custom_trypsin, 
+                         unique = FALSE,
+                         mc.cores = Ncpu,
+                         mc.cleanup = TRUE, 
+                         mc.preschedule = TRUE, 
+                         mc.force.fork = TRUE, 
+                         mc.retry = 3)
+  } else {
+    enzym_out <- split(dat_sort, split_chunks) %>%
+      bettermc::mclapply(FUN = cleave,
+                         enzym = enzym, 
+                         missedCleavages = 0:missedCleavages,
+                         unique = FALSE,
+                         mc.cores = Ncpu,
+                         mc.cleanup = TRUE, 
+                         mc.preschedule = TRUE, 
+                         mc.force.fork = TRUE, 
+                         mc.retry = 3)
+  }
   
   # Tidy format
   enzym_out <- rbindlist(lapply(enzym_out, as.data.table)) %>%
@@ -294,9 +315,10 @@ if (str_detect(Splice_type, str_c(enzymes, collapse = "|"))) {
     as.data.table()
   setkey(enzym_out, peptide, protein)
   enzym_out <- enzym_out %>% 
+    unique() %>%
     .[,index := str_sub(peptide, start = 1, end = index_length)] %>%
     .[!str_detect(peptide, exclusion_pattern), .(peptide, protein, index), by=index] %>%
-    .[,length := str_length(peptide)] %>%
+    .[,length := str_length(peptide), by=index] %>%
     .[inrange(length, lower = min(Nmers), upper = max(Nmers), incbounds=TRUE), .(peptide, length, protein), by=index] %>%
     .[, type := Splice_type] 
   
