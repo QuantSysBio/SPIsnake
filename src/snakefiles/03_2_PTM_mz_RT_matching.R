@@ -210,14 +210,21 @@ peptide_chunks <- list.files(paste0(dir_DB_exhaustive, "/peptide_seqences"), pat
   mutate(AA = paste0(str_split_fixed(AA_length, "_", 2)[,1],"_")) %>%
   mutate(filename = str_split_fixed(file, pattern = AA, 2)[,2]) %>%
   mutate(AA = str_split_fixed(AA, "_", 2)[,1]) %>%
-  left_join(select(Master_table_expanded, filename, PTMs))
+  left_join(select(Master_table_expanded, filename, PTMs)) %>%
+  # Security for coersion to logical 
+  mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
+  mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
+  mutate(AA = as.character(AA))
 
 if (operation_mode == "Update") {
   # Don't use absolute path when checking for file completeness
   tmp1 <- peptide_chunks %>%
     select(-value) %>%
     left_join(MS_mass_lists)
-  tmp2 <- select(processed_files, colnames(tmp1))
+  tmp2 <- select(processed_files, colnames(tmp1)) %>%
+    mutate(AA = ifelse(AA == "FALSE" | AA == FALSE, "F", AA)) %>%
+    mutate(AA = ifelse(AA == "TRUE" | AA == TRUE, "T", AA)) %>%
+    mutate(AA = as.character(AA))
   keep <- anti_join(tmp1, tmp2)
   
   # For new peptide sequences
