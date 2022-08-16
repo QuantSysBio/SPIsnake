@@ -61,7 +61,7 @@ print(sessionInfo())
 #   max_protein_length = 500
 #   exclusion_pattern <- "(U|X|O|\\*)"
 #   fst_compression = 100
-#   replace_I_with_L = TRUE
+# replace_I_with_L = TRUE
 #   
 #   Ncpu = 63
 #   cl <- parallel::makeForkCluster(Ncpu)
@@ -134,9 +134,9 @@ print(t(params))
 proteome = list.files(dir_DB_Fasta_chunks, pattern = params$chunk, recursive = T, full.names = T)
 proteome = proteome[str_ends(proteome, ".fasta")]
 dat = readAAStringSet(proteome)
-if (replace_I_with_L == TRUE) {
-  dat <- chartr("I", "L", dat)
-}
+# if (replace_I_with_L == TRUE) {
+#   dat <- chartr("I", "L", dat)
+# }
 
 # Keep only proteome name
 proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
@@ -174,9 +174,9 @@ index_length = as.integer(snakemake@params[["AA_index_length"]])
 # Save into chunks according to first N letters
 max_protein_length = as.integer(snakemake@params[["max_protein_length"]])
 
-# Replace I with L
-replace_I_with_L = as.logical(snakemake@params[["replace_I_with_L"]])
-print(paste("Replace I with L:", replace_I_with_L))
+# # Replace I with L
+# replace_I_with_L = as.logical(snakemake@params[["replace_I_with_L"]])
+# print(paste("Replace I with L:", replace_I_with_L))
 
 # Load pre-computed index to speed-up PSP generation
 index_list_result = paste(Nmers, MiSl, sep = "_")
