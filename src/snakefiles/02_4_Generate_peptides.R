@@ -5,15 +5,17 @@
 #               2. Parameters: index_length, peptide length, min_intervening_sequence length, output directory
 # output:       
 #               Output files are saved in chunks that depend on first N=index_length letters of a peptide
-#               - Unique sequences .csv.gz
-#               - Protein-peptide mapping .csv.gz
+#               - Unique sequences .fst
+#               - Protein-peptide mapping .fst
 #               - Peptide generation stats .csv
 #               
 # author:       YH, JL, KP
 
 ### Log
-log <- file(snakemake@log[[1]], open="wt")
-sink(log, split = TRUE)
+if (exists("snakemake")) {
+  log <- file(snakemake@log[[1]], open="wt")
+  sink(log, split = TRUE)
+}
 
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(Biostrings))
@@ -27,169 +29,117 @@ suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(stringi))
 suppressPackageStartupMessages(library(parallelly))
 suppressPackageStartupMessages(library(foreach))
-suppressPackageStartupMessages(library(vroom))
 
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
 seq_vectorized <- Vectorize(seq.default, vectorize.args = c("from", "to"), SIMPLIFY = F) 
-print(sessionInfo())
-
-### Create temporary directory for vroom
-{
-  Sys.getenv("TMPDIR") %>% print()
-  Sys.getenv("VROOM_TEMP_PATH") %>% print()
-  
-  vroom_dir = "/tmp/vroom"
-  suppressWarnings(dir.create(vroom_dir))
-  Sys.setenv(VROOM_TEMP_PATH = vroom_dir)
-  Sys.getenv("VROOM_TEMP_PATH") %>%print()
-  
-  tmp_file = tempfile()
-  print(tmp_file)
-}
-
-# {
-#   ### Manual startup
-#   ### setwd("/home/yhorokh/Snakemake/SPIsnake-main")
-#   directory = "results/DB_exhaustive/"
-#   dir_DB_Fasta_chunks = "results/DB_exhaustive/Fasta_chunks/"
-#   suppressWarnings(dir.create(paste0(directory, "/peptide_seqences")))
-#   suppressWarnings(dir.create(paste0(directory, "/peptide_mapping")))
-#   Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
-#   filename = "results/DB_exhaustive/Seq_stats/5_30_trypsin_2_25_lncRNA_2395202_4790402_1.fasta.csv.gz"
-#   index_length = 1
-#   max_protein_length = 500
-#   exclusion_pattern <- "(U|X|O|\\*)"
-#   fst_compression = 100
-# replace_I_with_L = TRUE
-#   
-#   Ncpu = 63
-#   cl <- parallel::makeForkCluster(Ncpu)
-#   cl <- parallelly::autoStopCluster(cl, debug=T)
-#   data.table::setDTthreads(Ncpu)
-#   
-#   filename <- str_remove(filename, ".csv.gz") %>%
-#     str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
-#   filename <- filename[,2]
-#   print(filename)
-#   
-#   params <- Master_table_expanded[Master_table_expanded$filename == filename,] %>%
-#     select(Proteome, Splice_type, N_mers, Min_Interv_length, chunk) %>%
-#     unique()
-#   print(t(params))
-#   Splice_type = as.character(params$Splice_type)
-#   MiSl = as.numeric(params$Min_Interv_length)
-#   # Nmers
-#   if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
-#     # For PCP and cis-PSP corresponds to Nmer to be produced
-#     Nmers = as.numeric(params$N_mers)
-#   } else {
-#     # For cleaver digestions defines min and max peptide length
-#     Nmers = as.numeric(unlist(str_split(params$N_mers, "_", 2)))
-#   }
-#   
-#   index_list_result = paste(Nmers, MiSl, sep = "_")
-#   if (grepl("cis-PSP", Splice_type)==T) {
-#     load(paste0(directory, "/PSP_indices/", index_list_result, ".rds"))
-#   }
-#   
-#   proteome = list.files(dir_DB_Fasta_chunks, pattern = params$chunk, recursive = T, full.names = T)
-#   proteome = proteome[str_ends(proteome, ".fasta")]
-#   dat = readAAStringSet(proteome)
-#   
-#   # Keep only proteome name
-#   proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
-#   proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
-#   enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
-# }
 
 ### ---------------------------- (1) Read input file and extract info ----------------------------
-# Master_table_expanded
-Master_table_expanded <- read.csv(snakemake@input[["Master_table_expanded"]])
-
-# Fasta input
-dir_DB_Fasta_chunks = snakemake@params[["dir_DB_Fasta_chunks"]]
+if (exists("snakemake")) {
+  # Master_table_expanded
+  Master_table_expanded <- read.csv(snakemake@input[["Master_table_expanded"]])
+  
+  # Fasta input
+  dir_DB_Fasta_chunks <- snakemake@params[["dir_DB_Fasta_chunks"]]
+  
+  # Output dir
+  directory <- snakemake@params[["directory"]]
+  
+  # CPUs
+  Ncpu <- snakemake@params[["cpus_for_R"]]
+  cl <- parallel::makeForkCluster(Ncpu)
+  cl <- parallelly::autoStopCluster(cl, debug=T)
+  data.table::setDTthreads(Ncpu)
+  print(paste0("number of CPUs: ", Ncpu))
+  
+  # Save into chunks according to first N letters
+  index_length <- as.integer(snakemake@params[["AA_index_length"]])
+  
+  # Save into chunks according to first N letters
+  max_protein_length <- as.integer(snakemake@params[["max_protein_length"]])
+  
+  # fst compression level
+  fst_compression <- as.integer(snakemake@params[["fst_compression"]])
+  
+  # Wildcard
+  filename <- snakemake@output[[1]]
+  
+} else {
+  ### Manual startup
+  
+  ### setwd("/home/yhorokh/Snakemake/SPIsnake-main")
+  directory <- "results/DB_exhaustive/"
+  dir_DB_Fasta_chunks <- "results/DB_exhaustive/Fasta_chunks/"
+  suppressWarnings(dir.create(paste0(directory, "/peptide_seqences")))
+  suppressWarnings(dir.create(paste0(directory, "/peptide_mapping")))
+  Master_table_expanded <- read.csv("results/DB_exhaustive/Master_table_expanded.csv")
+  filename <- "results/DB_exhaustive/Seq_stats/5_30_trypsin_2_25_CDS_main_ORF_1_86888_1.fasta.csv.gz"
+  filename_out <- filename
+  index_length <- 1
+  max_protein_length <- 500
+  exclusion_pattern <- "(U|X|O|\\*)"
+  fst_compression <- 100
+  replace_I_with_L <- TRUE
+  
+  Ncpu <- parallelly::availableCores() - 1
+  cl <- parallel::makeForkCluster(Ncpu)
+  cl <- parallelly::autoStopCluster(cl, debug=T)
+  data.table::setDTthreads(Ncpu)
+}
 
 # Output dir
-directory = snakemake@params[["directory"]]
+Seq_stats_dir <- paste0(directory, "/Seq_stats/")
+suppressWarnings(dir.create(Seq_stats_dir))
 suppressWarnings(dir.create(paste0(directory, "/peptide_seqences")))
 suppressWarnings(dir.create(paste0(directory, "/peptide_mapping")))
 
-# Wildcard
-filename = snakemake@output[[1]]
-{
-  filename <- str_remove(filename, ".csv.gz") %>%
-    str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
-  filename <- filename[,2]
-  print(filename)
-}
+### Extract parameters
+filename <- str_remove(filename, ".csv.gz") %>%
+  str_split_fixed(pattern = fixed("Seq_stats/"), n = 2)
+filename <- filename[,2]
+print(filename)
 
 params <- Master_table_expanded[Master_table_expanded$filename == filename,] %>%
   select(Proteome, Splice_type, N_mers, Min_Interv_length, chunk) %>%
   unique()
 print(t(params))
 
-### Extract parameters
 # Input fasta
-proteome = list.files(dir_DB_Fasta_chunks, pattern = params$chunk, recursive = T, full.names = T)
-proteome = proteome[str_ends(proteome, ".fasta")]
-dat = readAAStringSet(proteome)
-# if (replace_I_with_L == TRUE) {
-#   dat <- chartr("I", "L", dat)
-# }
+proteome <- list.files(dir_DB_Fasta_chunks, pattern = params$chunk, recursive = T, full.names = T)
+proteome <- proteome[str_ends(proteome, ".fasta")]
+dat <- readAAStringSet(proteome)
 
 # Keep only proteome name
 proteome <- unlist(strsplit(proteome, "/", fixed = T))[grep(".fasta", unlist(strsplit(proteome, "/", fixed = T)))]
 proteome <- unlist(strsplit(proteome, ".fasta", fixed = T))[1]
 
 # Splice type
-Splice_type = as.character(params$Splice_type)
+Splice_type <- as.character(params$Splice_type)
 
 # max intervening sequence length
-MiSl = as.numeric(params$Min_Interv_length)
+MiSl <- as.numeric(params$Min_Interv_length)
 
 # Nmers
 if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
   # For PCP and cis-PSP corresponds to Nmer to be produced
-  Nmers = as.numeric(params$N_mers)
+  Nmers <- as.numeric(params$N_mers)
 } else {
   # For cleaver digestions defines min and max peptide length
-  Nmers = as.numeric(unlist(str_split(params$N_mers, "_", 2)))
+  Nmers <- as.numeric(unlist(str_split(params$N_mers, "_", 2)))
 }
 
-# CPUs
-Ncpu = snakemake@params[["cpus_for_R"]]
-cl <- parallel::makeForkCluster(Ncpu)
-cl <- parallelly::autoStopCluster(cl, debug=T)
-data.table::setDTthreads(Ncpu)
-
-print(paste0("number of CPUs: ", Ncpu))
-
-# Exclusion pattern: peptides with these letters will be omitted
-exclusion_pattern <- "(U|X|O|\\*)"
-
-# Save into chunks according to first N letters
-index_length = as.integer(snakemake@params[["AA_index_length"]])
-
-# Save into chunks according to first N letters
-max_protein_length = as.integer(snakemake@params[["max_protein_length"]])
-
-# # Replace I with L
-# replace_I_with_L = as.logical(snakemake@params[["replace_I_with_L"]])
-# print(paste("Replace I with L:", replace_I_with_L))
-
 # Load pre-computed index to speed-up PSP generation
-index_list_result = paste(Nmers, MiSl, sep = "_")
-if (grepl("cis-PSP", Splice_type)==T) {
+index_list_result <- paste(Nmers, MiSl, sep = "_")
+if (grepl("cis-PSP", Splice_type) == T) {
   load(paste0(directory, "/PSP_indices/", index_list_result, ".rds"))
 }
 
-# fst compression level
-fst_compression = as.integer(snakemake@params[["fst_compression"]])
-
-# Cleaver params
+# Enzyme rules
 enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
-custom_trypsin = c("[KR](?=\\w)")
+custom_trypsin <- c("[KR](?=\\w)")
+
+# Exclusion pattern: peptides with these letters will be omitted
+exclusion_pattern <- "(U|X|O|\\*)"
 
 ### ---------------------------- (2) Cleave PCP --------------------------------------
 print(Sys.time())
@@ -365,12 +315,16 @@ if (Splice_type == "PCP" | (grepl("cis-PSP", Splice_type) == TRUE)) {
   print("Added length")
 }
 
-Seq_stats_dir <- paste0(directory, "/Seq_stats/")
-suppressWarnings(dir.create(Seq_stats_dir))
-
-fwrite(Seq_stats,
-       sep = ",", nThread = Ncpu,
-       file = unlist(snakemake@output[["Seq_stats"]]))
+### Save stats
+if (exists("snakemake")) {
+  fwrite(Seq_stats,
+         sep = ",", nThread = Ncpu,
+         file = unlist(snakemake@output[["Seq_stats"]]))
+} else {
+  fwrite(Seq_stats,
+         sep = ",", nThread = Ncpu,
+         file = filename_out)
+}
 print("Saved sequence stats")
 print(Sys.time())
 
@@ -404,6 +358,7 @@ if (exists("enzym_out")) {
   print(Sys.time())
 }
 
+### ------------------------------------------ (7) Session info ------------------------------------------
 print("----- memory usage by Slurm -----")
 jobid = system("echo $SLURM_JOB_ID")
 system(paste0("sstat ", jobid)) %>%
@@ -427,4 +382,6 @@ parallel::stopCluster(cl)
 print("----- garbage collection -----")
 gc() %>%
   print()
+
+print(sessionInfo())
 sink()
