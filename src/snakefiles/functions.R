@@ -196,10 +196,9 @@ Generate_PSP_2 <- function(protein_inputs, Nmers){
 ### ---------------------------- MW and PTMs ----------------------------
 
 read_MW_file <- function(file, num_threads){
-  vroom(file = file, 
-        delim = " ", num_threads = num_threads, 
-        col_names = c("Precursor_mass","RT"),
-        show_col_types = FALSE) %>%
+  fread(file = file, 
+        sep = " ", nThread = num_threads, data.table = T,
+          col.names = c("Precursor_mass","RT")) %>%
     lazy_dt() %>%
     mutate(MW_Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
     mutate(MW_Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
@@ -246,10 +245,12 @@ regression_stats <- function(obs, pred){
   rmse = round(sqrt(mse), 4)
   # mean absolute deviation
   mae =  round(mean(abs((obs - pred))), 4)
+  # q95
+  q95 =  round(quantile(abs((obs - pred)), probs = 0.95), 4)
   
   # sumarize
-  all.metrics = c(summary(pred.lm)$r.squared, pc, mse, rmse, mae)
-  names(all.metrics) = c("Rsquared", "PCC", "MSE", "RMSE", "MAE")
+  all.metrics = c(summary(pred.lm)$r.squared, pc, mse, rmse, mae, q95)
+  names(all.metrics) = c("Rsquared", "PCC", "MSE", "RMSE", "MAE", "quantile_95")
   
   return(all.metrics)
 }
