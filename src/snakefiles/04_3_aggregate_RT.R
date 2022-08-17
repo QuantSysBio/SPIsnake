@@ -9,8 +9,10 @@
 # author:       YH
 
 ### Log
-log <- file(snakemake@log[[1]], open="wt")
-sink(log, split = TRUE)
+if (exists("snakemake")) {
+  log <- file(snakemake@log[[1]], open="wt")
+  sink(log, split = TRUE)
+}
 
 suppressPackageStartupMessages(library(bettermc))
 suppressPackageStartupMessages(library(data.table))
@@ -25,21 +27,22 @@ suppressPackageStartupMessages(library(tidyr))
 suppressPackageStartupMessages(library(vroom))
 print(sessionInfo())
 
-# {
-#   ### Manual startup
-#   ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
-#   cmd_RT_test <- vroom("results/RT_prediction/cmd_RT_test.csv", delim=',', show_col_types = FALSE)
-#   method = "achrom"
-# }
+if (exists("snakemake")) {
+  # Cmd table
+  cmd_RT_test <- fread(snakemake@input[["cmd_RT_test"]], sep=',') %>% as_tibble()
+  
+  # Params
+  method = as.character(snakemake@params[["method"]])
+  
+} else {
+  ### Manual startup
+  ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+  cmd_RT_test <- fread("results/RT_prediction/cmd_RT_test.csv", sep=',') %>% as_tibble()
+  method = "achrom"
+}
 
 source("src/snakefiles/functions.R")
 print("Loaded functions. Loading the data")
-
-# Cmd table
-cmd_RT_test <- vroom(snakemake@input[["cmd_RT_test"]], delim=',', show_col_types = FALSE)
-
-# Params
-method = as.character(snakemake@params[["method"]])
 
 RT_predictors <- c()
 gg_out <- list()
@@ -54,12 +57,14 @@ if (!is.na(cmd_RT_test$cmd)) {
 ### ---------------------------- (2) Performance evaluation --------------------------------------
 # Ground truth
 files_train <- list.files("results/RT_prediction/train/", pattern = ".tsv", full.names = T) %>%
-  lapply(vroom, show_col_types = FALSE)
+  lapply(fread) %>%
+  lapply(as_tibble)
 names(files_train) <- list.files("results/RT_prediction/train/", pattern = ".tsv", full.names = F) %>%
   str_remove(".tsv")
 
 files_test <- list.files("results/RT_prediction/test/", pattern = ".tsv", full.names = T) %>%
-  lapply(vroom, show_col_types = FALSE)
+  lapply(fread) %>%
+  lapply(as_tibble)
 names(files_test) <- list.files("results/RT_prediction/test/", pattern = ".tsv", full.names = F) %>%
   str_remove(".tsv")
 
@@ -74,7 +79,8 @@ split_structure <- files_test %>%
 
 # RT
 pred_RT <- list.files("results/RT_prediction/predict/", pattern = "test.tsv", full.names = T, recursive = T) %>%
-  lapply(vroom, show_col_types = FALSE)
+  lapply(fread) %>%
+  lapply(as_tibble)
 names(pred_RT) <- list.files("results/RT_prediction/predict/", pattern = "test.tsv", full.names = F, recursive = T) %>%
   str_remove_all(pattern = "/test.tsv")
 
@@ -125,7 +131,7 @@ for (i in seq_along(split_structure$dataset)) {
 out <- out %>%
   mutate(predictor = str_remove(predictor, "pred_"),
          sample = as.numeric(str_split_fixed(sample, ".sample", 2)[,2])) %>%
-  pivot_longer(cols = c("Rsquared", "PCC", "MSE", "RMSE", "MAE"), names_to = "metric")
+  pivot_longer(cols = c("Rsquared", "PCC", "MSE", "RMSE", "MAE", "quantile_95"), names_to = "metric")
 
 # Print
 RT_Performance_df <- out %>% 
@@ -134,7 +140,7 @@ RT_Performance_df <- out %>%
   summarise(mean_value = mean(value))
 RT_Performance_df %>% print.data.frame()
 
-metrics = c("Rsquared", "PCC", "MSE", "RMSE", "MAE")
+metrics = c("Rsquared", "PCC", "MSE", "RMSE", "MAE", "quantile_95")
 gg <- list()
 for (i in seq_along(metrics)) {
   
