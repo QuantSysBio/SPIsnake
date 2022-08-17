@@ -721,7 +721,8 @@ def achrom_calculate_RT(x, RCs, raise_no_mod):
           
           tmp <- mzList[tmp, on=.(MW_Min <= MW, MW_Max >= MW,
                                   RT_Min <= RT_pred, RT_Max >= RT_pred), nomatch=0,
-                        .(peptide, MW, RT_pred)]
+                        .(peptide, MW, RT_pred)] %>%
+            unique()
         }
         cat("2D MW/RT filter: Done\n",
             as.character(Sys.time()), "\n")
