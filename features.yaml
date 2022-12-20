@@ -1,0 +1,44 @@
+# Paths to references and global options
+
+Master_table: Master_table.csv
+Experiment_design: data/Experiment_design.csv
+
+DB:
+    min_protein_length: 7
+    max_protein_length: 1000
+    replace_I_with_L: FALSE
+    # PTM
+    max_variable_PTM: 2
+    generate_spliced_PTMs: FALSE
+    PTM_chunk: 100000
+    # NetMHCPan
+    netMHCpan_path: "/bin/netMHCpan-4.1/netMHCpan"
+    netMHCpan_chunk: 1000000
+    # Format
+    AA_index_length: 1 # 1 or 2
+
+RT_filter:
+    # achrom or AutoRT
+    method: achrom
+    n_folds: 10
+    proportion_train: 0.9
+    quantile: 0.99 # fraction of 1
+
+FASTA_outputs:
+    compress_CSV: TRUE
+    unfiltered: TRUE
+    MW_filtered: TRUE
+    MW_filtered_PTM: TRUE
+    MW_RT_filtered: TRUE
+    MW_RT_IC50_filtered: TRUE
+
+Statistics:
+    strata_sizes: TRUE
+    filtering_sizes: TRUE
+    multimapping_within_strata: TRUE
+    multimapping_between_strata: TRUE
+    multimapping_filtering_steps: TRUE
+    PTM_stats_masslist: TRUE
+    PTM_stats_peptide: TRUE
+
+...

@@ -1,0 +1,10 @@
+__default__:
+  partition: "elbe"
+  time: "{resources.time}"
+  nodes: 1
+  ncpus: "{resources.ncpus}"
+  mem: "{resources.mem}"
+  mempercpu: 3G
+  job-name: "{rule}"
+  output: "../outfiles/spisnake-%J.out"
+  chdir: '/data/SPIsnake/SPIsnake'

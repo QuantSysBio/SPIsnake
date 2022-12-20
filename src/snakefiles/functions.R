@@ -1,0 +1,374 @@
+### ---------------------------- Common variables ----------------------------
+monoisotopic_masses <- data.frame(
+  AA = c("A","C","D","E","F","G","H","I","K","L","M","N","P","Q","R","S","T","V","W","Y"),
+  mass = c(71.037114,103.009185,115.026943,129.042593,147.068414,57.021464,137.058912,113.084064,128.094963,113.084064,131.040485,114.042927,97.052764,128.058578,156.101111,87.032028,101.047679,99.068414,186.079313,163.06332)
+)
+
+# Proteinogenic AAs
+AA = monoisotopic_masses$AA
+
+# Cleaver params
+enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
+
+### ---------------------------- Proteome pre-processing ----------------------------
+Split_max_length <- function(x, max_length=500, overlap_length=MiSl*2){
+  lapply(x, function(x){
+    
+    if (nchar(x) <= max_length) {
+      protein_chunks <- x
+    } else {
+      # Extract coordinates
+      totalsize = 200*nchar(x) 
+      
+      at <- breakInChunks(totalsize = totalsize, chunksize = max_length)
+      at <- successiveIRanges(width = width(at), gapwidth = -overlap_length)
+      
+      # Subset last relevant IRanges
+      keep <- which((at@start + at@width) <= nchar(x))
+      keep <- c(keep, max(keep) + 1)
+      at <- at[keep]
+      
+      ### Correct the last coordinate
+      at@width[length(at@width)] <- as.integer(nchar(x) - at@start[length(at@start)] + 1)
+      
+      # Extract sequence
+      protein_chunks <- extractAt(x, at)
+      
+      # Update names
+      names(protein_chunks) <- paste0("|chunk:", at@start, "-", at@start + at@width - 1)
+    }
+    return(protein_chunks)
+  })
+}
+
+Save_prot_chunk_biostrings <- function(dat, 
+                                       nF=nF, 
+                                       Pi=Pi,
+                                       MiSl=MiSl,
+                                       orderedProteomeEntries=orderedProteomeEntries, 
+                                       directory=directory,
+                                       proteome_name=proteome_name,
+                                       protein_counter_start=protein_counter_start,
+                                       protein_counter_end=protein_counter_end,
+                                       maxE=maxE){
+  for(j in 1:nF){
+    start=Pi[j]+1
+    end=Pi[j+1]
+    
+    writeXStringSet(x = dat[orderedProteomeEntries[start:end]], 
+                    filepath = paste0(directory, "/", "maxE_", maxE, "_MiSl_", MiSl, "_", proteome_name, "_", protein_counter_start, "_", protein_counter_end, "_", j,".fasta"))
+  }
+}
+
+### ---------------------------- PCP/PSP generation ----------------------------
+seq_vectorized <- Vectorize(seq.default, vectorize.args = c("from", "to"), SIMPLIFY = F) 
+
+# compute all PCP with length <=nmer
+computeCPomplete <- function(L,nmer){
+  maxL = nmer+1
+  CP = numeric()
+  
+  for(i in 1:L){
+    CP = rbind(CP, cbind(rep(i,length(c(i:min(L,(i+maxL-2))))),
+                         c(i:min(L,(i+maxL-2)))))
+  }
+  return(CP)
+  rm(maxL, CP)
+}
+
+# translate PCP
+translateCP <- function(CP,peptide){
+  
+  CPseq = rep(NA,dim(CP)[1])
+  for(i in 1:dim(CP)[1]){
+    CPseq[i] = paste(peptide[CP[i,1]:CP[i,2]],sep="",collapse="")
+  }
+  return(CPseq)
+  rm(CPseq)
+}
+
+
+# compute all PSP with length == nmer
+computeSPcomplete <- function(cp,maxL,minL,MiSl){
+  ## aded L!=maxL
+  SP = numeric()
+  N = dim(cp)[1]
+  NN = 5 * (10**6)
+  
+  SP = matrix(NA,NN,4)
+  #print(SP)
+  a = 1
+  # repeat as many times as you have cp
+  for(i in 1:N){
+    temp1 = rep(cp[i,1],N)
+    temp2 = rep(cp[i,2],N)
+    temp3 = cp[,1]
+    temp4 = cp[,2]
+    
+    L = temp4-temp3+temp2-temp1+2
+    
+    # L!=maxL
+    ind = which(((temp3-temp2)==1)|(L>maxL)|(L<minL)|((temp3-temp2)>(MiSl+1))|((temp1-temp4)>(MiSl+1))|((temp3<=temp2)&(temp4>=temp1)))
+    
+    #print("ind")    
+    #print(ind)
+    
+    if(length(ind)>0){
+      temp1 = temp1[-ind]
+      temp2 = temp2[-ind]
+      temp3 = temp3[-ind]
+      temp4 = temp4[-ind]
+    }
+    
+    #
+    if(length(temp1)!=1){
+      if((a+length(temp1)-1)>NN){
+        ## this looks slow but is rarely called so it is fine
+        SP = rbind(SP,matrix(NA,NN,4))
+      }
+      
+      if(length(temp1)>0){
+        SP[c(a:(a+length(temp1)-1)),1] = temp1
+        SP[c(a:(a+length(temp1)-1)),2] = temp2
+        SP[c(a:(a+length(temp1)-1)),3] = temp3
+        SP[c(a:(a+length(temp1)-1)),4] = temp4
+      }
+      a = a+length(temp1)
+      
+      #return("1")
+    }
+    #
+  }
+  # remove all empty lines from SP
+  if(a<NN){
+    SP = SP[-c(a:NN),]
+  }
+  return(SP)
+  rm(temp, N, NN, L, ind, SP, a)
+}
+
+CutAndPaste_seq_return_sp <- function(inputSequence,nmer,MiSl){
+  ### Makes PCP, cis-PSP, revcis-PCP from a given input
+  # names(inputSequence)="test"
+  
+  results = list()
+  peptide = strsplit(inputSequence,"")[[1]]
+  #print(peptide)
+  L = length(peptide)
+  
+  if(L>nmer){
+    #print("L>nmer")
+    
+    # compute all PCP with length <=nmer
+    cp = computeCPomplete(L, nmer)
+    # print("compute all PCP with length")
+    
+    # get all PCP with length == nmer
+    index = which((cp[,2]-cp[,1]+1) ==nmer)
+    cpNmer = cp[index,]
+    # print("got all Nmer PCP")
+    # print("cp, cpNmer")
+    # print(cp)
+    # print(cpNmer)
+    #CPseq = translateCP(cpNmer,peptide)
+    # print("CP translated")
+    
+    if(length(cp[,1])>1){
+      # print("length(cp[,1])>1")
+      
+      ## these are the indicese
+      sp = computeSPcomplete(cp,maxL=nmer,minL=nmer,MiSl=MiSl)
+      return(sp)
+    }
+  }
+}
+
+CutAndPaste_seq_return_sp_vec <- Vectorize(CutAndPaste_seq_return_sp, 
+                                           vectorize.args = "inputSequence", 
+                                           SIMPLIFY = F, 
+                                           USE.NAMES = F)
+
+Generate_PSP_2 <- function(protein_inputs, Nmers){
+  stri_join(extractAt(protein_inputs[[1]], IRanges(start = protein_inputs[[2]][,1], 
+                                                   end =   protein_inputs[[2]][,2])), 
+            extractAt(protein_inputs[[1]], IRanges(start = protein_inputs[[2]][,3], 
+                                                   end =   protein_inputs[[2]][,4])))
+}
+
+### ---------------------------- MW and PTMs ----------------------------
+
+read_MW_file <- function(file, num_threads){
+  fread(file = file, 
+        sep = " ", nThread = num_threads, data.table = T,
+        col.names = c("Precursor_mass","RT")) %>%
+    lazy_dt() %>%
+    mutate(MW_Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
+    mutate(MW_Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
+    # Min/sec for RT
+    # mutate(RT = RT / 60) %>%
+    mutate(RT_Min = RT - RT_tolerance) %>%
+    mutate(RT_Max = RT + RT_tolerance) %>%
+    select(-Precursor_mass)  %>%
+    unique() %>%
+    as.data.table()
+}
+
+computeMZ_biostrings <- function(seq, AAs = monoisotopic_masses$AA, masses = monoisotopic_masses$mass){
+  seq = AAStringSet(seq)
+  
+  if(length(seq) < 1){
+    MW = NA
+  }
+  if(length(seq) > 0){
+    aa3 = letterFrequency(seq, letters = AAs) %*% diag(masses)
+    MW=rowSums(aa3)+18.01056
+    ## add NA for zero values
+    # MW=round(MW, digits = 5)
+    MW[MW==18.01056] = NA
+  }
+  return(MW)
+}
+
+### ---------------------------- RT filtering ----------------------------
+regression_stats <- function(obs, pred, quantile_user = 0.95){
+  # lm
+  data = data.frame(pred = pred, 
+                    obs = obs)
+  pred.lm = lm(pred ~ obs, data = data)
+  
+  # metrics
+  # correlation coefficients
+  pc = cor(obs, pred, method = "pearson")
+  sm = cor(obs, pred, method = "spearman")
+  
+  # mean squared error
+  mse =  round(mean((obs - pred)^2), 4)
+  # root mean squared error
+  rmse = round(sqrt(mse), 4)
+  # mean absolute deviation
+  mae =  round(mean(abs((obs - pred))), 4)
+  # q95
+  q95 =  round(quantile(abs((obs - pred)), probs = 0.95), 4)
+  # q99
+  q99 =  round(quantile(abs((obs - pred)), probs = 0.99), 4)
+  # quantile cutoff by user
+  quantile_user =  round(quantile(abs((obs - pred)), probs = quantile_user), 4)
+  
+  # sumarize
+  all.metrics = c(summary(pred.lm)$r.squared, pc, mse, rmse, mae, q95, q99, quantile_user)
+  names(all.metrics) = c("Rsquared", "PCC", "MSE", "RMSE", "MAE", "quantile_95", "quantile_99", "quantile_user")
+  
+  return(all.metrics)
+}
+
+
+### ---------------------------- PTM generation ----------------------------
+find_ka <- Vectorize(function(aa, mods_input){
+  # which(mods_input$Site %in% aa & mods_input$Position=="Anywhere")
+  which(mods_input$Site %chin% aa & mods_input$Position=="Anywhere")
+}, SIMPLIFY = T, USE.NAMES = F)
+
+getPTMcombinations_fast <- function(s = peptide, m = MW, NmaxMod=max_variable_PTM, mods_input=mods){
+  
+  modIndex = c(which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term"),
+               which(mods_input$Site=="C-term" & mods_input$Position=="Any C-term"),
+               unlist(find_ka(aa = strsplit(s, split="")[[1]], 
+                              mods_input = list(mods_input))))
+  
+  modId <- mods_input$Id[modIndex]
+  modDelta <- as.numeric(mods_input$MonoMass[modIndex])
+  
+  # get all combinations of NmaxMod modifications
+  combi = list()
+  combi[[1]] = c(1:length(modIndex))
+  
+  if(NmaxMod>1 & length(modIndex)>1){
+    for(i in 2:min(NmaxMod, length(modIndex))){
+      combi[[i]] <- arrangements::combinations(c(1:length(modIndex)), i)
+    }
+  }
+  
+  deltaMass <- list()
+  IDs <- list()
+  deltaMass[[1]] <- modDelta[combi[[1]]]
+  IDs[[1]] <- modId[combi[[1]]]
+  
+  if(NmaxMod>1 & length(modIndex)>1){
+    for(i in 2:min(NmaxMod,length(modIndex))){
+      deltaMass[[i]] <- rowSums(matrix(data = modDelta[combi[[i]]],
+                                       nrow = dim(combi[[i]])[1], 
+                                       ncol = i))
+      
+      IDs[[i]] <- stri_join_list(x = split(modId[combi[[i]]], f = rep(1:dim(combi[[i]])[1], times = i)), sep=";")
+    }
+  }
+  
+  # generate final mod sequences with delta Masses
+  PTMcombinations <- data.table(peptide = s,
+                                ids = unlist(IDs),
+                                MW = m + unlist(deltaMass))
+  return(PTMcombinations)
+}
+getPTMcombinations_fast_vec <- Vectorize(getPTMcombinations_fast, vectorize.args = c("s", "m"), SIMPLIFY = F)
+
+getPTMcombinations_fixed <- function(s = peptide, m = MW, mods_input=mods){
+  
+  modIndex <- c(which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term"),
+                which(mods_input$Site=="C-term" & mods_input$Position=="Any C-term"),
+                unlist(find_ka(aa = strsplit(s, split="")[[1]], 
+                               mods_input = list(mods_input))))
+  
+  # modId <- na.omit(mods_input$Id[modIndex])
+  # modDelta <- na.omit(as.numeric(mods_input$MonoMass[modIndex]))
+  
+  # generate final mod sequences with delta Masses
+  PTM_fixed <- data.table(peptide = s,
+                          ids = str_c(sort(na.omit(mods_input$Id[modIndex])), collapse = ";"),
+                          MW = m + sum(na.omit(as.numeric(mods_input$MonoMass[modIndex]))))
+  return(PTM_fixed)
+}
+getPTMcombinations_fixed_vec <- Vectorize(getPTMcombinations_fixed, vectorize.args = c("s", "m"), SIMPLIFY = F)
+
+getPTMcombinations_fixed_mass <- function(s = peptide, m = MW, mods_input=mods){
+  
+  modIndex <- c(which(mods_input$Site=="N-term" & mods_input$Position=="Any N-term"),
+                which(mods_input$Site=="C-term" & mods_input$Position=="Any C-term"),
+                unlist(find_ka(aa = strsplit(s, split="")[[1]], 
+                               mods_input = list(mods_input))))
+  
+  # final peptide mass
+  MW <- m + sum(na.omit(as.numeric(mods_input$MonoMass[modIndex])))
+  return(MW)
+}
+getPTMcombinations_fixed_mass_vec <- Vectorize(getPTMcombinations_fixed_mass, vectorize.args = c("s", "m"), SIMPLIFY = F)
+
+### ---------------------------- Logging ----------------------------
+SPIsnake_log <- function(){
+  print("----- memory usage by Slurm -----")
+  jobid = system("echo $SLURM_JOB_ID")
+  system(paste0("sstat ", jobid)) %>%
+    print()
+  
+  system("sacct --format='JobID,JobName,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
+    print()
+  
+  print("----- memory usage by R -----")
+  memory.profile() %>%
+    print()
+  
+  print("----- connections -----")
+  showConnections() %>%
+    print()
+  
+  print("----- removing cluster -----")
+  if (exists("cl")) {
+    print(cl)
+    parallel::stopCluster(cl)
+  }
+  
+  print(sessionInfo())
+  if (exists("snakemake")) {
+    sink()
+  }
+} 
+
