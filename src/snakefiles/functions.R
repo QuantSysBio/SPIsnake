@@ -119,7 +119,7 @@ computeSPcomplete <- function(cp,maxL,minL,MiSl){
     }
     
     #
-    if(length(temp1)!=1){
+    if(length(temp1)>0){
       if((a+length(temp1)-1)>NN){
         ## this looks slow but is rarely called so it is fine
         SP = rbind(SP,matrix(NA,NN,4))
