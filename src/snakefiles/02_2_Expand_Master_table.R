@@ -15,7 +15,10 @@ if (exists("snakemake")) {
   log <- file(snakemake@log[[1]], open="wt")
   sink(log, split = TRUE)
 }
+cat(as.character(Sys.time()), " - ", "Started R", "\n")
+cat(as.character(Sys.time()), " - ", R.utils::getHostname.System(), "\n")
 
+suppressPackageStartupMessages(library(arrow))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(parallelly))
@@ -36,7 +39,7 @@ if (exists("snakemake")) {
 } else {
   ### Manual startup
   Master_table <- fread("Master_table.csv") %>% as_tibble()
-  directory = "/data/home/yhorokh/wd/SPIsnake3_slurm/results/DB_exhaustive"
+  directory = "results/DB_exhaustive"
 }
 
 active_Slurm <- ifelse(system("echo $SLURM_JOB_ID") != 0, TRUE, FALSE)
@@ -47,10 +50,11 @@ if (active_Slurm) {
 }
 
 ### Find chunks
-proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".csv", recursive = FALSE)
-proteome_chunks <- lapply(paste0(directory, "/Fasta_chunks/", proteome_chunks), fread, nThread=Ncpu)
-names(proteome_chunks) <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".csv", recursive = FALSE) %>%
-  str_remove_all(pattern = ".csv")
+proteome_chunks <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".parquet", recursive = FALSE)
+proteome_chunks <- lapply(paste0(directory, "/Fasta_chunks/", proteome_chunks), read_parquet, nThread=Ncpu)
+proteome_chunks <- lapply(proteome_chunks, setDT)
+names(proteome_chunks) <- list.files(paste0(directory, "/Fasta_chunks"), pattern = ".parquet", recursive = FALSE) %>%
+  str_remove_all(pattern = ".parquet")
 proteome_chunks <- proteome_chunks %>%
   lapply(function(x){
     x %>%
@@ -65,8 +69,6 @@ proteome_chunks <- proteome_chunks %>%
   }) %>%
   rbindlist(idcol = "Proteome") %>%
   as_tibble()
-print(head(proteome_chunks))
-
 
 # Tidy format for Master table: PCP & PSP
 if (TRUE %in% str_detect(Master_table$enzyme_type, "PCP|PSP|cis-PSP|Cis-PSP")) {
@@ -105,8 +107,6 @@ if (TRUE %in% str_detect(Master_table$enzyme_type, "PCP|PSP|cis-PSP|Cis-PSP")) {
     ungroup() %>%
     select(-tmp_group) %>%
     unique()
-  
-  print(head(Master_table_expanded))
 }
 
 # Tidy format for Master table: cleaver
@@ -136,8 +136,6 @@ if (TRUE %in% str_detect(str_to_lower(Master_table$enzyme_type), str_c(enzymes, 
     ungroup() %>%
     select(-tmp_group) %>%
     unique()
-  
-  print(head(Master_table_enzyme))
 }
 
 ### Common output
@@ -147,26 +145,12 @@ if (exists("Master_table_expanded") & exists("Master_table_enzyme")) {
 } else if (!exists("Master_table_expanded") & exists("Master_table_enzyme")) {
   Master_table_expanded <- Master_table_enzyme
 } 
-print(head(Master_table_expanded))
-
-# # Tidy format for indices
-# ### PSP
-# PSP_indices <- Master_table_expanded %>% 
-#   filter(`enzyme_type` == "cis-PSP") %>% 
-#   ungroup() %>%
-#   
-#   # Create a future wildcard
-#   mutate(PSP_index = paste(N_mers, Max_Interv_length, sep = "_")) %>%
-#   select(PSP_index) %>%
-#   unique() 
 
 ### Output
 if (exists("snakemake")) {
   fwrite(Master_table_expanded, file = unlist(snakemake@output[["Master_table_expanded"]]))
-  # fwrite(PSP_indices, file = unlist(snakemake@output[["PSP_indices"]]))
   SPIsnake_log()
   sink()
 } else {
   fwrite(Master_table_expanded, file = "results/DB_exhaustive/Master_table_expanded.csv")
-  # fwrite(PSP_indices, file = "results/DB_exhaustive/PSP_indices.csv")
 }

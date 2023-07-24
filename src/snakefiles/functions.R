@@ -11,7 +11,7 @@ AA = monoisotopic_masses$AA
 enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase1", "caspase2", "caspase3", "caspase4", "caspase5", "caspase6", "caspase7", "caspase8", "caspase9", "caspase10", "chymotrypsin-high", "chymotrypsin-low", "clostripain", "cnbr", "enterokinase", "factor xa", "formic acid", "glutamyl endopeptidase", "granzyme-b", "hydroxylamine", "iodosobenzoic acid", "lysc", "lysn", "neutrophil elastase", "ntcb", "pepsin1.3", "pepsin", "proline endopeptidase", "proteinase k", "staphylococcal peptidase i", "thermolysin", "thrombin", "trypsin")
 
 ### ---------------------------- Proteome pre-processing ----------------------------
-Split_max_length <- function(x, max_length=500, overlap_length=MiSl*2){
+Split_max_length <- function(x, max_length=500, overlap_length=MiSl*2, chunk_positions = F){
   lapply(x, function(x){
     
     if (nchar(x) <= max_length) {
@@ -35,7 +35,9 @@ Split_max_length <- function(x, max_length=500, overlap_length=MiSl*2){
       protein_chunks <- extractAt(x, at)
       
       # Update names
-      names(protein_chunks) <- paste0("|chunk:", at@start, "-", at@start + at@width - 1)
+      if (chunk_positions) {
+        names(protein_chunks) <- paste0("|chunk:", at@start, "-", at@start + at@width - 1)
+      }
     }
     return(protein_chunks)
   })
@@ -342,8 +344,253 @@ getPTMcombinations_fixed_mass <- function(s = peptide, m = MW, mods_input=mods){
 }
 getPTMcombinations_fixed_mass_vec <- Vectorize(getPTMcombinations_fixed_mass, vectorize.args = c("s", "m"), SIMPLIFY = F)
 
+
+# -------------------------------------- Arrow aggregation --------------------------------------
+try_with_timeout <- function(expr, timeout = timeout, ...){
+  require(R.utils)
+  tryCatch({withTimeout({expr}, timeout = timeout)
+  }, TimeoutException = function(ex) {
+    message(paste0("Timeout limit: ", 10*timeout, " seconds"))
+  },
+  error=function(cond) {
+    message("Error")
+    return(NULL)
+  })
+}
+
+try_with_timeout_restart <- function(expr, retries, timeout, wait_on_restart=0) {
+  # message(paste("remaining tries", retries))
+  withRestarts(
+    tryCatch({expr}, 
+             timeout = timeout,
+             TimeoutException = function(timeout) {
+               message(paste0("Timeout limit: ", 10*timeout, " seconds"))
+             },
+             error=function(e) { 
+               Sys.sleep(wait_on_restart)
+               invokeRestart("retry")
+             }),
+    retry = function() { 
+      message(paste0("Retrying. Attepmts left : "), retries)
+      stopifnot(retries > 0)
+      try_with_timeout_restart(expr = expr, 
+                               retries = retries-1, 
+                               timeout = timeout, 
+                               wait_on_restart = wait_on_restart)
+    }
+  )
+}
+memfree <- function(){
+  as.numeric(system("awk '/MemFree/ {print $2}' /proc/meminfo", intern=TRUE)) / 2^20
+}
+
+terminate_duckdb <- function(conn = conn){
+  cat(as.character(Sys.time()), " - ", "disconnecting and shutting down duckdb ", "\n")
+  # DBI::dbDisconnect(conn, shutdown = TRUE)
+  duckdb::duckdb_shutdown(duckdb::duckdb())
+  rm(conn, DB_duck)
+}
+
+clean_duckdb_RAM <- function(){
+  RAM_free <- memfree()
+  if (RAM_free / Max_RAM < 0.2) {
+    cat(as.character(Sys.time()), " - ", "Starting clean up:", round(RAM_free),"Gb left free in RAM\n")
+    if (exists("conn")) {
+      terminate_duckdb()
+    }
+    gc(full = T, reset = T)
+    cat(as.character(Sys.time()), " - ", "Done clean up", "\n")
+    
+    conn <- DBI::dbConnect(duckdb(), dbname = paste0("arrow_unique.duckdb.", aggregation_batch_i),
+                           config=list("memory_limit"= paste0(duckdb_RAM, "GB"),
+                                       "temp_directory" = duckdb_temp_dir))
+    cat(as.character(Sys.time()), " - ", "Connected to the database", "\n")
+  }
+}
+
+get_distict_duckdb <- function(input_path = paste0(dir_DB_PTM_mz, "peptide_seqences/"),
+                               DB_groups_i = DB_groups_i,
+                               table_name = table_name,
+                               conn = conn
+){
+  paste0(input_path, "/index=", DB_groups_i$index, "/length=", DB_groups_i$length) %>%
+    open_dataset() %>%
+    select(-chunk) %>%    
+    to_duckdb(con = conn, 
+              table_name = table_name) %>%
+    mutate(index = local(DB_groups_i$index[[1]])) %>%
+    mutate(length = local(DB_groups_i$length[[1]])) %>%
+    window_order() %>%
+    group_by(proteome, enzyme, MiSl) %>%
+    distinct(peptide, .keep_all = T) %>%
+    mutate(index = local(DB_groups_i$index[[1]])) %>%
+    window_order() %>%
+    group_by(index, length, proteome, enzyme, MiSl) %>%
+    collapse() 
+}
+
+try_with_time_limit <- function(expr, cpu = Inf, elapsed = Inf) {
+  y <- try({setTimeLimit(cpu, elapsed); expr}, silent = TRUE) 
+  if(inherits(y, "try-error")) NULL else y 
+}
+
+# aggregate_peptide_mapping <- function(DB_pep_map, 
+#                                       DB_groups_i,
+#                                       output_dir = "peptide_mapping"){
+#   DB_groups_i %>%
+#     left_join(DB_pep_map) %>%
+#     pull(filename) %>%
+#     unique() %>%
+#     open_dataset() %>%
+#     mutate(length = nchar(peptide)) %>%
+#     mutate(MiSl = local(DB_groups_i$MiSl)) %>%
+#     mutate(proteome = local(DB_groups_i$proteome)) %>%
+#     mutate(index = local(DB_groups_i$index)) %>%
+#     mutate(enzyme = local(DB_groups_i$enzyme)) %>%
+#     to_duckdb() %>%
+#     to_arrow() %>%
+#     group_by(index, length, proteome, enzyme, MiSl) %>%
+#     write_dataset(path = output_dir,
+#                   existing_data_behavior = "overwrite",
+#                   format = "parquet",
+#                   max_partitions = 10240L,
+#                   max_rows_per_file = as.integer(2 * 10^8),
+#                   compression = "lz4") 
+#   return(TRUE)
+# }
+
+aggregate_peptide_mapping <- function(input_path = paste0(dir_DB_exhaustive, "/peptide_mapping/"), 
+                                      DB_groups_i,
+                                      output_dir = "peptide_mapping"){
+  paste0(input_path, "/index=", DB_groups_i$index, "/length=", DB_groups_i$length) %>%
+    open_dataset() %>%
+    select(-chunk) %>%  
+    to_duckdb() %>%
+    mutate(index = local(DB_groups_i$index[[1]])) %>%
+    mutate(length = local(DB_groups_i$length[[1]])) %>%
+    to_arrow() %>%
+    group_by(index, length, proteome, enzyme, MiSl) %>%
+    write_dataset(path = output_dir,
+                  existing_data_behavior = "overwrite",
+                  format = "parquet",
+                  max_partitions = 10240L,
+                  max_rows_per_file = as.integer(2 * 10^8),
+                  compression = "lz4") 
+}
+
+make_fasta <- function(DB_arrow_files = DB_arrow_files,
+                       groups_j = groups_j,
+                       j = j, 
+                       fasta_Biological_group = "",
+                       filter_prefix = filter_prefix,
+                       filter_suffix = filter_suffix,
+                       path_out = ""){
+  
+  out <- DB_arrow_files %>%
+    right_join(groups_j[j,], by = c("index", "length")) %>%
+    mutate(dataset_path = str_split_fixed(filename, pattern = "/proteome=", n = 2)[,1]) %>%
+    pull(dataset_path) %>%
+    unique() %>%
+    open_dataset()
+  cat(as.character(Sys.time()), ":", "Opened dataset", "\n")
+  
+  # Data-driven filters (optional)
+  if (!is.null(filter_prefix) & !is.null(filter_suffix)) {
+    out <- out %>%
+      mutate(index = groups_j[j,]$index, 
+             length = groups_j[j,]$length) %>%
+      group_by(index, length, proteome, enzyme, MiSl) %>%
+      dplyr::select(peptide, index, length, proteome, enzyme, MiSl,
+                    starts_with(paste0(filter_prefix, filter_suffix))) %>%
+      filter(if_any(starts_with(paste0(filter_prefix, filter_suffix)), ~ .)) %>%
+      collapse() %>%
+      group_by(proteome, enzyme, MiSl) %>%
+      select(peptide, proteome, enzyme, MiSl, index, length) %>%
+      collapse() %>%
+      compute()
+    cat(as.character(Sys.time()), ":", "Done filtering", "\n")
+  } else {
+    out <- out %>%
+      mutate(index = groups_j[j,]$index, 
+             length = groups_j[j,]$length) %>%
+      group_by(proteome, enzyme, MiSl) %>%
+      select(peptide, proteome, enzyme, MiSl, index, length) %>%
+      collapse() %>%
+      compute()
+    cat(as.character(Sys.time()), ":", "No filtering", "\n")
+  }
+  
+  # Save FASTA
+  out <- out %>%
+    to_duckdb() %>%
+    mutate(peptide = paste0(">", index, "_", length, "_", row_number(), "\n", peptide)) %>%
+    mutate(group = paste0(enzyme, "_", MiSl, "_", proteome)) %>%
+    ungroup() %>%
+    select(peptide, group) %>%
+    collapse() %>%
+    compute() 
+  cat(as.character(Sys.time()), ":", "Formatted FASTA", "\n")
+  
+  out <- out %>%
+    collect() %>%
+    setDT() 
+  print(head(out))
+  cat(as.character(Sys.time()), ":", "Loaded data.table", "\n")
+  
+  if (nrow(out) > 0) {
+    fasta_Biological_group <- ifelse(nchar(fasta_Biological_group) > 0, 
+                                     yes = paste0("_", fasta_Biological_group),
+                                     no = "")
+    cat(as.character(Sys.time()), ":", "Writing FASTA", "\n")
+    
+    out[, fwrite(.SD, paste0(path_out, "_", group, fasta_Biological_group, ".fasta"),
+                 sep = "\n", col.names = FALSE, append = T, 
+                 quote = FALSE, nThread = Ncpu),
+        by=list(group), .SDcols=c("peptide")]
+  }
+  return(TRUE)
+}
+
+make_fasta_batched <- function(DB_arrow_files = DB_arrow_files,
+                               groups = groups,
+                               groups_j = groups_j,
+                               fasta_Biological_group = "",
+                               filter_prefix = NULL,
+                               filter_suffix = NULL,
+                               timeout = 60,
+                               retries = 20,
+                               wait_on_restart = wait_on_restart,
+                               path_out = ""){
+  
+  # Remove FASTA files with matching names
+  suppressWarnings(file.remove(paste0(path_out, "_",
+                                      groups$enzyme, "_",
+                                      groups$MiSl, "_", 
+                                      groups$proteome, 
+                                      ifelse(nchar(fasta_Biological_group) > 0, paste0("_", fasta_Biological_group),""),
+                                      ".fasta")))
+  
+  for (j in seq_along(groups_j$length)) {
+    
+    cat(as.character(Sys.time()), ":", groups_j$index[[j]], groups_j$length[[j]], "|", j, "/", length(groups_j$length), "\n")
+    out <- try_with_timeout_restart({
+      make_fasta(DB_arrow_files = DB_arrow_files, 
+                 j = j, 
+                 groups_j = groups_j,
+                 path_out = path_out,
+                 fasta_Biological_group = fasta_Biological_group,
+                 filter_prefix = filter_prefix,
+                 filter_suffix = filter_suffix)
+    }, 
+    wait_on_restart = wait_on_restart,
+    timeout = timeout, 
+    retries = retries)
+  } # End index-length
+  return(out)
+}
+
 ### ---------------------------- Logging ----------------------------
-SPIsnake_log <- function(){
+SPIsnake_log <- function(memory_profile = F){
   print("----- memory usage by Slurm -----")
   jobid = system("echo $SLURM_JOB_ID")
   system(paste0("sstat ", jobid)) %>%
@@ -352,9 +599,11 @@ SPIsnake_log <- function(){
   system("sacct --format='JobID,JobName,State,Elapsed,AllocNodes,NCPUS,NodeList,AveRSS,MaxRSS,MaxRSSNode,MaxRSSTask,ReqMem,MaxDiskWrite'") %>%
     print()
   
-  print("----- memory usage by R -----")
-  memory.profile() %>%
-    print()
+  if (memory_profile == T) {
+    print("----- memory usage by R -----")
+    memory.profile() %>%
+      print()
+  }
   
   print("----- connections -----")
   showConnections() %>%

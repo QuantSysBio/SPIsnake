@@ -18,7 +18,7 @@ def get_cluster_proteomes_input(Master_table) :
 
 
 def get_split_proteomes_input(Master_table) :
-    prot_split = expand(join(dir_DB_Fasta_chunks, "{proteome}.csv"), 
+    prot_split = expand(join(dir_DB_Fasta_chunks, "{proteome}.parquet"), 
             proteome = Master_table["Proteome"].unique())
     return(prot_split)
 
@@ -83,7 +83,7 @@ rule Split_proteome_chunks:
         prot_cluster = join(dir_cluster, "{proteome}/{proteome}_cluster.tsv"),
         Master_table = features["Master_table"]
     output:
-        Split_prot_cluster = join(dir_DB_Fasta_chunks, "{proteome}.csv")
+        Split_prot_cluster = join(dir_DB_Fasta_chunks, "{proteome}.parquet")
     benchmark: 
         join(benchmarks, "Split_proteome_chunks_{proteome}.json")
     log: 
@@ -212,31 +212,164 @@ rule Generate_peptides:
         "02_4_SPIsnake_main.R"
 
 
-rule Aggregare_arrow:
+rule Define_arrow_aggregation:
     input: 
         Generate_peptides = join(dir_DB_exhaustive, ".Generate_peptides.done")
     output:
-        touch(join(dir_DB_out, ".Aggregare_arrow.done"))
+        # DB_pep_map = join(dir_DB_out, "DB_pep_map.csv"),
+        # DB_PTM_mz = join(dir_DB_out, "DB_PTM_mz.csv"),
+        arrow_batch_definition = join(dir_DB_out, "arrow_batch_definition.csv"),
+        arrow_batch_definition_map = join(dir_DB_out, "arrow_batch_definition_map.csv")
     benchmark: 
-        join(benchmarks, "Aggregare_arrow.json")
+        join(benchmarks, "Define_arrow_aggregation.json")
     log: 
-        join(logs, "Aggregare_arrow.txt")
+        join(logs, "Define_arrow_aggregation.txt")
+    resources:
+        ncpus = config["cpus_critical"],
+        mem = config["max_mem"],
+        time = config["max_time"]
+    params:
+        dir_DB_exhaustive = dir_DB_exhaustive,
+        dir_DB_PTM_mz = dir_DB_PTM_mz,
+        dir_DB_out = dir_DB_out,
+        duckdb_max_filesize = features["DB"]["duckdb_max_filesize"],
+        max_cpus = config["max_cpus"]
+    script:
+        "02_4_3_Define_arrow_aggregation.R"
+
+
+# Checkpoint for arrow aggregation
+checkpoint check_arrow_batch_definition:
+    input:
+        arrow_batch_definition = join(dir_DB_out, "arrow_batch_definition.csv"),
+        arrow_batch_definition_map = join(dir_DB_out, "arrow_batch_definition_map.csv")
+    output:
+        arrow_batch_definition_done = touch(join(dir_DB_out, ".arrow_batch_definition.done"))
+
+
+# checkpoint code to read command data.frame:
+class Checkpoint_arrow_map_aggregation:
+    def __init__(self, pattern):
+        self.pattern = pattern
+
+    def get_filename(arrow_batch_table) :
+        arrow_batch_table = pd.read_csv(join(dir_DB_out, "arrow_batch_definition_map.csv"), sep=',')
+        aggregation_batch = arrow_batch_table["aggregation_batch"].drop_duplicates()
+        return(aggregation_batch)
+
+    def __call__(self, w):
+        global checkpoints
+
+        # wait for the results of 'Define_arrow_aggregation'; this will trigger an
+        # exception until that rule has been run.
+        checkpoints.check_arrow_batch_definition.get(**w)
+
+        # expand pattern
+        aggregation_batch = self.get_filename()
+
+        pattern = expand(self.pattern, aggregation_batch=aggregation_batch, **w)
+        return pattern
+
+
+# checkpoint code to read command data.frame:
+class Checkpoint_arrow_aggregation:
+    def __init__(self, pattern):
+        self.pattern = pattern
+
+    def get_filename(arrow_batch_table) :
+        arrow_batch_table = pd.read_csv(join(dir_DB_out, "arrow_batch_definition.csv"), sep=',')
+        aggregation_batch = arrow_batch_table["aggregation_batch"].drop_duplicates()
+        return(aggregation_batch)
+
+    def __call__(self, w):
+        global checkpoints
+
+        # wait for the results of 'Define_arrow_aggregation'; this will trigger an
+        # exception until that rule has been run.
+        checkpoints.check_arrow_batch_definition.get(**w)
+
+        # expand pattern
+        aggregation_batch = self.get_filename()
+
+        pattern = expand(self.pattern, aggregation_batch=aggregation_batch, **w)
+        return pattern
+
+
+rule Aggregare_arrow:
+    input:
+        arrow_batch_definition = join(dir_DB_out, "arrow_batch_definition.csv")
+    output:
+        arrow_batch_done = touch(join(dir_DB_out, ".peptides_{aggregation_batch}.done"))
+    benchmark: 
+        join(benchmarks, "Aggregare_arrow_{aggregation_batch}.json")
+    log: 
+        join(logs, "Aggregare_arrow_{aggregation_batch}.txt")
     resources: # 1 per node at the time
         ncpus = config["max_cpus"],
         mem = config["max_mem"],
         time = config["max_time"]
     params:
+        dir_DB_PTM_mz=dir_DB_PTM_mz,
+        dir_DB_out=dir_DB_out,
+        duckdb_max_filesize = features["DB"]["duckdb_max_filesize"],
+        duckdb_max_retries = features["DB"]["duckdb_max_retries"],
+        duckdb_RAM = features["DB"]["duckdb_RAM"],
         max_cpus = config["max_cpus"]
     script:
-        "02_4_4_Aggregare_arrow.R"  
+        "02_4_4_Aggregare_arrow.R"
+
+
+rule Aggregare_arrow_peptides:
+    input:
+        Checkpoint_arrow_aggregation(join(dir_DB_out, ".peptides_{aggregation_batch}.done"))
+    output:
+        touch(join(dir_DB_out, ".Aggregare_arrow_peptides.done"))
+    resources:
+        ncpus = 1,
+        mem = config["min_mem"]
+        
+        
+rule Aggregare_peptide_mapping:
+    input:
+        # DB_pep_map = join(dir_DB_out, "DB_pep_map.csv"),
+        arrow_batch_definition_map = join(dir_DB_out, "arrow_batch_definition_map.csv")
+    output:
+        arrow_map_batch_done = touch(join(dir_DB_out, ".mapping_{aggregation_batch}.done"))
+    benchmark: 
+        join(benchmarks, "Aggregare_arrow_map_{aggregation_batch}.json")
+    log: 
+        join(logs, "Aggregare_arrow_map_{aggregation_batch}.txt")
+    resources: # 1 per node at the time
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"],
+        time = config["max_time"]
+    params:
+        dir_DB_exhaustive=dir_DB_exhaustive,
+        dir_DB_PTM_mz=dir_DB_PTM_mz,
+        dir_DB_out=dir_DB_out,
+        duckdb_max_filesize = features["DB"]["duckdb_max_filesize"],
+        duckdb_max_retries = features["DB"]["duckdb_max_retries"],
+        duckdb_RAM = features["DB"]["duckdb_RAM"],
+        max_cpus = config["max_cpus"]
+    script:
+        "02_4_6_Aggregare_arrow_peptide_mapping.R"
+
+
+rule Aggregare_arrow_mapping:
+    input:
+        Checkpoint_arrow_aggregation(join(dir_DB_out, ".mapping_{aggregation_batch}.done"))
+    output:
+        touch(join(dir_DB_out, ".Aggregare_peptide_mapping.done"))
+    resources:
+        ncpus = 1,
+        mem = config["min_mem"]
         
 
 rule Aggregare_FASTA:
     input: 
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
         Experiment_design = features["Experiment_design"],
-        Generate_peptides_done = join(dir_DB_exhaustive, ".Generate_peptides.done"),
-        Aggregare_arrow_done = join(dir_DB_out, ".Aggregare_arrow.done")
+        Aggregare_arrow_done = join(dir_DB_out, ".Aggregare_arrow_peptides.done")
     output:
         touch(join(dir_DB_out, ".Aggregare_FASTA.done"))
     benchmark: 
@@ -248,6 +381,17 @@ rule Aggregare_FASTA:
         mem = config["max_mem"],
         time = config["max_time"]
     params:
+        dir_DB_exhaustive=dir_DB_exhaustive,
+        dir_DB_PTM_mz=dir_DB_PTM_mz,
+        dir_DB_out=dir_DB_out,
+        duckdb_max_filesize = features["DB"]["duckdb_max_filesize"],
+        duckdb_max_retries = features["DB"]["duckdb_max_retries"],
+        duckdb_RAM = features["DB"]["duckdb_RAM"],
+        FASTA_outputs_unfiltered = features["FASTA_outputs"]["unfiltered"],
+        FASTA_outputs_MW_filtered = features["FASTA_outputs"]["MW_filtered"],
+        FASTA_outputs_MW_filtered_PTM = features["FASTA_outputs"]["MW_filtered_PTM"],
+        FASTA_outputs_MW_RT_filtered = features["FASTA_outputs"]["MW_RT_filtered"],
+        FASTA_outputs_MW_RT_IC50_filtered = features["FASTA_outputs"]["MW_RT_IC50_filtered"],
         max_cpus = config["max_cpus"]
     script:
         "02_4_4_Aggregare_FASTA.R"  
@@ -257,8 +401,7 @@ rule Aggregare_Stats:
     input: 
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv"),
         Experiment_design = features["Experiment_design"],
-        Generate_peptides_done = join(dir_DB_exhaustive, ".Generate_peptides.done"),
-        Aggregare_arrow_done = join(dir_DB_out, ".Aggregare_arrow.done")
+        Aggregare_arrow_done = join(dir_DB_out, ".Aggregare_arrow_peptides.done")
     output:
         touch(join(dir_DB_out, ".Aggregare_Stats.done"))
     benchmark: 
@@ -282,5 +425,4 @@ rule Aggregare_Stats:
         PTM_stats_masslist=features["Statistics"]["PTM_stats_masslist"],
         PTM_stats_peptide=features["Statistics"]["PTM_stats_peptide"]
     script:
-        "02_4_5_Statistics.R"  
-
+        "02_4_5_Statistics.R"

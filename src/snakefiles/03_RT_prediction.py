@@ -22,7 +22,7 @@ rule Define_RT_train:
         "03_1_Define_RT_train.R"
 
 
-# Checkpoint for aggregating generated peptides across proteome chunks
+# Checkpoint for RT predictor
 checkpoint check_RT_train:
     input:
         cmd_RT_train = join(dir_RT_prediction, "cmd_RT_train.csv")
