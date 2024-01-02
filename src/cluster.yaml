@@ -1,5 +1,5 @@
 __default__:
-  partition: "elbe"
+  partition: "clustername"
   time: "{resources.time}"
   nodes: 1
   ncpus: "{resources.ncpus}"
@@ -7,4 +7,4 @@ __default__:
   mempercpu: 3G
   job-name: "{rule}"
   output: "outfiles/spisnake-%J.out"
-  chdir: '/data/SPIsnake/v3_new/decoy_K562_PCP_expressed'
+  chdir: 'project_dir'
