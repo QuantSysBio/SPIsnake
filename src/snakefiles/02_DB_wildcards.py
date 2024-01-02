@@ -73,6 +73,36 @@ rule Cluster_proteome:
          &> {log}"
 
 
+rule Convert_RAW:
+    """
+    Convert RAW files to MGF and Extract MW & RT information 
+    Extract RT and peptide sequences for RT predictor training
+    """
+    input:
+        Experiment_design = features["Experiment_design"],
+        PEAKS_PSM = features["PEAKS_PSM"],
+        allowed_modifications = features["Experiment_design"]
+    output:
+        Convert_RAW_done = touch(join(dir_DB_exhaustive, ".Convert_RAW.done"))
+    benchmark: 
+        join(benchmarks, "Convert_RAW.json")
+    log: 
+        join(logs, "Convert_RAW.txt")
+    resources:
+        ncpus = config["max_cpus"],
+        mem = config["max_mem"],
+        time = config["max_time"]
+    params:
+        ThermoRawFileParser = features["RT_filter"]["ThermoRawFileParser"],
+        dir_mass_list = dir_mass_list,
+        dir_RAW = dir_RAW,
+        dir_RT_calibration = dir_RT_calibration,
+        dir_DB_exhaustive = dir_DB_exhaustive,
+        max_cpus = config["max_cpus"]
+    script:
+        "01_01_Convert_RAW.R"
+        
+
 rule Split_proteome_chunks:
     """
     Splits input proteome into chunks of approx similar volume for peptide generation
@@ -107,7 +137,8 @@ rule Expand_Master_table:
     """
     input: 
         Split_chunks = get_split_proteomes_input(Master_table),
-        Master_table = features["Master_table"]
+        Master_table = features["Master_table"],
+        Convert_RAW_done = join(dir_DB_exhaustive, ".Convert_RAW.done")
     output:
         Master_table_expanded = join(dir_DB_exhaustive, "Master_table_expanded.csv")
     benchmark: 
@@ -120,6 +151,7 @@ rule Expand_Master_table:
         time = config["max_time"]
     params:
         directory=dir_DB_exhaustive,
+        dir_RT_calibration=dir_RT_calibration,
         max_cpus = config["max_cpus"]
     script:
         "02_2_Expand_Master_table.R"        

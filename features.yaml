@@ -2,6 +2,7 @@
 
 Master_table: Master_table.csv
 Experiment_design: data/Experiment_design.csv
+PEAKS_PSM: "data/DB search psm.csv"
 
 DB:
     min_protein_length: 7
@@ -15,20 +16,26 @@ DB:
     netMHCpan_path: "/bin/netMHCpan-4.1/netMHCpan"
     netMHCpan_chunk: 1000000
     # Format
-    AA_index_length: 1 # 1 or 2
+    AA_index_length: 2 # 1 or 2
+    # duckDB
+    duckdb_RAM: 0.8 # fraction of RAM to use
+    duckdb_max_retries: 20
+    duckdb_max_filesize: 1.8 # (GB) - bach size for arrow aggregation
 
 RT_filter:
+    ThermoRawFileParser: "/bin/ThermoRawFileParser/ThermoRawFileParser.exe"
     # achrom or AutoRT
+    allowed_modifications: ""
     method: achrom
     n_folds: 10
     proportion_train: 0.9
-    quantile: 0.99 # fraction of 1
+    quantile: 0.99 # fraction of 1 
 
 FASTA_outputs:
     compress_CSV: TRUE
-    unfiltered: TRUE
-    MW_filtered: TRUE
-    MW_filtered_PTM: TRUE
+    unfiltered: FALSE
+    MW_filtered: FALSE
+    MW_filtered_PTM: FALSE
     MW_RT_filtered: TRUE
     MW_RT_IC50_filtered: TRUE
 

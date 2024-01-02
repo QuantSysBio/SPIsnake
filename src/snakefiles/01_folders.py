@@ -1,7 +1,7 @@
 """folders.py: file to store paths to folfers"""
 
-
 dir_data = "data/"
+dir_RAW = dir_data + "RAW/"
 dir_mass_list = dir_data + "MS_mass_lists/"
 dir_reference = dir_data + "reference/"
 dir_RT_calibration = dir_data + "RT_calibration/"

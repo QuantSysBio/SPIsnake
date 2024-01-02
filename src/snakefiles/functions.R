@@ -359,26 +359,26 @@ try_with_timeout <- function(expr, timeout = timeout, ...){
 }
 
 try_with_timeout_restart <- function(expr, retries, timeout, wait_on_restart=0) {
-  # message(paste("remaining tries", retries))
-  withRestarts(
-    tryCatch({expr}, 
-             timeout = timeout,
-             TimeoutException = function(timeout) {
-               message(paste0("Timeout limit: ", 10*timeout, " seconds"))
-             },
-             error=function(e) { 
-               Sys.sleep(wait_on_restart)
-               invokeRestart("retry")
-             }),
-    retry = function() { 
-      message(paste0("Retrying. Attepmts left : "), retries)
-      stopifnot(retries > 0)
-      try_with_timeout_restart(expr = expr, 
-                               retries = retries-1, 
-                               timeout = timeout, 
-                               wait_on_restart = wait_on_restart)
-    }
-  )
+  require(R.utils)
+  withRestarts(expr = tryCatch({
+    res <- withTimeout({expr}, timeout = timeout)
+  }, TimeoutException = function(ex) {
+    message(paste0("Timeout limit: ", timeout*10, " seconds"))
+    Sys.sleep(wait_on_restart)
+    invokeRestart("retry")
+  },
+  error=function(e) { 
+    Sys.sleep(wait_on_restart)
+    invokeRestart("retry")
+  }),
+  retry = function() { 
+    message(paste0("Retrying. Attepmts left : "), retries)
+    stopifnot(retries > 0)
+    try_with_timeout_restart(expr = expr, 
+                             retries = retries-1, 
+                             timeout = timeout, 
+                             wait_on_restart = wait_on_restart)
+  })
 }
 memfree <- function(){
   as.numeric(system("awk '/MemFree/ {print $2}' /proc/meminfo", intern=TRUE)) / 2^20

@@ -20,6 +20,7 @@ pep[1:nrow(pep), write_dataset(group_by(as_arrow_table(.SD),
                                existing_data_behavior = "overwrite",
                                format = "parquet", 
                                max_partitions = 10240L,
+                               use_dictionary = FALSE,
                                compression = "lz4"), 
     by=index, 
     .SDcols=colnames(pep)]

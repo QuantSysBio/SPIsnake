@@ -1,0 +1,13 @@
+# Workflow
+data/*
+results/*
+src/legacy*
+Master_table.csv
+
+# Snakemake
+.snakemake/
+.conda/
+*.dot
+*.svg
+*.html
+Rplots.pdf

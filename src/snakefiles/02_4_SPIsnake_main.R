@@ -174,7 +174,7 @@ if (exists("snakemake")) {
   compress_CSV <- TRUE
   
   # Wildcard
-  filename <- "results/DB_exhaustive/.5_30_trypsin_2_25_expressed_threeUTR_reversed_1.done"
+  filename <- "results/DB_exhaustive/.9_PCP_25_proteome_expressed_gencode_2.done"
   filename_out <- filename
 }
 
@@ -244,7 +244,7 @@ enzymes <- c("arg-c proteinase", "asp-n endopeptidase", "bnps-skatole", "caspase
 custom_trypsin <- c("[KR](?=\\w)")
 
 # Exclusion pattern: peptides with these letters will be omitted
-exclusion_pattern <- "(U|X|O|\\*)"
+exclusion_pattern <- "(U|X|O|\\*|\\$)"
 
 ### ---------------------------- (2) Inputs: MW & RT --------------------------------------
 ### Mass_lists
@@ -261,7 +261,7 @@ MS_mass_lists_data <- list()
 for (j in 1:nrow(MS_mass_lists)) {
   MS_mass_list <- MS_mass_lists$mass_list[j]
   tolerance = as.numeric(Experiment_design$Precursor_mass_tolerance_ppm[Experiment_design$Filename == MS_mass_list])
-  RT_tolerance = as.numeric(RT_Performance_df$mean_value[RT_Performance_df$dataset == MS_mass_list & RT_Performance_df$metric == "MAE"])
+  RT_tolerance = as.numeric(RT_Performance_df$mean_value[RT_Performance_df$dataset == MS_mass_list & RT_Performance_df$metric == "quantile_user"])
   MS_mass_lists_data[[j]] <- read_MW_file(file = paste0("data/MS_mass_lists/", MS_mass_lists$mass_list_file[j]), num_threads = Ncpu)
 }
 names(MS_mass_lists_data) <- MS_mass_lists$mass_list

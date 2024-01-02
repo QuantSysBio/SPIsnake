@@ -23,6 +23,7 @@ suppressPackageStartupMessages(library(dbplyr))
 suppressPackageStartupMessages(library(duckdb))
 suppressPackageStartupMessages(library(dtplyr))
 suppressPackageStartupMessages(library(parallelly))
+suppressPackageStartupMessages(library(R.utils))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(tidyr))
 
@@ -83,12 +84,24 @@ aggregation_batch_i <- str_remove(filename, ".done")
 aggregation_batch_i <- str_split_fixed(aggregation_batch_i, "results/DB_out/.mapping_", 2)[,2][[1]]
 aggregation_batch_i
 
-duckdb_temp_dir <- paste0(dir_DB_out, "/duckdb/tmp/mapping_", aggregation_batch_i, "/")
-table_name = paste0(dir_DB_out, "/duckdb/databases/", "duckdb_aggregate_mapping_", aggregation_batch_i)
-Max_RAM <- 240
+## Connect database
+Max_RAM <- 100
 timeout <- 90
 duckdb_RAM <- Max_RAM * duckdb_RAM
 duckdb_max_retries = 20
+
+table_name <- paste0(dir_DB_out, "/duckdb/databases/", "duckdb_aggregate_mapping_", aggregation_batch_i)
+duckdb_temp_dir <- paste0(dir_DB_out, "/duckdb/tmp/mapping_", aggregation_batch_i, "/")
+ifelse(dir.exists(duckdb_temp_dir), unlink(duckdb_temp_dir, recursive = T, force = T), "")
+dir.create(duckdb_temp_dir, recursive = T, showWarnings = T)
+
+conn <- DBI::dbConnect(
+  duckdb::duckdb(), 
+  dbname = table_name,
+  dbdir = paste0(duckdb_temp_dir,".duckdb"),
+  config = list("memory_limit"= paste0(duckdb_RAM, "GB"),
+                "temp_directory" = paste0(duckdb_temp_dir)))
+print(paste("Conndected duckdb ", Sys.time()))
 
 ### ---------------------------- (2) Aggregate arrow across chunks --------------------------------------
 cat(as.character(Sys.time()), " - ", "Start saving peptide mapping", "\n")
@@ -105,7 +118,7 @@ chunks <- nrow(DB_groups)
 cat(as.character(Sys.time()), " - ", "Defined chunks for processing:", chunks, "\n")
 bettermc::mclapply(X = 1:chunks, 
                    mc.preschedule = T, mc.cores = Ncpu, 
-                   mc.cleanup = T, mc.retry = 3, 
+                   mc.cleanup = T, mc.retry = duckdb_max_retries, mc.fail.early = T,
                    FUN = function(i){
                      cat(as.character(Sys.time()), " - ", i, "/", chunks,"\n")
                      DB_groups_i <- DB_groups[i,] %>%
@@ -116,12 +129,16 @@ bettermc::mclapply(X = 1:chunks,
                        paste0(dir_DB_exhaustive, "peptide_mapping/", "/index=", DB_groups_i$index) %>%
                          open_dataset() %>%
                          select(-chunk) %>%
+                         # to_duckdb(con = conn) %>%
+                         # mutate(protein = as.character(protein)) %>%
+                         # to_arrow() %>%
                          group_by(index, length, proteome, enzyme, MiSl) %>%
                          write_dataset(path = paste0(dir_DB_out, "/peptide_mapping/"),
                                        existing_data_behavior = "overwrite",
                                        format = "parquet",
                                        max_partitions = 10240L,
                                        max_rows_per_file = as.integer(2 * 10^8),
+                                       use_dictionary = FALSE,
                                        compression = "lz4") 
                      }, 
                      wait_on_restart = 1,

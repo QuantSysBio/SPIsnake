@@ -85,7 +85,7 @@ aggregation_batch_i
 
 duckdb_temp_dir <- paste0(dir_DB_out, "/duckdb/tmp/unique_peptides_", aggregation_batch_i, "/")
 table_name = paste0(dir_DB_out, "/duckdb/databases/", "duckdb_aggregate_unique_", aggregation_batch_i)
-Max_RAM <- 240
+Max_RAM <- 100
 timeout <- 90
 duckdb_RAM <- Max_RAM * duckdb_RAM
 duckdb_max_retries = 20
@@ -153,6 +153,7 @@ done <- bettermc::mclapply(X = 1:chunks,
                                                format = "parquet",
                                                max_partitions = 10240L,
                                                max_rows_per_file = as.integer(5 * 10^7),
+                                               use_dictionary = FALSE,
                                                compression = "lz4")
                              }
                              rm(DB_duck)

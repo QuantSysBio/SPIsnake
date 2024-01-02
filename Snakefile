@@ -22,6 +22,7 @@ rule all:
     input:
         join(dir_DB_exhaustive, ".Generate_peptides.done"),
         join(dir_DB_out, ".Aggregare_FASTA.done"),
+        join(dir_DB_out, ".Aggregare_peptide_mapping.done"),
         join(dir_DB_out, ".Aggregare_Stats.done")
 
 

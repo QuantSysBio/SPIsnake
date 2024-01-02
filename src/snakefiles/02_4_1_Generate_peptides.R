@@ -38,15 +38,6 @@ dat[subseq(dat, 1, 1) == "*"] <- subseq(dat[subseq(dat, 1, 1) == "*"], start = 2
 dat[subseq(dat, width(dat), width(dat)) == "*"] <- subseq(dat[subseq(dat, width(dat), width(dat)) == "*"],
                                                           start = 1, end = width(dat[subseq(dat, width(dat), width(dat)) == "*"]) - 1)
 
-# ### Split by in-frame stop codons, keep what's on the left
-# ends <- vmatchPattern("*", dat)@ends 
-# ends_which <- unlist(lapply(ends, length) > 0)
-# ends <- lapply(ends, `[[`, 1) %>% unlist()
-# if (any(any(ends_which))) {
-#   dat[ends_which] <- subseq(dat[ends_which], start = 1, end = (ends - 1))
-# }
-# rm(ends, ends_which)
-
 # Filter by minimal length and re-order by similarity from clustering
 dat <- dat[width(dat) >= min_protein_length]
 
@@ -89,7 +80,7 @@ if (length(long_entries) > 0) {
     right_join(select(proteome_index, desc)) %>%
     filter(!(is.na(value) | value == ""))
 }
-dat_split <- dat_split[long_entry_names$value]
+dat_split <- dat_split[names(dat_split) %in% long_entry_names$value] 
 cat(as.character(Sys.time()), " - ", "Proteome chunk extraction: Done \n")
 rm(proteome_index)
 cat(as.character(Sys.time()), " - ", "Removed FASTA index", "\n")
@@ -106,7 +97,7 @@ if (enzyme_type == "PCP" | (grepl("cis-PSP", enzyme_type) == TRUE)) {
   
   split_chunks <- rep(1:(5*Ncpu), length.out=length(dat_sort))
   PCP <- split(dat_sort, split_chunks) %>%
-    bettermc::mclapply(mc.preschedule = TRUE, 
+    bettermc::mclapply(mc.preschedule = FALSE, 
                        mc.cores = Ncpu, 
                        mc.cleanup = TRUE, 
                        mc.force.fork = TRUE, 
@@ -126,7 +117,7 @@ if (enzyme_type == "PCP" | (grepl("cis-PSP", enzyme_type) == TRUE)) {
     as.data.table()
   PCP <- PCP %>% 
     .[,index := str_sub(peptide, start = 1, end = index_length)] %>%
-    .[!str_detect(peptide, exclusion_pattern), .(peptide, protein), keyby=index] %>%
+    .[!str_detect(peptide, pattern = paste0("[^", str_c(AA, collapse = ""), "]")), .(peptide, protein), keyby=index] %>%
     .[, enzyme := "PCP"] %>%
     .[, length := str_length(peptide), keyby=index] 
   
@@ -181,7 +172,7 @@ if (grepl("cis-PSP", enzyme_type) == TRUE) {
   setnames(PSP, c("peptide", "protein"))
   PSP <- PSP %>% 
     .[,index := str_sub(peptide, start = 1, end = index_length)] %>%
-    .[!str_detect(peptide, exclusion_pattern), .(peptide, protein), keyby=index] %>%
+    .[!str_detect(peptide, pattern = paste0("[^", str_c(AA, collapse = ""), "]")), .(peptide, protein), keyby=index] %>%
     .[, enzyme := "PSP", keyby=index] %>%
     .[, length := nchar(peptide), keyby=index]
   peptides <- rbindlist(list(PCP, PSP))
@@ -239,9 +230,10 @@ if (str_detect(enzyme_type, str_c(enzymes, collapse = "|"))) {
     rename(protein = group_name,
            peptide = value) %>%
     as.data.table()
+  
   enzym_out <- enzym_out %>%
     .[,index := str_sub(peptide, start = 1, end = index_length)] %>%
-    .[!str_detect(peptide, exclusion_pattern), .(peptide, protein, index), keyby=index] %>%
+    .[!str_detect(peptide, pattern = paste0("[^", str_c(AA, collapse = ""), "]")), .(peptide, protein, index), keyby=index] %>%
     .[,length := str_length(peptide), keyby=index] %>%
     .[inrange(length, lower = min(Nmers), upper = max(Nmers), incbounds=TRUE), .(peptide, length, protein), keyby=index] %>%
     .[,enzyme := enzyme_type]
@@ -288,6 +280,7 @@ if (exists("peptides")) {
                          existing_data_behavior = "overwrite",
                          format = "parquet", 
                          max_partitions = 10240L,
+                         use_dictionary = FALSE,
                          compression = "lz4"), 
            by=index, 
            .SDcols=colnames(peptides)]

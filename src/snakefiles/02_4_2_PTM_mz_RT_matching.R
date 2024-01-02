@@ -12,7 +12,7 @@
 # author:       YH, JL, KP
 
 if (method %in% c("achrom", "AutoRT")) {
-  use_condaenv("R_env_reticulate")
+  # use_condaenv("R_env_reticulate")
   pyteomics <- import("pyteomics")
   
   py_run_string("
@@ -349,6 +349,7 @@ if (PTM_mode != "No_mods") {
           write_dataset(path = paste0(dir_DB_PTM_mz, "/unique_peptides_mz_matched_PTM/"), 
                         existing_data_behavior = "overwrite",
                         format = "parquet", 
+                        use_dictionary = FALSE,
                         compression = "lz4") 
       } 
       rm(PTMcombinations, PTM_MW_out)
@@ -392,7 +393,7 @@ for (j in 1:nrow(MS_mass_lists)) {
   
   # Filter tolerances
   tolerance <- as.numeric(Experiment_design$Precursor_mass_tolerance_ppm[Experiment_design$Filename == MS_mass_list])
-  RT_tolerance <- as.numeric(RT_Performance_df$mean_value[RT_Performance_df$dataset == MS_mass_list & RT_Performance_df$metric == "MAE"])
+  RT_tolerance <- as.numeric(RT_Performance_df$mean_value[RT_Performance_df$dataset == MS_mass_list & RT_Performance_df$metric == "quantile_user"])
   
   # Calibration input
   mzList <- MS_mass_lists_data[[j]]
@@ -520,6 +521,10 @@ for (j in 1:nrow(MS_mass_lists)) {
                      nomatch=0, .(peptide)] %>%
       unique()
     
+    if (nrow(tmp_2D) == 0) {
+      cat(as.character(Sys.time()), " - ", "Caution: 0 rows left after RT filtering! Check RT calibration. \n")
+    }
+    
     ### 2D filter: add info to the main table
     pep[, get("MW.RT.exists.j") := FALSE]
     pep[predict_RT==TRUE, get("MW.RT.exists.j") := fifelse(peptide %chin% tmp_2D$peptide, TRUE, FALSE)]
@@ -547,7 +552,7 @@ for (j in 1:nrow(MS_mass_lists)) {
     Aff_name <- unique(paste0("Aff(nM):", IC50_aggregation_table_j$`MHC-I_alleles`)) 
     pep[, get("Aff_name") := fifelse(.SD == T, T, F), .SDcols = get("MW.RT.exists.j")]
   }
-  rm(tmp_2D, not_empty_MS_mass_list)
+  # rm(tmp_2D, not_empty_MS_mass_list)
 } # End 2D filter ~ datasets
 
 
@@ -560,7 +565,7 @@ Affinity_cols <- paste0("Aff(nM):", alleles)
 cat(as.character(Sys.time()), " - ", "Predicting MHC-I affinity for: ", str_c(alleles, collapse = "; "), "\n")
 
 # Are there any sequences for prediction?
-if (length(alleles) > 0) {
+if (length(alleles) > 0 & chunk_params$enzyme_type %in% c("PCP", "PSP", "cis-PSP")) {
   peptide_exports <- pep %>%
     lazy_dt() %>%
     select(peptide, Affinity_cols) %>%
