@@ -4,7 +4,7 @@
 
 ## Installation
 ```
-conda create -c conda-forge -c bioconda -n SPIsnake snakemake
+conda create -c conda-forge -c bioconda -n SPIsnake snakemake python=3.10.10
 conda activate SPIsnake
 conda install -c conda-forge singularity 
 ```
