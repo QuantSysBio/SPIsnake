@@ -1,6 +1,5 @@
 shell.executable("/bin/bash")
 
-#container: "docker://snakemake/snakemake:v6.11.1"
 container: "docker://yhorokh/spisnake:3.0.0"
 import pandas as pd
 import os, multiprocessing
@@ -24,15 +23,3 @@ rule all:
         join(dir_DB_out, ".Aggregare_FASTA.done"),
         join(dir_DB_out, ".Aggregare_peptide_mapping.done"),
         join(dir_DB_out, ".Aggregare_Stats.done")
-
-
-### Execution
-# snakemake -j 1 -n
-# time snakemake --use-singularity --use-conda -j 27 --conda-frontend conda --resources load=100
-
-### Plots
-# snakemake --report
-# snakemake --dag > dag.dot && dot -Tsvg < dag.dot > dag.svg
-# snakemake --filegraph > filegraph.dot && dot -Tsvg < filegraph.dot > filegraph.svg
-# rm filegraph.dot
-# rm dag.dot

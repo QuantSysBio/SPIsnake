@@ -9,7 +9,7 @@
 #               - PTM peptides .parquet
 #               - Peptide chunk .FASTA & .CSV for different filtering steps
 #               
-# author:       YH, JL, KP
+# author:       YH, JL
 
 ### Log
 if (exists("snakemake")) {
@@ -68,14 +68,12 @@ if (exists("snakemake")) {
   print(active_Slurm)
   Ncpu <- snakemake@params[["max_cpus"]]
   print(paste0("Ncpu: ", Ncpu))
-  # if (active_Slurm) {
-  #   Ncpu <- min(parallelly::availableCores(methods = "Slurm"), Ncpu)
-  # } else {
-  #   Ncpu <- min(parallelly::availableCores(), Ncpu)
-  # }
+  
   cl <- parallel::makeForkCluster(Ncpu)
   cl <- parallelly::autoStopCluster(cl, debug=T)
+  
   data.table::setDTthreads(Ncpu)
+  
   print(paste0("number of CPUs: ", Ncpu))
   set_cpu_count(Ncpu)
   print(paste0("number of arrow CPUs: ", cpu_count()))
@@ -107,9 +105,7 @@ if (exists("snakemake")) {
   filename <- snakemake@output[[1]]
   filename_out <- filename
 } else {
-  ### Manual startup
-  
-  ### setwd("/home/yhorokh/data/Results_reports/wd/SPIsnake-3")
+  ### Manual start
   # Master_table_expanded
   Master_table_expanded <- fread("results/DB_exhaustive/Master_table_expanded.csv") %>% as_tibble()
   
@@ -160,7 +156,6 @@ if (exists("snakemake")) {
   netMHCpan_chunk = 10^6
   
   # NetMHCPan
-  # netMHCpan <- "/home/yhorokh/data/Results_reports/Mouse_lymphoma_target_11.2020/bin/netMHCpan-4.1/netMHCpan"
   netMHCpan <- "/home/yhorokh/wd/netMHCpan-4.1/netMHCpan"
   
   # FASTA outputs
@@ -296,102 +291,6 @@ if (chunk_params$enzyme_type == "cis-PSP") {
 } else {
   keep_enzyme <- chunk_params$enzyme_type
 }
-# peptides <- list.files(paste0(dir_DB_exhaustive, "/peptide_mapping/"), pattern = ".parquet", recursive = T)
-# peptides <- peptides[str_detect(peptides, str_c(paste0("enzyme=", keep_enzyme), collapse = "|"))]
-# peptides <- peptides[str_detect(peptides, paste0("MiSl=", chunk_params$MiSl))]
-# peptides <- peptides[str_detect(peptides, paste0("proteome=", chunk_params$proteome))]
-# peptides <- peptides[str_detect(peptides, paste0("chunk=", chunk_params$chunk))]
-# peptides <- peptides[str_detect(peptides, str_c(paste0("length=", seq(min(Nmers), max(Nmers))), collapse = "|"))]
-# 
-# keep_colnames <- c(paste0("MW:", Experiment_design$Filename),
-#                    paste0("MW.exists:", Experiment_design$Filename),
-#                    paste0("RT:", Experiment_design$Filename),
-#                    paste0("MW.RT.exists:", Experiment_design$Filename),
-#                    # paste0("Aff\\(nM\\):", Experiment_design$Filename),
-#                    paste0("Predicted_binder:", Experiment_design$Filename))
-# 
-# if (length(peptides) == 0) {
-#   cat("Generating mew peptide database\n", as.character(Sys.time()), "\n")
-#   
-#   ### Generate peptides
-#   source("src/snakefiles/02_4_1_Generate_peptides.R")
-#   
-#   ### PTMs, 2D filer, IC50 prediction
-#   source("src/snakefiles/02_4_2_PTM_mz_RT_matching.R")
-#   
-# } else {
-#   DB_PTM_mz <- open_dataset(paste0(dir_DB_PTM_mz, "/peptide_seqences/")) 
-#   if (!nrow(DB_PTM_mz) == 0) {
-#     DB_PTM_mz <- DB_PTM_mz %>%
-#       filter(enzyme %in% keep_enzyme) %>%
-#       filter(MiSl == chunk_params$MiSl) %>%
-#       filter(proteome == chunk_params$proteome) %>%
-#       filter(chunk == as.integer(chunk_params$chunk)) %>%
-#       filter(length >= min(Nmers)) %>%
-#       filter(length <= max(Nmers)) 
-#   }
-#   
-#   if (nrow(DB_PTM_mz) == 0) {
-#     cat("Generating mew peptide database\n", as.character(Sys.time()), "\n")
-#     
-#     ### Generate peptides
-#     source("src/snakefiles/02_4_1_Generate_peptides.R")
-#     
-#     ### PTMs, 2D filer, IC50 prediction
-#     source("src/snakefiles/02_4_2_PTM_mz_RT_matching.R")
-#     
-#   } else {
-#     cat("Found an existing peptide database\n", as.character(Sys.time()), "\n")
-#     processed_DBs <- DB_PTM_mz %>%
-#       head() %>%
-#       collect() %>%
-#       colnames() %>%
-#       tidyr::expand_grid(keep_colnames) %>%
-#       rename(DB_PTM_mz_col = ".") %>%
-#       filter(str_starts(string = DB_PTM_mz_col, pattern = keep_colnames)) %>%
-#       pull(keep_colnames) %>%
-#       unique()
-#     
-#     keep_colnames <- keep_colnames[!keep_colnames %in% processed_DBs]
-#     keep_colnames <- str_remove_all(keep_colnames, "MW:|MW.exists:|RT:|MW.RT.exists:|Aff\\(nM\\):|Predicted_binder:")
-#     keep_colnames <- na.omit(unique(keep_colnames))
-#     
-#     ### Which mass_lists have not been processed yet
-#     unprocessed_DBs <- Experiment_design %>%
-#       filter(Filename %in% keep_colnames)
-#     if (nrow(unprocessed_DBs) > 0) {
-#       cat("Found new mass_lists to be processed:", keep_colnames, ": Starting the update!","\n", as.character(Sys.time()), "\n")
-#       
-#       ### Remove mass_lists that were already processed
-#       Experiment_design <- unprocessed_DBs
-#       MS_mass_lists <- MS_mass_lists %>% filter(mass_list %in% Experiment_design$Filename) 
-#       MS_mass_lists_data <- MS_mass_lists_data[names(MS_mass_lists_data) %in% Experiment_design$Filename] 
-#       RT_calibration_lists <- RT_calibration_lists %>% filter(RT_list %in% Experiment_design$Filename)  
-#       
-#       ### Load peptide database
-#       peptides <- open_dataset(paste0(dir_DB_exhaustive, "/peptide_mapping/")) %>%
-#         filter(enzyme %in% keep_enzyme) %>%
-#         filter(MiSl == chunk_params$MiSl) %>%
-#         filter(proteome == chunk_params$proteome) %>%
-#         filter(chunk == as.integer(chunk_params$chunk))  %>%
-#         filter(length >= min(Nmers)) %>%
-#         filter(length <= max(Nmers)) %>%
-#         select(index, peptide, length, protein, enzyme) %>%
-#         collect() %>%
-#         setDT()
-#       setcolorder(peptides, neworder = c("index", "peptide", "protein", "enzyme", "length"))
-#       cat("Loaded an existing peptide database\n", as.character(Sys.time()), "\n")
-#       
-#       ### PTMs, 2D filer, IC50 prediction
-#       source("src/snakefiles/02_4_2_PTM_mz_RT_matching.R")
-#       
-#     } else {
-#       cat("NO new mass_lists to be processed - terminating", "\n", as.character(Sys.time()), "\n")
-#       SPIsnake_log()
-#       quit(save = "no", status = 0)
-#     } # no new mass_lists
-#   } # peptide database exists
-# }
 
 ### ---------------------------- (4) Exports ------------------------------------------------
 ### Generate peptides
@@ -400,6 +299,7 @@ source("src/snakefiles/02_4_1_Generate_peptides.R")
 ### PTMs, 2D filer, IC50 prediction
 source("src/snakefiles/02_4_2_PTM_mz_RT_matching.R")
 
+### Save outputs
 source("src/snakefiles/02_4_3_Exports.R")
 
 ### ---------------------------- (5) Log ----------------------------------------------------

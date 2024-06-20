@@ -1,6 +1,5 @@
-Filename,Biological_group,Precursor_mass_tolerance_ppm,MHC-I_alleles,Affinity_threshold,Output non-binders,modifications_fixed
-Biorep_1,Biorep_1,5,HLA-B07:02,5000,FALSE,
-Biorep_2_1,Biorep_2,5,HLA-B07:02,5000,FALSE,
-Biorep_2_2,Biorep_2,5,HLA-B07:02,5000,FALSE,
-Biorep_3,Biorep_3,5,HLA-A02:01,5000,FALSE,
-Biorep_4,Biorep_4,5,HLA-A02:01,5000,FALSE,
+Filename,Biological_group,Precursor_mass_tolerance_ppm,MHC-I_alleles,Affinity_threshold,modifications_fixed
+Biorep_1,B02:07,5,HLA-B07:02,5000,
+Biorep_2,B02:07,5,HLA-B07:02,5000,
+Biorep_3,B02:07,5,HLA-B07:02,5000,
+Biorep_4,A02:01,5,HLA-B07:02|HLA-A02:01,5000,

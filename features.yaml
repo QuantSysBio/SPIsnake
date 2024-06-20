@@ -42,10 +42,5 @@ FASTA_outputs:
 Statistics:
     strata_sizes: TRUE
     filtering_sizes: TRUE
-    multimapping_within_strata: TRUE
-    multimapping_between_strata: TRUE
-    multimapping_filtering_steps: TRUE
-    PTM_stats_masslist: TRUE
-    PTM_stats_peptide: TRUE
 
 ...

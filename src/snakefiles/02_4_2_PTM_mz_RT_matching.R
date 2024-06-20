@@ -9,10 +9,9 @@
 #               - Unique sequences per experiment .parquet
 #               - Unique peptides after m/z and RT matching per experiment .parquet
 #               
-# author:       YH, JL, KP
+# author:       YH, JL
 
 if (method %in% c("achrom", "AutoRT")) {
-  # use_condaenv("R_env_reticulate")
   pyteomics <- import("pyteomics")
   
   py_run_string("
@@ -76,7 +75,6 @@ names(fixed_mods) <- Experiment_design_fixed_mods$mzList_fixed_mods
 
 ### Define variable_mods ~ proteomes
 PTM_list <- left_join(params, Master_table_expanded) %>%
-  # mutate(PTMs = "Minimal") %>% ### TODO remove "mutate(PTMs = "Minimal")"
   pull(PTMs) %>%
   str_split(pattern = "\\|") %>%
   unlist() %>%
@@ -482,8 +480,6 @@ for (j in 1:nrow(MS_mass_lists)) {
     # Exclusion pattern: peptides containing these letters will be omitted
     exclusion_pattern <- AA[!AA %in% names(RCs$aa)] %>% str_c(collapse = "|")
     if (!exclusion_pattern == "") {
-      # pep <- pep[, predict_RT := pep[[get("MW.exists.j")]] &
-      #              str_detect(peptide, pattern = exclusion_pattern, negate = T)]
       pep <- pep[, achrom_exclude := str_detect(peptide, pattern = exclusion_pattern, negate = T), by = chunks]
       pep <- pep[, predict_RT := pep[[get("MW.exists.j")]] & achrom_exclude]
       pep[, achrom_exclude := NULL]
@@ -552,7 +548,6 @@ for (j in 1:nrow(MS_mass_lists)) {
     Aff_name <- unique(paste0("Aff(nM):", IC50_aggregation_table_j$`MHC-I_alleles`)) 
     pep[, get("Aff_name") := fifelse(.SD == T, T, F), .SDcols = get("MW.RT.exists.j")]
   }
-  # rm(tmp_2D, not_empty_MS_mass_list)
 } # End 2D filter ~ datasets
 
 

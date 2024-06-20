@@ -101,9 +101,15 @@ cmds <- paste("mono", ThermoRawFileParser,
               "-b", output_MGF)
 
 # Check if files exist - don't repeat RAW -> MGF conversion
-if (any(file.exists(output_MGF))) {
+if (all(file.exists(output_MGF))) {
   cat(as.character(Sys.time()), " - ", "Found existing MGF files", "\n")
   cmds <- cmds[!file.exists(output_MGF)]
+}
+
+# Check if files exist - don't repeat RAW -> MGF conversion
+if (all(file.exists(output_mass_list))) {
+  cat(as.character(Sys.time()), " - ", "Found existing txt files", "\n")
+  cmds <- cmds[!file.exists(output_mass_list)]
 }
 
 if (length(cmds) > 0) {
@@ -115,6 +121,9 @@ if (length(cmds) > 0) {
   })
 } else {
   cat(as.character(Sys.time()), " - ", "All RAW files are converted, nothing to re-run", "\n")
+  SPIsnake_log()
+  sink()
+  quit()
 }
 
 ### ------------------------------------ 2. Export mass lists --------------------------------------------

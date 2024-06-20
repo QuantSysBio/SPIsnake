@@ -72,13 +72,12 @@ if (exists("snakemake")) {
   
   ### Output dir
   directory <- snakemake@params[["directory"]]
-  # directory <- paste0(directory, "/", proteome_name)
   suppressWarnings(dir.create(directory))
 } else {
   ### Manual start
   # Protein database
-  proteome <- "data/reference/OpenProt.fasta"
-  proteome_index <- fread(as.character("data/reference/OpenProt.fasta.fai"), 
+  proteome <- "data/reference/SwissProt_UP000005640.fasta"
+  proteome_index <- fread(as.character("data/reference/SwissProt_UP000005640.fasta.fai"), 
                           col.names =  c("NAME", "LENGTH", "OFFSET", "LINEBASES", "LINEWIDTH"), 
                           sep = "\t", nThread = Ncpu)
   
@@ -87,7 +86,7 @@ if (exists("snakemake")) {
   proteome_name <- unlist(strsplit(proteome_name, ".fasta", fixed = T))[1]
   
   # Clustering
-  prot_cluster <- fread("results/Cluster/OpenProt/OpenProt_cluster.tsv", 
+  prot_cluster <- fread("results/Cluster/SwissProt_UP000005640/SwissProt_UP000005640_cluster.tsv", 
                         col.names =  c("V1", "V2"), 
                         sep = "\t", 
                         nThread = Ncpu)
@@ -101,7 +100,8 @@ if (exists("snakemake")) {
   
   ### Params:
   # max intervening sequence length
-  MiSl <- c(25, 50)
+  # MiSl <- c(25, 50)
+  MiSl <- 25L
   
   # Input proteome filter
   min_protein_length <- 8L
@@ -148,6 +148,7 @@ if (FALSE %in% (proteome_index$desc %in% prot_cluster$V2)) {
   Uniprot_headers <- stri_extract(proteome_index$desc, 
                                   regex = "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}") %>%
     unique()
+  
   if (length(Uniprot_headers) == 1) {
     Uniprot_headers <- ifelse(is.na(Uniprot_headers), "P00000", Uniprot_headers)
     if (!Uniprot_headers == "P00000") {
@@ -155,7 +156,11 @@ if (FALSE %in% (proteome_index$desc %in% prot_cluster$V2)) {
                                      stri_extract(proteome_index$desc, regex = "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"),
                                      proteome_index$desc)
     }
-  } 
+  } else {
+    proteome_index$desc <- fifelse(stri_detect_regex(proteome_index$desc, pattern = "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"),
+                                   stri_extract(proteome_index$desc, regex = "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"),
+                                   proteome_index$desc)
+  }
 }
 
 # If there are sequences in the index, but not in the cluster - add them
@@ -181,10 +186,8 @@ for (i in seq_along(unique(maxE))) {
 
 ### Save outputs
 if (exists("snakemake")) {
-  # fwrite(prot_cluster_sort, file = unlist(snakemake@output[["Split_prot_cluster"]]), append = F, sep = ",", nThread = Ncpu)
   write_parquet(x = prot_cluster_sort, unlist(snakemake@output[["Split_prot_cluster"]]))
   sink()
 } else {
-  # fwrite(prot_cluster_sort, file = paste0(directory, "/", proteome_name, ".csv"), append = F, sep = ",", nThread = Ncpu)
   write_parquet(x = prot_cluster_sort, paste0(directory, "/", proteome_name, ".parquet"))
 }

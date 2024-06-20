@@ -1,3 +1,5 @@
+"""Snakemake rules for the workflow"""
+
 from glob import glob
 from os.path import join
 import random
@@ -450,11 +452,6 @@ rule Aggregare_Stats:
         dir_DB_PTM_mz=dir_DB_PTM_mz,
         dir_DB_out=dir_DB_out,
         strata_sizes=features["Statistics"]["strata_sizes"],
-        filtering_sizes=features["Statistics"]["filtering_sizes"],
-        multimapping_within_strata=features["Statistics"]["multimapping_within_strata"],
-        multimapping_between_strata=features["Statistics"]["multimapping_between_strata"],
-        multimapping_filtering_steps=features["Statistics"]["multimapping_filtering_steps"],
-        PTM_stats_masslist=features["Statistics"]["PTM_stats_masslist"],
-        PTM_stats_peptide=features["Statistics"]["PTM_stats_peptide"]
+        filtering_sizes=features["Statistics"]["filtering_sizes"]
     script:
         "02_4_5_Statistics.R"

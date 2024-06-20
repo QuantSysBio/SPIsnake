@@ -1,3 +1,15 @@
+### ---------------------------------------------- SPIsnake: main ----------------------------------------------
+# description:  Create unique .FASTA outputs
+#               
+# input:        1. Generate_peptides rules are done
+#               2. Peptide sequences are saved as .FASTA and .CSV per chunk. 
+#                  For PTM-modified peptides, there should exist arrow datasets
+#               3. Experiment_design, Master_table_expanded
+# output:       
+#               - Unique peptides per Biological group as defined in Experiment_design
+#               
+# author:       YH, JL, HPR
+
 ### ---------------------------- Common variables ----------------------------
 monoisotopic_masses <- data.frame(
   AA = c("A","C","D","E","F","G","H","I","K","L","M","N","P","Q","R","S","T","V","W","Y"),
@@ -89,16 +101,13 @@ translateCP <- function(CP,peptide){
   rm(CPseq)
 }
 
-
 # compute all PSP with length == nmer
 computeSPcomplete <- function(cp,maxL,minL,MiSl){
-  ## aded L!=maxL
   SP = numeric()
   N = dim(cp)[1]
   NN = 5 * (10**6)
   
   SP = matrix(NA,NN,4)
-  #print(SP)
   a = 1
   # repeat as many times as you have cp
   for(i in 1:N){
@@ -108,12 +117,7 @@ computeSPcomplete <- function(cp,maxL,minL,MiSl){
     temp4 = cp[,2]
     
     L = temp4-temp3+temp2-temp1+2
-    
-    # L!=maxL
     ind = which(((temp3-temp2)==1)|(L>maxL)|(L<minL)|((temp3-temp2)>(MiSl+1))|((temp1-temp4)>(MiSl+1))|((temp3<=temp2)&(temp4>=temp1)))
-    
-    #print("ind")    
-    #print(ind)
     
     if(length(ind)>0){
       temp1 = temp1[-ind]
@@ -136,10 +140,7 @@ computeSPcomplete <- function(cp,maxL,minL,MiSl){
         SP[c(a:(a+length(temp1)-1)),4] = temp4
       }
       a = a+length(temp1)
-      
-      #return("1")
     }
-    #
   }
   # remove all empty lines from SP
   if(a<NN){
@@ -151,32 +152,21 @@ computeSPcomplete <- function(cp,maxL,minL,MiSl){
 
 CutAndPaste_seq_return_sp <- function(inputSequence,nmer,MiSl){
   ### Makes PCP, cis-PSP, revcis-PCP from a given input
-  # names(inputSequence)="test"
   
   results = list()
   peptide = strsplit(inputSequence,"")[[1]]
-  #print(peptide)
   L = length(peptide)
   
   if(L>nmer){
-    #print("L>nmer")
     
     # compute all PCP with length <=nmer
     cp = computeCPomplete(L, nmer)
-    # print("compute all PCP with length")
     
     # get all PCP with length == nmer
     index = which((cp[,2]-cp[,1]+1) ==nmer)
     cpNmer = cp[index,]
-    # print("got all Nmer PCP")
-    # print("cp, cpNmer")
-    # print(cp)
-    # print(cpNmer)
-    #CPseq = translateCP(cpNmer,peptide)
-    # print("CP translated")
     
     if(length(cp[,1])>1){
-      # print("length(cp[,1])>1")
       
       ## these are the indicese
       sp = computeSPcomplete(cp,maxL=nmer,minL=nmer,MiSl=MiSl)
@@ -206,7 +196,7 @@ read_MW_file <- function(file, num_threads){
     lazy_dt() %>%
     mutate(MW_Min = Precursor_mass - Precursor_mass * tolerance * 10 ** (-6)) %>%
     mutate(MW_Max = Precursor_mass + Precursor_mass * tolerance * 10 ** (-6)) %>%
-    # Min/sec for RT
+    ### Min/sec for RT
     # mutate(RT = RT / 60) %>%
     mutate(RT_Min = RT - RT_tolerance) %>%
     mutate(RT_Max = RT + RT_tolerance) %>%
@@ -232,7 +222,7 @@ computeMZ_biostrings <- function(seq, AAs = monoisotopic_masses$AA, masses = mon
 }
 
 ### ---------------------------- RT filtering ----------------------------
-regression_stats <- function(obs, pred, quantile_user = 0.95){
+regression_stats <- function(obs, pred, quantile_user = 0.99){
   # lm
   data = data.frame(pred = pred, 
                     obs = obs)
@@ -320,9 +310,6 @@ getPTMcombinations_fixed <- function(s = peptide, m = MW, mods_input=mods){
                 unlist(find_ka(aa = strsplit(s, split="")[[1]], 
                                mods_input = list(mods_input))))
   
-  # modId <- na.omit(mods_input$Id[modIndex])
-  # modDelta <- na.omit(as.numeric(mods_input$MonoMass[modIndex]))
-  
   # generate final mod sequences with delta Masses
   PTM_fixed <- data.table(peptide = s,
                           ids = str_c(sort(na.omit(mods_input$Id[modIndex])), collapse = ";"),
@@ -386,7 +373,6 @@ memfree <- function(){
 
 terminate_duckdb <- function(conn = conn){
   cat(as.character(Sys.time()), " - ", "disconnecting and shutting down duckdb ", "\n")
-  # DBI::dbDisconnect(conn, shutdown = TRUE)
   duckdb::duckdb_shutdown(duckdb::duckdb())
   rm(conn, DB_duck)
 }
@@ -433,31 +419,6 @@ try_with_time_limit <- function(expr, cpu = Inf, elapsed = Inf) {
   y <- try({setTimeLimit(cpu, elapsed); expr}, silent = TRUE) 
   if(inherits(y, "try-error")) NULL else y 
 }
-
-# aggregate_peptide_mapping <- function(DB_pep_map, 
-#                                       DB_groups_i,
-#                                       output_dir = "peptide_mapping"){
-#   DB_groups_i %>%
-#     left_join(DB_pep_map) %>%
-#     pull(filename) %>%
-#     unique() %>%
-#     open_dataset() %>%
-#     mutate(length = nchar(peptide)) %>%
-#     mutate(MiSl = local(DB_groups_i$MiSl)) %>%
-#     mutate(proteome = local(DB_groups_i$proteome)) %>%
-#     mutate(index = local(DB_groups_i$index)) %>%
-#     mutate(enzyme = local(DB_groups_i$enzyme)) %>%
-#     to_duckdb() %>%
-#     to_arrow() %>%
-#     group_by(index, length, proteome, enzyme, MiSl) %>%
-#     write_dataset(path = output_dir,
-#                   existing_data_behavior = "overwrite",
-#                   format = "parquet",
-#                   max_partitions = 10240L,
-#                   max_rows_per_file = as.integer(2 * 10^8),
-#                   compression = "lz4") 
-#   return(TRUE)
-# }
 
 aggregate_peptide_mapping <- function(input_path = paste0(dir_DB_exhaustive, "/peptide_mapping/"), 
                                       DB_groups_i,

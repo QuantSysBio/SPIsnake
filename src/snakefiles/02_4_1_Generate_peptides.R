@@ -1,23 +1,23 @@
 ### ---------------------------------------------- Generate PCP/PSP ----------------------------------------------
 # description:  Generate unique PCP/PSP sequences
 #               
-# input:        1. Confirmed existance of Proteome_chunk.fasta
+# input:        1. Confirmed existence of Proteome_chunk.fasta
 #               2. Parameters: index_length, peptide length, min_intervening_sequence length, output directory
 # output:       
 #               Output files are saved in chunks that depend on first N=index_length letters of a peptide
-#               - Unique sequences .fst
-#               - Protein-peptide mapping .fst
-#               - Peptide generation stats .csv
+#               - Unique sequences .parquet
+#               - Protein-peptide mapping .parquet
 #               
-# author:       YH, JL, KP
+# author:       YH, JL
 
 ### ---------------------------- (1) Proteome pre-processing --------------------------------------
 cat(as.character(Sys.time()), " - ", "Proteome chunk extraction: Start \n")
+Uniprot_regex <- "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"
 
 # Extract Uniprot headers like in mmseqs2
 if (FALSE %in% (names(dat) %in% proteome_index$desc)) {
-  names(dat) <- ifelse(stri_detect_regex(names(dat), pattern = "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"),
-                       stri_extract(names(dat), regex = "[OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}"),
+  names(dat) <- ifelse(stri_detect_regex(names(dat), pattern = Uniprot_regex),
+                       stri_extract(names(dat), regex = Uniprot_regex),
                        names(dat))
 }
 
@@ -258,21 +258,9 @@ suppressWarnings(rm(dat, dat_sort, dat_split, add_X, index_list_result, inputs, 
 if (exists("peptides")) {
   cat(as.character(Sys.time()), " - ", "Saving peptide mapping \n")
   
-  # peptides[1:nrow(peptides)] %>%
-  #   as_arrow_table() %>%
-  #   mutate(proteome = chunk_params$proteome) %>%
-  #   mutate(MiSl = chunk_params$MiSl) %>%
-  #   mutate(chunk = chunk_params$chunk) %>%
-  #   group_by(index, length, proteome, enzyme, MiSl, chunk) %>%
-  #   write_dataset(path = paste0(dir_DB_exhaustive, "/peptide_mapping/"),
-  #                 existing_data_behavior = "overwrite",
-  #                 format = "parquet",
-  #                 max_partitions = 10240L,
-  #                 compression = "lz4")
   peptides <- peptides[, c("proteome", "MiSl", "chunk") := list(chunk_params$proteome, 
                                                                 chunk_params$MiSl, 
                                                                 chunk_params$chunk)] 
-  
   peptides[1:nrow(peptides), 
            write_dataset(group_by(as_arrow_table(.SD), 
                                   length, proteome, enzyme, MiSl, chunk), 

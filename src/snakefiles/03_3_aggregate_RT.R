@@ -34,8 +34,7 @@ if (exists("snakemake")) {
   quantile_user <- as.numeric(snakemake@params[["quantile"]])
   
 } else {
-  ### Manual startup
-  ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
+  ### Manual start
   cmd_RT_test <- fread("results/RT_prediction/cmd_RT_test.csv", sep=',') %>% as_tibble()
   method <- "achrom"
   quantile_user = 0.95

@@ -1,0 +1,9 @@
+Id,UnimodId,Name,Description,Composition,AvgMass,MonoMass,Site,Position,Classification,SpecGroup,NeutralLoss,LastModified,Approved,Hidden
+Acetyl:N-term,1,Acetyl,Acetylation,H(2) C(2) O,42.0367,42.010565,N-term,Any N-term,Multiple,2,FALSE,2017-11-08 16:08:56,TRUE,FALSE
+Carbamidomethyl:C,4,Carbamidomethyl,Iodoacetamide derivative,H(3) C(2) N O,57.0513,57.021464,C,Anywhere,Chemical derivative,1,FALSE,2017-10-09 10:27:10,TRUE,FALSE
+Deamidated:Q,7,Deamidated,Deamidation,H(-1) N(-1) O,0.9848,0.984016,Q,Anywhere,Artefact,1,FALSE,2011-05-12 08:53:06,FALSE,FALSE
+Deamidated:N,7,Deamidated,Deamidation,H(-1) N(-1) O,0.9848,0.984016,N,Anywhere,Artefact,1,FALSE,2011-05-12 08:53:06,FALSE,FALSE
+Phospho:T,21,Phospho,Phosphorylation,H O(3) P,79.9799,79.966331,T,Anywhere,Post-translational,1,FALSE,2011-11-25 10:55:54,TRUE,FALSE
+Phospho:S,21,Phospho,Phosphorylation,H O(3) P,79.9799,79.966331,S,Anywhere,Post-translational,1,FALSE,2011-11-25 10:55:54,TRUE,FALSE
+Phospho:Y,21,Phospho,Phosphorylation,H O(3) P,79.9799,79.966331,Y,Anywhere,Post-translational,2,FALSE,2011-11-25 10:55:54,TRUE,FALSE
+Oxidation:M,35,Oxidation,Oxidation or Hydroxylation,O,15.9994,15.994915,M,Anywhere,Artefact,8,FALSE,2017-10-06 17:05:11,FALSE,FALSE

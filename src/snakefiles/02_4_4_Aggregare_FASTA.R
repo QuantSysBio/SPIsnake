@@ -1,5 +1,5 @@
 ### ---------------------------------------------- SPIsnake: main ----------------------------------------------
-# description:  Create unique .FASTA outputs and their .CSV descriptions
+# description:  Create unique .FASTA outputs
 #               
 # input:        1. Generate_peptides rules are done
 #               2. Peptide sequences are saved as .FASTA and .CSV per chunk. 
@@ -8,7 +8,7 @@
 # output:       
 #               - Unique peptides per Biological group as defined in Experiment_design
 #               
-# author:       Yehor Horokhovskyi
+# author:       YH
 
 ### Log
 if (exists("snakemake")) {
@@ -63,7 +63,6 @@ if (exists("snakemake")) {
   filename <- snakemake@output[[1]]
 } else {
   ### Manual startup
-  ### setwd("/home/yhorokh/data/Results_reports/wd/SPIsnake-3")
   
   # Master_table_expanded
   Master_table_expanded <- fread("results/DB_exhaustive/Master_table_expanded.csv") %>% as_tibble()
@@ -106,12 +105,14 @@ aggregation_batch_i <- str_split_fixed(aggregation_batch_i, "results/DB_out/.", 
 
 duckdb_temp_dir <- paste0(dir_DB_out, "/duckdb/tmp/unique_peptides_", aggregation_batch_i, "/")
 table_name = paste0(dir_DB_out, "/duckdb/databases/", "duckdb_aggregate_unique_", aggregation_batch_i)
-Max_RAM <- 240
+
+Max_RAM <- system("free -g", intern = T)[[2]] %>% 
+  gsub(pattern = "\\s+", replacement = " ") %>% 
+  str_split_i(pattern = " ", i = 2) %>% 
+  as.numeric()
+
 timeout <- 90
 duckdb_RAM <- Max_RAM * duckdb_RAM
-
-# DB_PTM_mz <- fread("results/DB_out/DB_PTM_mz.csv", nThread = Ncpu) %>%
-#   as_tibble()
 
 ##№ ----------------------------------- Define groups -----------------------------------
 ### Arrow dataset
@@ -122,7 +123,6 @@ DB_arrow_files <- DB_arrow$files %>%
   mutate(filename = value) %>%
   mutate(file_size = file.size(filename)) %>%
   mutate(value = str_split_fixed(value, "/arrow/", 2)[,2]) %>%
-  # mutate(value = str_split_fixed(value, "/peptide_mapping_regroup/", 2)[,2]) %>%
   mutate(value = str_split_fixed(value, "/part-", 2)[,1]) %>%
   mutate(value = str_remove_all(value, "enzyme=|MiSl=|proteome=|index=|length=")) %>%
   separate(value, into = c("index", "length", "proteome", "enzyme", "MiSl"), sep = "/")  %>%

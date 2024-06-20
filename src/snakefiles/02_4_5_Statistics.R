@@ -7,7 +7,7 @@
 # output:       
 #               - Statistics of peptide search space: strata sizes and multimapping
 #               
-# author:       YH, JL, KP
+# author:       YH, JL
 
 ### Log
 if (exists("snakemake")) {
@@ -52,11 +52,6 @@ if (exists("snakemake")) {
   Stats_ctrl <- list()
   Stats_ctrl$strata_sizes <- snakemake@params[["strata_sizes"]]
   Stats_ctrl$filtering_sizes <- snakemake@params[["filtering_sizes"]]
-  Stats_ctrl$multimapping_within_strata <- snakemake@params[["multimapping_within_strata"]]
-  Stats_ctrl$multimapping_between_strata <- snakemake@params[["multimapping_between_strata"]]
-  Stats_ctrl$multimapping_filtering_steps <- snakemake@params[["multimapping_filtering_steps"]]
-  Stats_ctrl$PTM_stats_masslist <- snakemake@params[["PTM_stats_masslist"]]
-  Stats_ctrl$PTM_stats_peptide <- snakemake@params[["PTM_stats_peptide"]]
   
   # Directories
   dir_DB_exhaustive <- snakemake@params[["dir_DB_exhaustive"]]
@@ -68,9 +63,7 @@ if (exists("snakemake")) {
   filename_out <- filename
   
 } else {
-  ### Manual startup
-  ### setwd("/home/yhorokh/data/Results_reports/wd/SPIsnake-3")
-  
+  ### Manual start
   # Master_table_expanded
   Master_table_expanded <- fread("results/DB_exhaustive/Master_table_expanded.csv") %>% as_tibble()
   
@@ -89,11 +82,6 @@ if (exists("snakemake")) {
   Stats_ctrl <- list()
   Stats_ctrl$strata_sizes <- TRUE
   Stats_ctrl$filtering_sizes <- TRUE
-  Stats_ctrl$multimapping_within_strata <- TRUE
-  Stats_ctrl$multimapping_between_strata <- TRUE
-  Stats_ctrl$multimapping_filtering_steps <- TRUE
-  Stats_ctrl$PTM_stats_masslist <- TRUE
-  Stats_ctrl$PTM_stats_peptide <- TRUE  
   
   # Directories
   dir_DB_exhaustive <- "results/DB_exhaustive/"
@@ -281,40 +269,7 @@ if (Stats_ctrl$filtering_sizes) {
   cat(as.character(Sys.time()), " - ", "Estimate filtered strata sizes: Done", "\n")
 }
 
-### ---------------------------- (4) Multimapping within strata --------------------------------------
-if (Stats_ctrl$multimapping_within_strata) {
-  # Unfiltered
-  
-  if (Stats_ctrl$multimapping_filtering_steps) {
-    # MW
-    
-    # MW.RT
-    
-    # MW.RT.IC50
-  }
-}
-### ---------------------------- (5) Multimapping between strata --------------------------------------
-if (Stats_ctrl$multimapping_between_strata) {
-  # Unfiltered
-  
-  if (Stats_ctrl$multimapping_filtering_steps) {
-    # MW
-    
-    # MW.RT
-    
-    # MW.RT.IC50
-  }
-}
-### ---------------------------- (6) PTM stats per mass_list --------------------------------------
-if (Stats_ctrl$PTM_stats_masslist) {
-  
-}
-### ---------------------------- (7) PTM stats per peptide --------------------------------------
-if (Stats_ctrl$PTM_stats_peptide) {
-  
-}
-
-### ---------------------------- (8) Save outputs --------------------------------------
+### ---------------------------- Save outputs --------------------------------------
 ### tables
 for (i in seq_along(SPIsnake_stats)) {
   fwrite(SPIsnake_stats[[i]], file = paste0(dir_DB_out, "/Stats/", names(SPIsnake_stats)[[i]], ".csv"), 
@@ -324,7 +279,6 @@ for (i in seq_along(SPIsnake_stats)) {
 }
 
 ### plots
-
 ### Log
 if (exists("snakemake")) {
   SPIsnake_log()

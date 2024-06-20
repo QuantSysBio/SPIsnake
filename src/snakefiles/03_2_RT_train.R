@@ -37,7 +37,6 @@ if (exists("snakemake")) {
   
 } else {
   ### Manual startup
-  ### setwd("/home/yhorokh/SNAKEMAKE/SPIsnake")
   RT_dataset = "results/RT_prediction/RT_models/nan/model.json"
   out <- RT_dataset
   cmd_RT_train = fread(file = "results/RT_prediction/cmd_RT_train.csv", sep=',')

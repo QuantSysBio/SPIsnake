@@ -33,7 +33,6 @@ print("Loaded functions. Loading the data")
 if (exists("snakemake")) {
   arrow_batch_definition <- fread(snakemake@input[["arrow_batch_definition"]])
   glimpse(arrow_batch_definition)
-  # DB_PTM_mz <- fread(snakemake@input[["DB_PTM_mz"]])
   
   # CPUs
   active_Slurm <- ifelse(system("echo $SLURM_JOB_ID") != 0, TRUE, FALSE)
@@ -54,7 +53,6 @@ if (exists("snakemake")) {
   filename <- snakemake@output[[1]]
 } else {
   arrow_batch_definition <- fread("results/DB_out/arrow_batch_definition.csv")
-  # DB_PTM_mz <- fread("results/DB_out/DB_PTM_mz.csv")
   
   # CPUs
   Ncpu <- min(parallelly::availableCores() - 1)
@@ -85,7 +83,11 @@ aggregation_batch_i
 
 duckdb_temp_dir <- paste0(dir_DB_out, "/duckdb/tmp/unique_peptides_", aggregation_batch_i, "/")
 table_name = paste0(dir_DB_out, "/duckdb/databases/", "duckdb_aggregate_unique_", aggregation_batch_i)
-Max_RAM <- 100
+Max_RAM <- system("free -g", intern = T)[[2]] %>% 
+  gsub(pattern = "\\s+", replacement = " ") %>% 
+  str_split_i(pattern = " ", i = 2) %>% 
+  as.numeric()
+
 timeout <- 90
 duckdb_RAM <- Max_RAM * duckdb_RAM
 duckdb_max_retries = 20

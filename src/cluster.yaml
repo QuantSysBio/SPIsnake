@@ -6,5 +6,5 @@ __default__:
   mem: "{resources.mem}"
   mempercpu: 3G
   job-name: "{rule}"
-  output: "outfiles/spisnake-%J.out"
-  chdir: '/data/SPIsnake/v3_new/decoy_K562_PCP_expressed'
+  output: "../outfiles/spisnake-%J.out"
+  chdir: '/data/home/yhorokh/wd/DB_size/test_github/SPIsnake/'

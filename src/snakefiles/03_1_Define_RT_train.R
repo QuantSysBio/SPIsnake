@@ -52,7 +52,6 @@ if (exists("snakemake")) {
   
 } else {
   ### Manual startup
-  ### setwd("/home/yhorokh/SNAKEMAKE/QSB_SPIsnake/")
   Experiment_design <- fread("data/Experiment_design.csv") %>% as_tibble()
   method = "achrom"
   n_folds = 10

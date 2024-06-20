@@ -6,7 +6,7 @@
 # output:       
 #               - Unique peptides as arrow datasets collected across chunks
 #               
-# author:       Yehor Horokhovskyi
+# author:       YH
 
 ### Log
 if (exists("snakemake")) {
@@ -16,7 +16,6 @@ if (exists("snakemake")) {
 cat(as.character(Sys.time()), " - ", "Started R", "\n")
 cat(as.character(Sys.time()), " - ", R.utils::getHostname.System(), "\n")
 
-# setwd("/data/home/yhorokh/wd/Snakemake/SPIsnake_3")
 suppressPackageStartupMessages(library(arrow))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(data.table))
@@ -100,18 +99,6 @@ arrow_batch_definition_map <- paste0(dir_DB_exhaustive, "peptide_mapping/") %>%
   mutate(index = str_remove_all(chunk, pattern = "index="))
 arrow_batch_definition_map
 
-# tmp <- lapply(arrow_batch_definition_map$chunk, function(i){
-#   paste0(dir_DB_exhaustive, "peptide_mapping/", i) %>%
-#     list.files() %>%
-#     as_tibble() %>%
-#     mutate(value = str_remove_all(value, pattern = "length=")) %>%
-#     rename(length = value) 
-# }) 
-# names(tmp) <- arrow_batch_definition_map$chunk
-# arrow_batch_definition_map <- bind_rows(tmp, .id = "chunk") %>%
-#   right_join(arrow_batch_definition_map) %>%
-#   relocate(index, length, aggregation_batch) 
-
 cat(as.character(Sys.time()), " - ", "Peptide mapping", "\n")
 cat(as.character(Sys.time()), " - ", "Defined chunks for processing:",  length(unique(arrow_batch_definition_map$chunk)), "\n")
 cat(as.character(Sys.time()), " - ", "Defined batches for processing:",  length(unique(arrow_batch_definition_map$aggregation_batch)), "\n")
@@ -124,24 +111,12 @@ if (exists("snakemake")) {
   fwrite(arrow_batch_definition_map, sep = ",", append = FALSE,
          file =  unlist(snakemake@output[["arrow_batch_definition_map"]]), col.names = T)
   
-  # fwrite(as_tibble(DB_PTM_mz_files), sep = ",", append = FALSE,
-  #        file =  unlist(snakemake@output[["DB_PTM_mz"]]), col.names = T)
-  # 
-  # fwrite(as_tibble(DB_pep_map_files), sep = ",", append = FALSE,
-  #        file =  unlist(snakemake@output[["DB_pep_map"]]), col.names = T)
-  
 } else {
   fwrite(arrow_batch_definition, sep = ",", append = FALSE,
          file = paste0(dir_DB_out, "/arrow_batch_definition.csv"), col.names = T)  
   
   fwrite(arrow_batch_definition_map, sep = ",", append = FALSE,
          file = paste0(dir_DB_out, "/arrow_batch_definition_map.csv"), col.names = T)
-  
-  # fwrite(as_tibble(DB_PTM_mz_files), sep = ",", append = FALSE,
-  #          file = paste0(dir_DB_out, "/DB_PTM_mz.csv")) 
-  # 
-  # fwrite(as_tibble(DB_pep_map_files), sep = ",", append = FALSE,
-  #        file = paste0(dir_DB_out, "/DB_pep_map.csv"), col.names = T)
 }
 
 ### Log
