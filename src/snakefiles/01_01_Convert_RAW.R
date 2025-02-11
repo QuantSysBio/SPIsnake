@@ -121,9 +121,9 @@ if (length(cmds) > 0) {
   })
 } else {
   cat(as.character(Sys.time()), " - ", "All RAW files are converted, nothing to re-run", "\n")
-  SPIsnake_log()
-  sink()
-  quit()
+  # SPIsnake_log()
+  # sink()
+  # quit()
 }
 
 ### ------------------------------------ 2. Export mass lists --------------------------------------------
@@ -171,7 +171,7 @@ if (length(allowed_modifications) > 0) {
 
 # Export RT info for calibration
 PEAKS_PSM_out <- PEAKS_PSM_filt %>%
-  .[, `Source File` := str_remove_all(`Source File`, pattern = ".raw")] %>%
+  .[, `Source File` := str_remove_all(`Source File`, pattern = ".raw|.mgf")] %>%
   .[`Source File` %in% Experiment_design$Filename] %>%
   .[, .(`Source File`, pep_seq, RT, Scan)] %>%
   setnames(new = c("Source File", "s", "rt", "scans")) %>%
@@ -187,7 +187,7 @@ if (any(!Experiment_design$Filename %in% names(PEAKS_PSM_out))) {
   cat(as.character(Sys.time()), " - ", "Error: missing PEAKS RAW files:", 
       str_c(missing_files, collapse = ";"),
       "\n")
-  stop()
+  # stop()
 }
 
 # Save tables
